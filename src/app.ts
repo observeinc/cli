@@ -1,6 +1,9 @@
 import { buildApplication, buildRouteMap } from "@stricli/core";
 import { name } from "../package.json";
 import { alertRoutes } from "./commands/alert/index.js";
+import { dataConnectionRoutes } from "./commands/data-connection/index.js";
+import { datasourceRoutes } from "./commands/datasource/index.js";
+import { datastreamTokenRoutes } from "./commands/datastream-token/index.js";
 import { authRoutes } from "./commands/auth/index.js";
 import { cliRoutes } from "./commands/cli/index.js";
 import { contentRoutes } from "./commands/content/index.js";
@@ -25,6 +28,9 @@ export const routes = buildRouteMap({
     dataset: datasetRoutes,
     metric: metricRoutes,
     alert: alertRoutes,
+    "data-connection": dataConnectionRoutes,
+    datasource: datasourceRoutes,
+    "datastream-token": datastreamTokenRoutes,
     skill: skillRoutes,
     query: queryCommand,
     content: contentRoutes,

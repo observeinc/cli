@@ -1,0 +1,34 @@
+mutation CreateDataConnection(
+  $workspaceId: ObjectId
+  $input: DataConnectionInput!
+) {
+  createDataConnection(workspaceId: $workspaceId, input: $input) {
+    id
+    name
+    workspaceId
+    moduleID
+    version
+    datasources {
+      id
+      name
+      type
+      datastreamTokenID
+      config {
+        datasourceFiledropConfig {
+          dataAccessPointArn
+          destinationUri
+          filedrop {
+            id
+            datastreamTokenID
+          }
+        }
+        awsMetricsPollerConfig {
+          poller {
+            id
+            datastreamTokenId
+          }
+        }
+      }
+    }
+  }
+}

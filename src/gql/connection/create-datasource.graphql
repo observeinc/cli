@@ -1,0 +1,24 @@
+mutation CreateDatasource($workspaceId: ObjectId, $input: DatasourceInput!) {
+  createDatasource(workspaceId: $workspaceId, input: $input) {
+    id
+    name
+    type
+    datastreamTokenID
+    config {
+      datasourceFiledropConfig {
+        dataAccessPointArn
+        destinationUri
+        filedrop {
+          id
+          datastreamTokenID
+        }
+      }
+      awsMetricsPollerConfig {
+        poller {
+          id
+          datastreamTokenId
+        }
+      }
+    }
+  }
+}

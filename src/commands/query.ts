@@ -9,6 +9,7 @@ import {
   type GqlDatasetQueryField,
   type PaginatedResults,
 } from "../gql/dataset/dataset-query-output";
+import { DataType } from "../gql/generated/graphql";
 import { formatTable, type ColumnDef } from "../lib/formatters/table";
 import { valueToString } from "../lib/formatters/value";
 import { renderAsCSV } from "../lib/formatters/csv";
@@ -264,16 +265,16 @@ function getFieldFormatter(
   if (!field) return undefined;
 
   switch (field.type.tag) {
-    case "INT64":
-    case "FLOAT64":
+    case DataType.Int64:
+    case DataType.Float64:
       return (v) => cyan(valueToString(v));
-    case "BOOL":
+    case DataType.Bool:
       return (v) => (isTruthyBool(v) ? green("true") : red("false"));
-    case "TIMESTAMP":
+    case DataType.Timestamp:
       return (v) => muted(valueToString(v));
-    case "OBJECT":
-    case "VARIANT":
-    case "ARRAY":
+    case DataType.Object:
+    case DataType.Variant:
+    case DataType.Array:
       return (v) => yellow(valueToString(v));
     default:
       return undefined;

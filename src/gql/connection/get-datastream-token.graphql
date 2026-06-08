@@ -1,0 +1,13 @@
+query GetDatastreamToken($id: String!) {
+  datastreamToken(id: $id) {
+    id
+    name
+    stats {
+      firstIngest
+      lastIngest
+      observations {
+        value
+      }
+    }
+  }
+}

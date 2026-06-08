@@ -19,9 +19,9 @@ export async function detectCaller({
 }: {
   determineAgent?: typeof import("@vercel/detect-agent").determineAgent;
 } = {}) {
-  const determineAgent =
+  const detectFn =
     determineAgentFn ?? (await import("@vercel/detect-agent")).determineAgent;
-  const { isAgent, agent } = await determineAgent();
+  const { isAgent, agent } = await detectFn();
   if (!isAgent) {
     return undefined;
   }

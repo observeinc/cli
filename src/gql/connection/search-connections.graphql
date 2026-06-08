@@ -1,0 +1,49 @@
+query SearchDataConnections(
+  $workspaceId: ObjectId
+  $nameExact: String
+  $nameSubstring: String
+  $moduleId: String
+) {
+  searchDataConnection(
+    workspaceId: $workspaceId
+    nameExact: $nameExact
+    nameSubstring: $nameSubstring
+    moduleID: $moduleId
+  ) {
+    results {
+      id
+      name
+      workspaceId
+      moduleID
+      version
+      datasources {
+        id
+        name
+        type
+        datastreamTokenID
+        config {
+          datasourceFiledropConfig {
+            dataAccessPointArn
+            destinationUri
+          }
+          awsCollectionStackConfig {
+            awsServiceMetricsList {
+              namespace
+              metricNames
+            }
+            configResourceList
+            logGroupNamePatterns
+            excludeLogGroupNamePatterns
+            sourceBucketNames
+          }
+          awsMetricsPollerConfig {
+            poller {
+              id
+              datastreamTokenId
+            }
+          }
+        }
+      }
+    }
+  }
+}
