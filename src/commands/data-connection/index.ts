@@ -1,11 +1,11 @@
 import { buildRouteMap } from "@stricli/core";
-import { createConnectionCommand } from "./create.js";
+import { createConnectionRoutes } from "./create/index.js";
 import { listCommand } from "./list.js";
 import { viewCommand } from "./view.js";
 
 export const dataConnectionRoutes = buildRouteMap({
   routes: {
-    create: createConnectionCommand,
+    create: createConnectionRoutes,
     list: listCommand,
     view: viewCommand,
   },
