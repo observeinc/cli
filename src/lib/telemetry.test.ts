@@ -52,4 +52,21 @@ describe("redactArgv", () => {
     const { redactArgv } = await import("./telemetry");
     expect(redactArgv(["cmd", "--token"])).toEqual(["cmd", "--token"]);
   });
+
+  test("redacts --gql-token value (space-separated)", async () => {
+    const { redactArgv } = await import("./telemetry");
+    expect(
+      redactArgv([
+        "datasource",
+        "create-stack-url",
+        "--gql-token",
+        "sk_live_abc123",
+      ]),
+    ).toEqual([
+      "datasource",
+      "create-stack-url",
+      "--gql-token",
+      "<REDACTED>",
+    ]);
+  });
 });

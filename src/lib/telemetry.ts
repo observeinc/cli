@@ -22,6 +22,7 @@ const SENSITIVE_FLAGS = new Set([
   "--secret",
   "--key",
   "--api-key",
+  "--gql-token",
 ]);
 
 export function redactArgv(argv: string[]): string[] {

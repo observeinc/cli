@@ -4,9 +4,9 @@ import { createDatasource } from "../../gql/connection/create-datasource.js";
 import { GqlApiError } from "../../gql/gql-request.js";
 import { loadConfig } from "../../lib/config.js";
 import type { DatasourceConfigInput } from "../../gql/generated/graphql.js";
-import { DatasourceType } from "../../gql/generated/graphql.js";
 import { parseVariables, variablesToArray } from "../../lib/connection-vars.js";
 import { loadDatasourceConfig } from "../../lib/datasource-config.js";
+import { parseDatasourceType } from "./parse.js";
 
 interface CreateDatasourceFlags {
   name: string;
@@ -24,16 +24,6 @@ interface CreateDatasourceFlags {
 
 export interface CreateDatasourceDeps {
   loadConfig?: typeof loadConfig;
-}
-
-function parseDatasourceType(
-  value: string | undefined,
-): DatasourceType | undefined {
-  if (!value) return undefined;
-  const upper = value.toUpperCase();
-  if (upper === "FILEDROP") return DatasourceType.Filedrop;
-  if (upper === "POLLER") return DatasourceType.Poller;
-  return value as DatasourceType;
 }
 
 export async function createDatasourceCmd(

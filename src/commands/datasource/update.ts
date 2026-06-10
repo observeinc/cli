@@ -4,15 +4,15 @@ import { updateDatasource } from "../../gql/connection/update-datasource.js";
 import { GqlApiError } from "../../gql/gql-request.js";
 import { loadConfig } from "../../lib/config.js";
 import type { DatasourceConfigInput } from "../../gql/generated/graphql.js";
-import { DatasourceType } from "../../gql/generated/graphql.js";
 import { parseVariables, variablesToArray } from "../../lib/connection-vars.js";
 import { loadDatasourceConfig } from "../../lib/datasource-config.js";
+import { parseDatasourceType } from "./parse.js";
 
 interface UpdateDatasourceFlags {
   id: string;
-  name: string;
-  connectionId: string;
-  datastreamId: string;
+  name?: string;
+  connectionId?: string;
+  datastreamId?: string;
   type?: string;
   variables?: string;
   config?: string;
@@ -24,16 +24,6 @@ interface UpdateDatasourceFlags {
 
 export interface UpdateDatasourceDeps {
   loadConfig?: typeof loadConfig;
-}
-
-function parseDatasourceType(
-  value: string | undefined,
-): DatasourceType | undefined {
-  if (!value) return undefined;
-  const upper = value.toUpperCase();
-  if (upper === "FILEDROP") return DatasourceType.Filedrop;
-  if (upper === "POLLER") return DatasourceType.Poller;
-  return value as DatasourceType;
 }
 
 export async function updateDatasourceCmd(
@@ -78,9 +68,13 @@ export async function updateDatasourceCmd(
     const datasource = await updateDatasource(config, {
       id: flags.id,
       input: {
-        name: flags.name,
-        dataConnectionID: flags.connectionId,
-        datastreamID: flags.datastreamId,
+        ...(flags.name !== undefined && { name: flags.name }),
+        ...(flags.connectionId !== undefined && {
+          dataConnectionID: flags.connectionId,
+        }),
+        ...(flags.datastreamId !== undefined && {
+          datastreamID: flags.datastreamId,
+        }),
         type: parseDatasourceType(flags.type),
         variables: variablesToArray(vars),
         clientStackAttributes: [],
@@ -114,20 +108,21 @@ export const updateDatasourceCommand = buildCommand({
       name: {
         kind: "parsed",
         parse: String,
-        brief: "Datasource name",
-        optional: false,
+        brief: "Datasource name (only updated if provided)",
+        optional: true,
       },
       connectionId: {
         kind: "parsed",
         parse: String,
-        brief: "ID of the parent data connection",
-        optional: false,
+        brief: "ID of the parent data connection (only updated if provided)",
+        optional: true,
       },
       datastreamId: {
         kind: "parsed",
         parse: String,
-        brief: "Datastream ID associated with this datasource",
-        optional: false,
+        brief:
+          "Datastream ID associated with this datasource (only updated if provided)",
+        optional: true,
       },
       type: {
         kind: "parsed",
