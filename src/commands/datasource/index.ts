@@ -1,13 +1,13 @@
 import { buildRouteMap } from "@stricli/core";
 import { createDatasourceCommand } from "./create.js";
 import { updateDatasourceCommand } from "./update.js";
-import { createStackUrlCommand } from "./create-stack-url.js";
+import { generateStackUrlCommand } from "./generate-stack-url.js";
 
 export const datasourceRoutes = buildRouteMap({
   routes: {
     create: createDatasourceCommand,
     update: updateDatasourceCommand,
-    "create-stack-url": createStackUrlCommand,
+    "generate-stack-url": generateStackUrlCommand,
   },
   docs: {
     brief: "Manage datasources",

@@ -56,7 +56,7 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe data-connection view`          | View a data connection by ID (with its datasources)     |
 | `observe datasource create`             | Create a datasource attached to a data connection       |
 | `observe datasource update`             | Update an existing datasource's config                  |
-| `observe datasource create-stack-url`   | Build a CloudFormation quick-create URL for a filedrop  |
+| `observe datasource generate-stack-url` | Build a CloudFormation quick-create URL for a filedrop  |
 | `observe datastream-token check-status` | Poll a datastream token until ingest data arrives       |
 | `observe metric list`                   | Search and list metrics                                 |
 | `observe metric view`                   | View metric details and dimensions                      |

@@ -25,14 +25,14 @@ interface CreateStackUrlFlags {
   observeAwsAccountId?: string;
 }
 
-export interface CreateStackUrlDeps {
+export interface GenerateStackUrlDeps {
   loadConfig?: typeof loadConfig;
 }
 
-export async function createStackUrl(
+export async function generateStackUrl(
   this: LocalContext,
   flags: CreateStackUrlFlags,
-  deps: CreateStackUrlDeps = {},
+  deps: GenerateStackUrlDeps = {},
 ): Promise<void> {
   const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const { process, writer } = this;
@@ -156,8 +156,8 @@ export async function createStackUrl(
   }
 }
 
-export const createStackUrlCommand = buildCommand({
-  loader: async () => createStackUrl,
+export const generateStackUrlCommand = buildCommand({
+  loader: async () => generateStackUrl,
   parameters: {
     positional: { kind: "tuple", parameters: [] },
     flags: {
@@ -284,7 +284,7 @@ export const createStackUrlCommand = buildCommand({
       "In push mode (default), --observe-account-id, --observe-domain, and\n" +
       "--gql-token auto-load from ~/.observe/config.json.\n\n" +
       "Example:\n" +
-      "  observe datasource create-stack-url \\\n" +
+      "  observe datasource generate-stack-url \\\n" +
       "    --id <datasource-id> --region us-west-2 --stack-name my-aws",
   },
 });

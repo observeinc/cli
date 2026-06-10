@@ -58,13 +58,13 @@ describe("redactArgv", () => {
     expect(
       redactArgv([
         "datasource",
-        "create-stack-url",
+        "generate-stack-url",
         "--gql-token",
         "sk_live_abc123",
       ]),
     ).toEqual([
       "datasource",
-      "create-stack-url",
+      "generate-stack-url",
       "--gql-token",
       "<REDACTED>",
     ]);
