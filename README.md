@@ -53,7 +53,7 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe ingest-token update`           | Update an ingest token                                  |
 | `observe data-connection create`        | Create a data connection (AWS, kubernetes, host, etc.)  |
 | `observe data-connection list`          | List data connections                                   |
-| `observe data-connection view`          | View a data connection by name (with its datasources)   |
+| `observe data-connection view`          | View a data connection by ID (with its datasources)     |
 | `observe datasource create`             | Create a datasource attached to a data connection       |
 | `observe datasource update`             | Update an existing datasource's config                  |
 | `observe datasource create-stack-url`   | Build a CloudFormation quick-create URL for a filedrop  |

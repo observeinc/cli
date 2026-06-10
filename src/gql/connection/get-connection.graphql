@@ -1,0 +1,37 @@
+query GetDataConnection($id: ObjectId!) {
+  dataConnection(id: $id) {
+    id
+    name
+    workspaceId
+    moduleID
+    version
+    datasources {
+      id
+      name
+      type
+      datastreamTokenID
+      config {
+        datasourceFiledropConfig {
+          dataAccessPointArn
+          destinationUri
+        }
+        awsCollectionStackConfig {
+          awsServiceMetricsList {
+            namespace
+            metricNames
+          }
+          configResourceList
+          logGroupNamePatterns
+          excludeLogGroupNamePatterns
+          sourceBucketNames
+        }
+        awsMetricsPollerConfig {
+          poller {
+            id
+            datastreamTokenId
+          }
+        }
+      }
+    }
+  }
+}

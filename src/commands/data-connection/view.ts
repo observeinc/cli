@@ -1,12 +1,8 @@
 import { buildCommand } from "@stricli/core";
 import type { LocalContext } from "../../context.js";
-import { searchConnections } from "../../gql/connection/search-connections.js";
+import { getConnection } from "../../gql/connection/get-connection.js";
 import { GqlApiError } from "../../gql/gql-request.js";
 import { loadConfig } from "../../lib/config.js";
-
-interface ViewConnectionFlags {
-  name: string;
-}
 
 export interface ViewConnectionDeps {
   loadConfig?: typeof loadConfig;
@@ -14,7 +10,8 @@ export interface ViewConnectionDeps {
 
 export async function view(
   this: LocalContext,
-  flags: ViewConnectionFlags,
+  _flags: Record<string, never>,
+  id: string,
   deps: ViewConnectionDeps = {},
 ): Promise<void> {
   const { loadConfig: loadConfigImpl = loadConfig } = deps;
@@ -22,13 +19,8 @@ export async function view(
 
   try {
     const config = loadConfigImpl();
-    const results = await searchConnections(config, { nameExact: flags.name });
-    if (results.length === 0) {
-      writer.error(`No connection found with name: ${flags.name}`);
-      process.exit(1);
-      return;
-    }
-    writer.write(JSON.stringify(results[0], null, 2));
+    const connection = await getConnection(config, { id });
+    writer.write(JSON.stringify(connection, null, 2));
   } catch (error) {
     if (error instanceof GqlApiError) {
       writer.error(`API Error (${error.statusCode}): ${error.message}`);
@@ -43,17 +35,18 @@ export async function view(
 export const viewCommand = buildCommand({
   loader: async () => view,
   parameters: {
-    positional: { kind: "tuple", parameters: [] },
-    flags: {
-      name: {
-        kind: "parsed",
-        parse: String,
-        brief: "Exact connection name to view",
-        optional: false,
-      },
+    positional: {
+      kind: "tuple",
+      parameters: [
+        {
+          brief: "Data connection ID",
+          parse: String,
+        },
+      ],
     },
+    flags: {},
   },
   docs: {
-    brief: "View a data connection by name",
+    brief: "View a data connection by ID",
   },
 });
