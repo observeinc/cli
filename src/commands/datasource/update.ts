@@ -1,10 +1,15 @@
 import { buildCommand } from "@stricli/core";
 import type { LocalContext } from "../../context.js";
+import { getDatasource } from "../../gql/connection/get-datasource.js";
 import { updateDatasource } from "../../gql/connection/update-datasource.js";
 import { GqlApiError } from "../../gql/gql-request.js";
 import { loadConfig } from "../../lib/config.js";
 import type { DatasourceConfigInput } from "../../gql/generated/graphql.js";
-import { parseVariables, variablesToArray } from "../../lib/connection-vars.js";
+import {
+  parseVariables,
+  variablesToArray,
+  type Variables,
+} from "../../lib/connection-vars.js";
 import { loadDatasourceConfig } from "../../lib/datasource-config.js";
 import { parseDatasourceType } from "./parse.js";
 
@@ -37,9 +42,22 @@ export async function updateDatasourceCmd(
   try {
     const config = loadConfigImpl();
 
-    let vars;
+    // Read-modify-write: fetch the existing datasource so we can merge the
+    // user's flags on top and send a complete input. The GQL UpdateDatasource
+    // mutation does full replacement server-side (any field omitted from the
+    // input is clobbered to its zero value), so partial-update UX has to be
+    // synthesized at the CLI layer. This matches the partial-update semantics
+    // Observe's REST PATCH endpoints expose to callers.
+    const existing = await getDatasource(config, { id: flags.id });
+    if (!existing) {
+      writer.error(`Datasource not found: ${flags.id}`);
+      process.exit(1);
+      return;
+    }
+
+    let userVars: Variables;
     try {
-      vars = parseVariables(flags.variables);
+      userVars = parseVariables(flags.variables);
     } catch (e) {
       writer.error(
         `--variables: ${e instanceof Error ? e.message : String(e)}`,
@@ -48,17 +66,26 @@ export async function updateDatasourceCmd(
       return;
     }
 
-    // Named flags override --variables entries
+    // Variables: start from existing, overlay the user's --variables, then
+    // overlay the named --collect-* flags. Anything the user didn't touch is
+    // preserved.
+    const mergedVars: Variables = {};
+    for (const v of existing.variables ?? []) {
+      mergedVars[v.name] = v.value;
+    }
+    for (const [k, v] of Object.entries(userVars)) {
+      mergedVars[k] = v;
+    }
     if (flags.collectLogs !== undefined)
-      vars.collect_logs = String(flags.collectLogs);
+      mergedVars.collect_logs = String(flags.collectLogs);
     if (flags.collectMetrics !== undefined)
-      vars.collect_metrics = String(flags.collectMetrics);
+      mergedVars.collect_metrics = String(flags.collectMetrics);
     if (flags.collectResources !== undefined)
-      vars.collect_resource_info = String(flags.collectResources);
+      mergedVars.collect_resource_info = String(flags.collectResources);
 
-    let datasourceConfig: DatasourceConfigInput | undefined;
+    let userConfig: DatasourceConfigInput | undefined;
     try {
-      datasourceConfig = loadDatasourceConfig(flags.config, flags.configFile);
+      userConfig = loadDatasourceConfig(flags.config, flags.configFile);
     } catch (e) {
       writer.error(e instanceof Error ? e.message : String(e));
       process.exit(1);
@@ -68,17 +95,13 @@ export async function updateDatasourceCmd(
     const datasource = await updateDatasource(config, {
       id: flags.id,
       input: {
-        ...(flags.name !== undefined && { name: flags.name }),
-        ...(flags.connectionId !== undefined && {
-          dataConnectionID: flags.connectionId,
-        }),
-        ...(flags.datastreamId !== undefined && {
-          datastreamID: flags.datastreamId,
-        }),
-        type: parseDatasourceType(flags.type),
-        variables: variablesToArray(vars),
-        clientStackAttributes: [],
-        config: datasourceConfig,
+        name: flags.name ?? existing.name,
+        dataConnectionID: flags.connectionId ?? existing.dataConnectionID,
+        datastreamID: flags.datastreamId ?? existing.datastreamID,
+        type: parseDatasourceType(flags.type) ?? existing.type,
+        variables: variablesToArray(mergedVars),
+        clientStackAttributes: existing.clientStackAttributes ?? [],
+        config: userConfig ?? existing.config,
       },
     });
 

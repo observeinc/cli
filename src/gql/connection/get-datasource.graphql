@@ -2,8 +2,18 @@ query GetDatasource($id: ObjectId!) {
   datasource(id: $id) {
     id
     name
+    dataConnectionID
+    datastreamID
     type
     datastreamTokenID
+    variables {
+      name
+      value
+    }
+    clientStackAttributes {
+      name
+      value
+    }
     config {
       datasourceFiledropConfig {
         dataAccessPointArn
