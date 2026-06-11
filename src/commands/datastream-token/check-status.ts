@@ -6,8 +6,8 @@ import { loadConfig } from "../../lib/config.js";
 
 interface CheckStatusFlags {
   tokenId: string;
-  timeoutSeconds?: string;
-  pollIntervalSeconds?: string;
+  timeoutSeconds?: number;
+  pollIntervalSeconds?: number;
 }
 
 export interface CheckStatusDeps {
@@ -24,8 +24,8 @@ export async function checkStatus(
 
   try {
     const config = loadConfigImpl();
-    const timeoutMs = parseInt(flags.timeoutSeconds ?? "60", 10) * 1000;
-    const intervalMs = parseInt(flags.pollIntervalSeconds ?? "5", 10) * 1000;
+    const timeoutMs = (flags.timeoutSeconds ?? 60) * 1000;
+    const intervalMs = (flags.pollIntervalSeconds ?? 5) * 1000;
     const deadline = Date.now() + timeoutMs;
 
     writer.write(`Checking token ${flags.tokenId}...`);
@@ -81,13 +81,13 @@ export const checkStatusCommand = buildCommand({
       },
       timeoutSeconds: {
         kind: "parsed",
-        parse: String,
+        parse: Number,
         brief: "How long to wait for data in seconds (default: 60)",
         optional: true,
       },
       pollIntervalSeconds: {
         kind: "parsed",
-        parse: String,
+        parse: Number,
         brief: "Polling interval in seconds (default: 5)",
         optional: true,
       },

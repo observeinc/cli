@@ -251,9 +251,9 @@ export const generateStackUrlCommand = buildCommand({
         optional: true,
       },
       metricsMode: {
-        kind: "parsed",
-        parse: String,
-        brief: "Metrics mode: push or poller",
+        kind: "enum",
+        values: ["push", "poller"],
+        brief: "Metrics mode (default: push)",
         optional: true,
       },
       datastreamId: {

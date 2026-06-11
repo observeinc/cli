@@ -15,7 +15,7 @@ export const datasourceRoutes = buildRouteMap({
       "Create, update, and generate CloudFormation URLs for datasources.",
       "",
       "Each datasource belongs to a parent data connection. Use",
-      "'observe data-connection view --name <name>' to find datasource IDs.",
+      "'observe data-connection view <id>' to find datasource IDs.",
     ].join("\n"),
   },
 });
