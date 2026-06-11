@@ -91,6 +91,16 @@ observe auth status
 observe auth configure --domain observeinc --customerId 123456 --token YOUR_API_KEY
 ```
 
+## Agent Skills
+
+This repo ships skills under [`skills/`](./skills). Install them with the `skills` CLI:
+
+```bash
+npx skills add observeinc/cli
+```
+
+To update installed skills after edits in this repo, run `npx skills update`.
+
 ---
 
 ## Development
