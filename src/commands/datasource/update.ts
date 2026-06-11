@@ -198,7 +198,7 @@ export const updateDatasourceCommand = buildCommand({
     brief: "Update an existing datasource",
     fullDescription:
       "Updates the configuration of an existing datasource.\n\n" +
-      "Use 'observe data-connection view --name <name>' to find datasource IDs.\n\n" +
+      "Use 'observe data-connection view <id>' to find datasource IDs.\n\n" +
       "--config schema (DatasourceConfigInput as JSON):\n\n" +
       "  AWS filedrop (--type filedrop):\n" +
       "  {\n" +
