@@ -14,7 +14,6 @@ import { loadDatasourceConfig } from "../../lib/datasource-config.js";
 import { parseDatasourceType } from "./parse.js";
 
 interface UpdateDatasourceFlags {
-  id: string;
   name?: string;
   connectionId?: string;
   datastreamId?: string;
@@ -34,6 +33,7 @@ export interface UpdateDatasourceDeps {
 export async function updateDatasourceCmd(
   this: LocalContext,
   flags: UpdateDatasourceFlags,
+  id: string,
   deps: UpdateDatasourceDeps = {},
 ): Promise<void> {
   const { loadConfig: loadConfigImpl = loadConfig } = deps;
@@ -48,9 +48,9 @@ export async function updateDatasourceCmd(
     // input is clobbered to its zero value), so partial-update UX has to be
     // synthesized at the CLI layer. This matches the partial-update semantics
     // Observe's REST PATCH endpoints expose to callers.
-    const existing = await getDatasource(config, { id: flags.id });
+    const existing = await getDatasource(config, { id });
     if (!existing) {
-      writer.error(`Datasource not found: ${flags.id}`);
+      writer.error(`Datasource not found: ${id}`);
       process.exit(1);
       return;
     }
@@ -93,7 +93,7 @@ export async function updateDatasourceCmd(
     }
 
     const datasource = await updateDatasource(config, {
-      id: flags.id,
+      id,
       input: {
         name: flags.name ?? existing.name,
         dataConnectionID: flags.connectionId ?? existing.dataConnectionID,
@@ -120,14 +120,16 @@ export async function updateDatasourceCmd(
 export const updateDatasourceCommand = buildCommand({
   loader: async () => updateDatasourceCmd,
   parameters: {
-    positional: { kind: "tuple", parameters: [] },
+    positional: {
+      kind: "tuple",
+      parameters: [
+        {
+          brief: "Datasource ID to update",
+          parse: String,
+        },
+      ],
+    },
     flags: {
-      id: {
-        kind: "parsed",
-        parse: String,
-        brief: "ID of the datasource to update",
-        optional: false,
-      },
       name: {
         kind: "parsed",
         parse: String,
@@ -228,8 +230,8 @@ export const updateDatasourceCommand = buildCommand({
       "  }\n\n" +
       "Use --config-file to load this from a JSON file.\n\n" +
       "Example:\n" +
-      "  observe datasource update \\\n" +
-      "    --id <datasource-id> --name my-aws-filedrop \\\n" +
+      "  observe datasource update <datasource-id> \\\n" +
+      "    --name my-aws-filedrop \\\n" +
       "    --connection-id <id> --datastream-id <id> --type filedrop \\\n" +
       "    --collect-logs --collect-metrics --collect-resources \\\n" +
       "    --config-file ./aws-config.json",
