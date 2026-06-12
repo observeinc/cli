@@ -42,6 +42,28 @@ query GetDatasource($id: ObjectId!) {
         poller {
           id
           datastreamTokenId
+          config {
+            ... on PollerCloudWatchMetricsConfig {
+              interval
+              queries {
+                namespace
+                metricNames
+                dimensions {
+                  name
+                  value
+                }
+                resourceFilter {
+                  resourceType
+                  pattern
+                  dimensionName
+                  tagFilters {
+                    key
+                    values
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

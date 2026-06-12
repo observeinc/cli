@@ -1,10 +1,16 @@
 import { buildCommand } from "@stricli/core";
 import type { LocalContext } from "../../context.js";
-import { getDatasource } from "../../gql/connection/get-datasource.js";
+import {
+  getDatasource,
+  type GqlDatasource,
+} from "../../gql/connection/get-datasource.js";
 import { updateDatasource } from "../../gql/connection/update-datasource.js";
 import { GqlApiError } from "../../gql/gql-request.js";
 import { loadConfig } from "../../lib/config.js";
-import type { DatasourceConfigInput } from "../../gql/generated/graphql.js";
+import type {
+  AwsMetricsPollerConfigInput,
+  DatasourceConfigInput,
+} from "../../gql/generated/graphql.js";
 import {
   parseVariables,
   variablesToArray,
@@ -88,18 +94,30 @@ export async function updateDatasourceCmd(
       return;
     }
 
-    // The GQL response shape for `config` doesn't round-trip into
-    // `DatasourceConfigInput`:
+    // The GQL response shape for `config` doesn't round-trip cleanly into
+    // `DatasourceConfigInput`. We map only what the input shape can express:
     //   - `datasourceFiledropConfig` is server-managed and not in the input;
     //     omitting it is correct.
-    //   - `awsCollectionStackConfig` round-trips cleanly.
-    //   - `awsMetricsPollerConfig` does NOT — the response is `{poller}` but
-    //     the input is `{interval, cloudWatchMetricsConfig}`. Preserving it
-    //     across an update requires the user to re-supply --config.
-    const existingInputConfig: DatasourceConfigInput | null = existing.config
-      ?.awsCollectionStackConfig
-      ? { awsCollectionStackConfig: existing.config.awsCollectionStackConfig }
-      : null;
+    //   - `awsCollectionStackConfig` round-trips directly.
+    //   - `awsMetricsPollerConfig` reaches us as `{poller: {id, config}}`. The
+    //     input shape is `{interval, cloudWatchMetricsConfig}`, so we walk into
+    //     `poller.config` (queried with a PollerCloudWatchMetricsConfig
+    //     fragment) and map it. The input doesn't have slots for
+    //     `resourceFilter.resourceType / pattern / dimensionName`, so if any
+    //     of those are populated we refuse — sending the update via ANY CLI
+    //     path (implicit fall-back or explicit --config / --config-file)
+    //     would silently wipe those server-side, since the input shape has
+    //     no slot to round-trip them. The check fires before we even look at
+    //     userConfig: the user can't avoid the data loss by supplying their
+    //     own config, since their config also can't carry those fields.
+    let existingInputConfig: DatasourceConfigInput | null = null;
+    try {
+      existingInputConfig = mapExistingConfigToInput(existing.config);
+    } catch (e) {
+      writer.error(e instanceof Error ? e.message : String(e));
+      process.exit(1);
+      return;
+    }
 
     const datasource = await updateDatasource(config, {
       id,
@@ -124,6 +142,66 @@ export async function updateDatasourceCmd(
     }
     process.exit(1);
   }
+}
+
+const SUPPORT_HINT =
+  "This datasource was created with poller settings the CLI cannot " +
+  "represent (custom resourceFilter resourceType / pattern / dimensionName, " +
+  "or null dimension values). Updating it through the CLI would silently " +
+  "drop those settings. Contact Observe support to update this datasource.";
+
+/**
+ * Map a Datasource GQL response into the input shape used by updateDatasource.
+ * Throws when the existing config has fields the input shape can't express,
+ * so the caller refuses the update rather than silently dropping data.
+ */
+function mapExistingConfigToInput(
+  existingConfig: GqlDatasource["config"],
+): DatasourceConfigInput | null {
+  if (!existingConfig) return null;
+
+  const stackCfg = existingConfig.awsCollectionStackConfig ?? undefined;
+  const pollerWrapper = existingConfig.awsMetricsPollerConfig ?? undefined;
+
+  let pollerInput: AwsMetricsPollerConfigInput | undefined;
+  if (pollerWrapper) {
+    const pollerCfg = pollerWrapper.poller.config;
+    // The fragment selects PollerCloudWatchMetricsConfig fields; for any other
+    // PollerConfig variant the codegen returns Record<PropertyKey, never>, so
+    // 'queries' is the discriminator.
+    if (!("queries" in pollerCfg)) {
+      throw new Error(SUPPORT_HINT);
+    }
+    pollerInput = {
+      interval: pollerCfg.interval ?? "",
+      cloudWatchMetricsConfig: pollerCfg.queries.map((q) => {
+        const rf = q.resourceFilter;
+        if (rf && (rf.resourceType || rf.pattern || rf.dimensionName)) {
+          throw new Error(SUPPORT_HINT);
+        }
+        const dimensions = (q.dimensions ?? []).map((d) => {
+          if (d.value === null) throw new Error(SUPPORT_HINT);
+          return { name: d.name, value: d.value };
+        });
+        const tagFilters = (rf?.tagFilters ?? []).map((tf) => ({
+          key: tf.key,
+          values: tf.values ?? [],
+        }));
+        return {
+          namespace: q.namespace,
+          metricNames: q.metricNames ?? [],
+          dimensions,
+          tagFilters,
+        };
+      }),
+    };
+  }
+
+  if (!stackCfg && !pollerInput) return null;
+  return {
+    ...(stackCfg ? { awsCollectionStackConfig: stackCfg } : {}),
+    ...(pollerInput ? { awsMetricsPollerConfig: pollerInput } : {}),
+  };
 }
 
 export const updateDatasourceCommand = buildCommand({
