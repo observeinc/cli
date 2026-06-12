@@ -220,7 +220,7 @@ export const updateDatasourceCommand = buildCommand({
       '      "awsServiceMetricsList": [                     // each entry → one AWS::CloudWatch::MetricStream resource in the CF stack\n' +
       "        {\n" +
       '          "namespace":   "AWS/EC2",                  // REQUIRED — e.g. AWS/EC2, AWS/RDS, AWS/Lambda\n' +
-      '          "metricNames": ["CPUUtilization"],         // optional — omit / [] means all metrics in the namespace\n' +
+      '          "metricNames": ["CPUUtilization"],         // REQUIRED — [] streams every metric in the namespace (AWS-side), but the Observe UI counts entries literally and will display "0/N selected" for an empty list. Populate explicitly to match the UI.\n' +
       '          "dimensions":  [{"name":"InstanceId","value":"i-..."}],  // optional dimension filters\n' +
       '          "tagFilters":  [{"key":"Env","values":["prod"]}]         // optional tag filters\n' +
       "        }\n" +
