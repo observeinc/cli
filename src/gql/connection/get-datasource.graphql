@@ -23,6 +23,21 @@ query GetDatasource($id: ObjectId!) {
           datastreamTokenID
         }
       }
+      awsCollectionStackConfig {
+        awsServiceMetricsList {
+          namespace
+          metricNames
+        }
+        customMetricsList {
+          namespace
+          metricNames
+        }
+        configResourceList
+        configDeliveryBucketName
+        logGroupNamePatterns
+        excludeLogGroupNamePatterns
+        sourceBucketNames
+      }
       awsMetricsPollerConfig {
         poller {
           id

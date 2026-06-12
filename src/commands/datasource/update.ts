@@ -49,11 +49,6 @@ export async function updateDatasourceCmd(
     // synthesized at the CLI layer. This matches the partial-update semantics
     // Observe's REST PATCH endpoints expose to callers.
     const existing = await getDatasource(config, { id });
-    if (!existing) {
-      writer.error(`Datasource not found: ${id}`);
-      process.exit(1);
-      return;
-    }
 
     let userVars: Variables;
     try {
@@ -68,10 +63,11 @@ export async function updateDatasourceCmd(
 
     // Variables: start from existing, overlay the user's --variables, then
     // overlay the named --collect-* flags. Anything the user didn't touch is
-    // preserved.
+    // preserved. Existing values that are null in GQL aren't meaningful as
+    // input, so they're dropped.
     const mergedVars: Variables = {};
-    for (const v of existing.variables ?? []) {
-      mergedVars[v.name] = v.value;
+    for (const v of existing.variables) {
+      if (v.value !== null) mergedVars[v.name] = v.value;
     }
     for (const [k, v] of Object.entries(userVars)) {
       mergedVars[k] = v;
@@ -92,6 +88,19 @@ export async function updateDatasourceCmd(
       return;
     }
 
+    // The GQL response shape for `config` doesn't round-trip into
+    // `DatasourceConfigInput`:
+    //   - `datasourceFiledropConfig` is server-managed and not in the input;
+    //     omitting it is correct.
+    //   - `awsCollectionStackConfig` round-trips cleanly.
+    //   - `awsMetricsPollerConfig` does NOT — the response is `{poller}` but
+    //     the input is `{interval, cloudWatchMetricsConfig}`. Preserving it
+    //     across an update requires the user to re-supply --config.
+    const existingInputConfig: DatasourceConfigInput | null = existing.config
+      ?.awsCollectionStackConfig
+      ? { awsCollectionStackConfig: existing.config.awsCollectionStackConfig }
+      : null;
+
     const datasource = await updateDatasource(config, {
       id,
       input: {
@@ -100,8 +109,8 @@ export async function updateDatasourceCmd(
         datastreamID: flags.datastreamId ?? existing.datastreamID,
         type: parseDatasourceType(flags.type) ?? existing.type,
         variables: variablesToArray(mergedVars),
-        clientStackAttributes: existing.clientStackAttributes ?? [],
-        config: userConfig ?? existing.config,
+        clientStackAttributes: existing.clientStackAttributes,
+        config: userConfig ?? existingInputConfig,
       },
     });
 
