@@ -113,6 +113,26 @@ export async function generateStackUrlCmd(
     }
 
     const pushModeActive = filedropDs !== undefined;
+    // The CFN stack's MetricStream substack deploys when the
+    // EnableMetricStream condition is true: MetricStreamFilterUri != "" OR
+    // DatasourceID != "". The metricsconfigurator Lambda then either
+    //   (a) reads the datasource's awsServiceMetricsList /
+    //       customMetricsList and uses them as CloudWatch IncludeFilters
+    //       (DatasourceID path), or
+    //   (b) downloads a YAML filter file from MetricStreamFilterUri and
+    //       uses that (FilterUri path).
+    //
+    // The template's MetricStreamFilterUri default is non-empty
+    // (`s3://observeinc/cloudwatchmetrics/filters/recommended.yaml`), which
+    // means MetricStream deploys *unconditionally* unless we override it
+    // here. And if the user only configured poller-mode metrics, neither
+    // path is what they want. So we override MetricStreamFilterUri to ""
+    // and only set DatasourceID when the filedrop has metrics to stream;
+    // both empty makes the substack skip entirely.
+    const enableMetricStream =
+      pushModeActive &&
+      ((stackCfg?.awsServiceMetricsList ?? []).length > 0 ||
+        (stackCfg?.customMetricsList ?? []).length > 0);
     const url = buildCloudFormationUrl({
       region,
       stackName,
@@ -125,11 +145,15 @@ export async function generateStackUrlCmd(
       ).join(","),
       sourceBucketNames: (stackCfg?.sourceBucketNames ?? []).join(","),
       configDeliveryBucketName: stackCfg?.configDeliveryBucketName ?? "",
-      observeAccountId: pushModeActive ? config.customerId : "",
-      observeDomainName: pushModeActive ? `${config.domain}.com` : "",
-      datasourceId: pushModeActive ? filedropDs.id : "",
-      gqlToken: pushModeActive ? config.token : "",
-      updateTimestamp: pushModeActive
+      // Always override the CFN default; CLI users have a datasource and
+      // don't want the FilterUri-based fallback. When DatasourceID is also
+      // empty, the substack skips deployment entirely.
+      metricStreamFilterUri: "",
+      observeAccountId: enableMetricStream ? config.customerId : "",
+      observeDomainName: enableMetricStream ? `${config.domain}.com` : "",
+      datasourceId: enableMetricStream ? filedropDs.id : "",
+      gqlToken: enableMetricStream ? config.token : "",
+      updateTimestamp: enableMetricStream
         ? Math.floor(Date.now() / 1000).toString()
         : "",
       observeAwsAccountId,

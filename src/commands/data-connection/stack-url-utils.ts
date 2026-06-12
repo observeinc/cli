@@ -11,6 +11,7 @@ interface CloudFormationParams {
   excludeLogGroupNamePatterns: string;
   sourceBucketNames: string;
   configDeliveryBucketName: string;
+  metricStreamFilterUri: string;
   observeAccountId: string;
   observeDomainName: string;
   datasourceId: string;
@@ -31,6 +32,7 @@ const CF_PARAM_KEYS: Record<
   excludeLogGroupNamePatterns: "ExcludeLogGroupNamePatterns",
   sourceBucketNames: "SourceBucketNames",
   configDeliveryBucketName: "ConfigDeliveryBucketName",
+  metricStreamFilterUri: "MetricStreamFilterUri",
   observeAccountId: "ObserveAccountID",
   observeDomainName: "ObserveDomainName",
   datasourceId: "DatasourceID",

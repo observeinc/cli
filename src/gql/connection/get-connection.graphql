@@ -25,6 +25,10 @@ query GetDataConnection($id: ObjectId!) {
             namespace
             metricNames
           }
+          customMetricsList {
+            namespace
+            metricNames
+          }
           configResourceList
           configDeliveryBucketName
           logGroupNamePatterns
