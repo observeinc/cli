@@ -8,7 +8,7 @@ import { loadConfig } from "../../lib/config.js";
 import { buildCloudFormationUrl } from "./stack-url-utils.js";
 
 interface GenerateStackUrlFlags {
-  stackName: string;
+  stackName?: string;
   region?: string;
 }
 
@@ -39,6 +39,22 @@ export async function generateStackUrlCmd(
   try {
     const config = loadConfigImpl();
     const connection = await getConnection(config, { id });
+
+    // The CFN stack creates IAM roles named `${StackName}-filedrop` and
+    // `${StackName}-metrics-poller`. The server derives each datasource's
+    // assumeRoleArn from the *datasource name*, which `datasource create`
+    // pins to `<connectionName>-<suffix>`. So `StackName` must equal
+    // `connectionName` for the two ends to line up. Default it; refuse a
+    // mismatched explicit value rather than letting the user deploy a stack
+    // that can't authenticate.
+    const stackName = flags.stackName ?? connection.name;
+    if (flags.stackName !== undefined && flags.stackName !== connection.name) {
+      writer.error(
+        `--stack-name must match the connection name '${connection.name}' (or omit --stack-name to default to it). The CloudFormation stack creates IAM roles using the stack name; using a different name would mean the deployed stack can't authenticate against the datasources.`,
+      );
+      process.exit(1);
+      return;
+    }
 
     const region =
       flags.region ?? findVariable(connection.variables, VAR_ACCOUNT_REGION);
@@ -99,7 +115,7 @@ export async function generateStackUrlCmd(
     const pushModeActive = filedropDs !== undefined;
     const url = buildCloudFormationUrl({
       region,
-      stackName: flags.stackName,
+      stackName,
       dataAccessPointArn: filedropCfg?.dataAccessPointArn ?? "",
       destinationUri: filedropCfg?.destinationUri ?? "",
       includeResourceTypes: (stackCfg?.configResourceList ?? []).join(","),
@@ -148,8 +164,9 @@ export const generateStackUrlCommand = buildCommand({
       stackName: {
         kind: "parsed",
         parse: String,
-        brief: "CloudFormation stack name (customer-chosen)",
-        optional: false,
+        brief:
+          "CloudFormation stack name. Optional; defaults to the connection name. If supplied, must equal the connection name (the IAM roles created by the stack are keyed off the stack name and have to match the datasources' names server-side).",
+        optional: true,
       },
       region: {
         kind: "parsed",
@@ -166,12 +183,12 @@ export const generateStackUrlCommand = buildCommand({
     fullDescription:
       "Builds the CloudFormation quick-create URL that deploys the AWS collection\n" +
       "stack for a data connection. The CLI reads the connection's variables and\n" +
-      "datasources to populate every other parameter, so the customer only needs\n" +
-      "to choose a stack name (and optionally override the region).\n\n" +
+      "datasources to populate every parameter, so passing the connection ID is\n" +
+      "usually all that's needed.\n\n" +
       "The connection must have at least one Filedrop or Poller datasource. If\n" +
       "both are present, the URL drives a single stack that runs filedrop +\n" +
       "poller collection together.\n\n" +
       "Example:\n" +
-      "  observe data-connection generate-stack-url <conn-id> --stack-name my-aws",
+      "  observe data-connection generate-stack-url <conn-id>",
   },
 });
