@@ -4,8 +4,7 @@ import { createConnection } from "../../../gql/connection/create-connection.js";
 import { GqlApiError } from "../../../gql/gql-request.js";
 import { loadConfig } from "../../../lib/config.js";
 import { variablesToArray } from "../../../lib/connection-vars.js";
-
-const AWS_MODULE_ID = "observeinc/connection/aws";
+import { AWS_MODULE_ID } from "../../../lib/aws-connection.js";
 
 interface CreateAwsConnectionFlags {
   name: string;

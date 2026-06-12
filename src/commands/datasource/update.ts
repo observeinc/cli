@@ -1,5 +1,6 @@
 import { buildCommand } from "@stricli/core";
 import type { LocalContext } from "../../context.js";
+import { getConnection } from "../../gql/connection/get-connection.js";
 import {
   getDatasource,
   type GqlDatasource,
@@ -11,6 +12,10 @@ import type {
   AwsMetricsPollerConfigInput,
   DatasourceConfigInput,
 } from "../../gql/generated/graphql.js";
+import {
+  AWS_MODULE_ID,
+  expectedAwsDatasourceName,
+} from "../../lib/aws-connection.js";
 import {
   parseVariables,
   variablesToArray,
@@ -119,10 +124,31 @@ export async function updateDatasourceCmd(
       return;
     }
 
+    // Same AWS-naming guard as `datasource create`: the server derives the
+    // assumeRoleArn / filedrop role ARN from the datasource name, and the CFN
+    // stack creates IAM roles named `<connectionName>-<suffix>`. Renaming away
+    // from that convention silently breaks the deployed stack's authentication.
+    const resolvedType =
+      parseDatasourceType(flags.type) ?? existing.type ?? undefined;
+    const newName = flags.name ?? existing.name;
+    const connection = await getConnection(config, {
+      id: flags.connectionId ?? existing.dataConnectionID,
+    });
+    if (connection.moduleID === AWS_MODULE_ID) {
+      const expected = expectedAwsDatasourceName(connection.name, resolvedType);
+      if (expected !== undefined && newName !== expected) {
+        writer.error(
+          `For AWS ${resolvedType ?? "<unknown>"} datasources, the name must be '${expected}'. The CloudFormation stack creates the IAM role with this exact name; using a different name would mean the deployed stack can't authenticate.`,
+        );
+        process.exit(1);
+        return;
+      }
+    }
+
     const datasource = await updateDatasource(config, {
       id,
       input: {
-        name: flags.name ?? existing.name,
+        name: newName,
         dataConnectionID: flags.connectionId ?? existing.dataConnectionID,
         datastreamID: flags.datastreamId ?? existing.datastreamID,
         type: parseDatasourceType(flags.type) ?? existing.type,

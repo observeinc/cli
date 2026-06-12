@@ -1,15 +1,20 @@
 import { buildCommand } from "@stricli/core";
 import type { LocalContext } from "../../context.js";
 import { createDatasource } from "../../gql/connection/create-datasource.js";
+import { getConnection } from "../../gql/connection/get-connection.js";
 import { GqlApiError } from "../../gql/gql-request.js";
 import { loadConfig } from "../../lib/config.js";
 import type { DatasourceConfigInput } from "../../gql/generated/graphql.js";
+import {
+  AWS_MODULE_ID,
+  expectedAwsDatasourceName,
+} from "../../lib/aws-connection.js";
 import { parseVariables, variablesToArray } from "../../lib/connection-vars.js";
 import { loadDatasourceConfig } from "../../lib/datasource-config.js";
 import { parseDatasourceType } from "./parse.js";
 
 interface CreateDatasourceFlags {
-  name: string;
+  name?: string;
   connectionId: string;
   datastreamId: string;
   type?: string;
@@ -65,13 +70,45 @@ export async function createDatasourceCmd(
       return;
     }
 
+    // For AWS connections (filedrop / poller), the datasource name MUST be
+    // <connectionName>-<suffix> because the server derives the assumeRoleArn
+    // from the datasource name and the CFN stack creates IAM roles with
+    // exactly that name. Anything else means the deployed stack can't
+    // authenticate. Auto-derive when --name is omitted; refuse a mismatched
+    // explicit --name so the user fails fast instead of months later.
+    const dsType = parseDatasourceType(flags.type);
+    const connection = await getConnection(config, { id: flags.connectionId });
+    const expectedName =
+      connection.moduleID === AWS_MODULE_ID
+        ? expectedAwsDatasourceName(connection.name, dsType)
+        : undefined;
+
+    let name: string | undefined = flags.name;
+    if (expectedName !== undefined) {
+      if (name === undefined) {
+        name = expectedName;
+      } else if (name !== expectedName) {
+        writer.error(
+          `For AWS ${dsType ?? "<unknown>"} datasources, --name must be '${expectedName}' (or omit --name to auto-derive). The CloudFormation stack creates the IAM role with this exact name; using a different name would mean the deployed stack can't authenticate.`,
+        );
+        process.exit(1);
+        return;
+      }
+    } else if (name === undefined) {
+      writer.error(
+        "--name is required (auto-derivation only applies to AWS filedrop/poller datasources)",
+      );
+      process.exit(1);
+      return;
+    }
+
     const datasource = await createDatasource(config, {
       workspaceId: flags.workspaceId,
       input: {
-        name: flags.name,
+        name,
         dataConnectionID: flags.connectionId,
         datastreamID: flags.datastreamId,
-        type: parseDatasourceType(flags.type),
+        type: dsType,
         variables: variablesToArray(vars),
         clientStackAttributes: [],
         config: datasourceConfig,
@@ -98,8 +135,9 @@ export const createDatasourceCommand = buildCommand({
       name: {
         kind: "parsed",
         parse: String,
-        brief: "Datasource name",
-        optional: false,
+        brief:
+          "Datasource name. Optional for AWS filedrop/poller datasources (auto-derived from the connection name); required otherwise.",
+        optional: true,
       },
       connectionId: {
         kind: "parsed",
