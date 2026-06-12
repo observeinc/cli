@@ -1,0 +1,177 @@
+import { buildCommand } from "@stricli/core";
+import type { LocalContext } from "../../context.js";
+import { getCloudInfo } from "../../gql/customer/get-cloud-info.js";
+import { getConnection } from "../../gql/connection/get-connection.js";
+import { DatasourceType } from "../../gql/generated/graphql.js";
+import { GqlApiError } from "../../gql/gql-request.js";
+import { loadConfig } from "../../lib/config.js";
+import { buildCloudFormationUrl } from "./stack-url-utils.js";
+
+interface GenerateStackUrlFlags {
+  stackName: string;
+  region?: string;
+}
+
+export interface GenerateStackUrlDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+// Variable name set by the AWS connection module — keep in sync with
+// data-connection/create/aws.ts.
+const VAR_ACCOUNT_REGION = "account_region";
+
+function findVariable(
+  vars: { name: string; value: string | null }[],
+  name: string,
+): string | undefined {
+  return vars.find((v) => v.name === name)?.value ?? undefined;
+}
+
+export async function generateStackUrlCmd(
+  this: LocalContext,
+  flags: GenerateStackUrlFlags,
+  id: string,
+  deps: GenerateStackUrlDeps = {},
+): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
+  const { process, writer } = this;
+
+  try {
+    const config = loadConfigImpl();
+    const connection = await getConnection(config, { id });
+
+    const region =
+      flags.region ?? findVariable(connection.variables, VAR_ACCOUNT_REGION);
+    if (!region) {
+      writer.error(
+        `Connection ${id} has no '${VAR_ACCOUNT_REGION}' variable; pass --region explicitly`,
+      );
+      process.exit(1);
+      return;
+    }
+
+    // Walk the connection's datasources. AWS connections produce a Filedrop
+    // datasource (logs/metric-stream/config) and optionally a Poller datasource
+    // (poller-mode metrics). Both can co-exist on the same stack.
+    const filedropDs = connection.datasources.find(
+      (d) => d.type === DatasourceType.Filedrop,
+    );
+    const pollerDs = connection.datasources.find(
+      (d) => d.type === DatasourceType.Poller,
+    );
+
+    if (!filedropDs && !pollerDs) {
+      writer.error(
+        `Connection ${id} has no Filedrop or Poller datasource; create one with 'observe datasource create' first`,
+      );
+      process.exit(1);
+      return;
+    }
+
+    const filedropCfg = filedropDs?.config?.datasourceFiledropConfig;
+    const stackCfg = filedropDs?.config?.awsCollectionStackConfig;
+
+    // Push-mode params (filedrop side) need Observe's domain/customer/token so
+    // the deployed stack can call back into the metadata API.
+    if (filedropDs && !filedropCfg) {
+      writer.error(
+        `Filedrop datasource ${filedropDs.id} is missing datasourceFiledropConfig; cannot build stack URL`,
+      );
+      process.exit(1);
+      return;
+    }
+
+    // Poller-mode params need Observe's *own* AWS account ID for the IAM trust
+    // policy. The webapp pulls this from currentCustomer.cloudInfo too.
+    let observeAwsAccountId = "";
+    if (pollerDs) {
+      const cloudInfo = await getCloudInfo(config);
+      if (!cloudInfo?.accountId) {
+        writer.error(
+          "Could not determine Observe AWS account ID from currentCustomer.cloudInfo; cannot build poller stack URL",
+        );
+        process.exit(1);
+        return;
+      }
+      observeAwsAccountId = cloudInfo.accountId;
+    }
+
+    const pushModeActive = filedropDs !== undefined;
+    const url = buildCloudFormationUrl({
+      region,
+      stackName: flags.stackName,
+      dataAccessPointArn: filedropCfg?.dataAccessPointArn ?? "",
+      destinationUri: filedropCfg?.destinationUri ?? "",
+      includeResourceTypes: (stackCfg?.configResourceList ?? []).join(","),
+      logGroupNamePatterns: (stackCfg?.logGroupNamePatterns ?? []).join(","),
+      excludeLogGroupNamePatterns: (
+        stackCfg?.excludeLogGroupNamePatterns ?? []
+      ).join(","),
+      sourceBucketNames: (stackCfg?.sourceBucketNames ?? []).join(","),
+      configDeliveryBucketName: stackCfg?.configDeliveryBucketName ?? "",
+      observeAccountId: pushModeActive ? config.customerId : "",
+      observeDomainName: pushModeActive ? `${config.domain}.com` : "",
+      datasourceId: pushModeActive ? filedropDs.id : "",
+      gqlToken: pushModeActive ? config.token : "",
+      updateTimestamp: pushModeActive
+        ? Math.floor(Date.now() / 1000).toString()
+        : "",
+      observeAwsAccountId,
+      datastreamIds: pollerDs ? pollerDs.datastreamID : "",
+    });
+
+    writer.write(url);
+  } catch (error) {
+    if (error instanceof GqlApiError) {
+      writer.error(`API Error (${error.statusCode}): ${error.message}`);
+    } else {
+      const message = error instanceof Error ? error.message : String(error);
+      writer.error(`Error: ${message}`);
+    }
+    process.exit(1);
+  }
+}
+
+export const generateStackUrlCommand = buildCommand({
+  loader: async () => generateStackUrlCmd,
+  parameters: {
+    positional: {
+      kind: "tuple",
+      parameters: [
+        {
+          brief: "Data connection ID",
+          parse: String,
+        },
+      ],
+    },
+    flags: {
+      stackName: {
+        kind: "parsed",
+        parse: String,
+        brief: "CloudFormation stack name (customer-chosen)",
+        optional: false,
+      },
+      region: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "AWS region override. Defaults to the connection's account_region variable.",
+        optional: true,
+      },
+    },
+  },
+  docs: {
+    brief:
+      "Generate a CloudFormation quick-create URL for a data connection's AWS stack",
+    fullDescription:
+      "Builds the CloudFormation quick-create URL that deploys the AWS collection\n" +
+      "stack for a data connection. The CLI reads the connection's variables and\n" +
+      "datasources to populate every other parameter, so the customer only needs\n" +
+      "to choose a stack name (and optionally override the region).\n\n" +
+      "The connection must have at least one Filedrop or Poller datasource. If\n" +
+      "both are present, the URL drives a single stack that runs filedrop +\n" +
+      "poller collection together.\n\n" +
+      "Example:\n" +
+      "  observe data-connection generate-stack-url <conn-id> --stack-name my-aws",
+  },
+});

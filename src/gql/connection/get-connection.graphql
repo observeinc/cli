@@ -5,10 +5,15 @@ query GetDataConnection($id: ObjectId!) {
     workspaceId
     moduleID
     version
+    variables {
+      name
+      value
+    }
     datasources {
       id
       name
       type
+      datastreamID
       datastreamTokenID
       config {
         datasourceFiledropConfig {
@@ -21,6 +26,7 @@ query GetDataConnection($id: ObjectId!) {
             metricNames
           }
           configResourceList
+          configDeliveryBucketName
           logGroupNamePatterns
           excludeLogGroupNamePatterns
           sourceBucketNames
