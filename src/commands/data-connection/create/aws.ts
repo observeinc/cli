@@ -1,6 +1,10 @@
 import { buildCommand } from "@stricli/core";
 import type { LocalContext } from "../../../context.js";
 import { createConnection } from "../../../gql/connection/create-connection.js";
+import {
+  listModuleVersions,
+  pickLatestStableVersion,
+} from "../../../gql/connection/list-module-versions.js";
 import { GqlApiError } from "../../../gql/gql-request.js";
 import { loadConfig } from "../../../lib/config.js";
 import { variablesToArray } from "../../../lib/connection-vars.js";
@@ -8,7 +12,7 @@ import { AWS_MODULE_ID } from "../../../lib/aws-connection.js";
 
 interface CreateAwsConnectionFlags {
   name: string;
-  version: string;
+  version?: string;
   accountRegion: string;
   accountId: string;
   clusterRegion?: string;
@@ -30,6 +34,19 @@ export async function createAwsConnectionCmd(
   try {
     const config = loadConfigImpl();
 
+    let version = flags.version;
+    if (version === undefined) {
+      const all = await listModuleVersions(config, { id: AWS_MODULE_ID });
+      version = pickLatestStableVersion(all);
+      if (version === undefined) {
+        writer.error(
+          `No published versions of module '${AWS_MODULE_ID}' found; pass --version explicitly`,
+        );
+        process.exit(1);
+        return;
+      }
+    }
+
     const vars: Record<string, string> = {
       account_region: flags.accountRegion,
       cluster_region: flags.clusterRegion ?? flags.accountRegion,
@@ -41,7 +58,7 @@ export async function createAwsConnectionCmd(
       input: {
         name: flags.name,
         moduleID: AWS_MODULE_ID,
-        version: flags.version,
+        version,
         variables: variablesToArray(vars),
       },
     });
@@ -72,8 +89,9 @@ export const createAwsConnectionCommand = buildCommand({
       version: {
         kind: "parsed",
         parse: String,
-        brief: "Module version (e.g. 0.5.0)",
-        optional: false,
+        brief:
+          "Module version (e.g. 0.5.0). Defaults to the latest stable version published to the workspace.",
+        optional: true,
       },
       accountRegion: {
         kind: "parsed",
@@ -106,9 +124,11 @@ export const createAwsConnectionCommand = buildCommand({
     brief: "Create an AWS data connection",
     fullDescription:
       `Creates a new AWS data connection (module: ${AWS_MODULE_ID}).\n\n` +
+      "--version defaults to the latest stable version published to the\n" +
+      "workspace; pass it explicitly to pin to a specific release.\n\n" +
       "Example:\n" +
       "  observe data-connection create aws \\\n" +
-      "    --name my-aws --version 0.5.0 \\\n" +
+      "    --name my-aws \\\n" +
       "    --account-region us-west-2 --account-id 123456789012",
   },
 });

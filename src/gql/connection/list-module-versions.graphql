@@ -1,0 +1,5 @@
+query ListModuleVersions($id: String!) {
+  moduleVersions(id: $id) {
+    version
+  }
+}
