@@ -12,10 +12,7 @@ import type { LocalContext } from "../../context";
 import { createWriter } from "../../lib/writer";
 
 const repoRoot = resolve(import.meta.dir, "../../..");
-const gqlModulePath = resolve(
-  repoRoot,
-  "src/gql/workspace/view-workspace.ts",
-);
+const gqlModulePath = resolve(repoRoot, "src/gql/workspace/view-workspace.ts");
 
 const loadConfigFn = mock(() => ({
   customerId: "test-customer",
@@ -23,14 +20,23 @@ const loadConfigFn = mock(() => ({
   domain: "observeinc.com",
 }));
 
-const viewWorkspaceFn = mock((_config: unknown) =>
-  Promise.resolve({
-    id: "42587555",
-    label: "Default",
-    timezone: "America/Los_Angeles",
-    locale: "en_US",
-    createdDate: "2024-01-01T00:00:00Z",
-  }),
+const viewWorkspaceFn = mock(
+  (
+    _config: unknown,
+  ): Promise<{
+    id: string;
+    label: string;
+    timezone: string;
+    locale: string;
+    createdDate: string;
+  } | null> =>
+    Promise.resolve({
+      id: "42587555",
+      label: "Default",
+      timezone: "America/Los_Angeles",
+      locale: "en_US",
+      createdDate: "2024-01-01T00:00:00Z",
+    }),
 );
 
 let view: (typeof import("./view"))["view"];
