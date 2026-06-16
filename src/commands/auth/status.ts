@@ -37,12 +37,14 @@ async function status(
 
   let valid = false;
   let workspaceName: string | null = null;
+  let workspaceId: string | null = null;
   let errorMessage: string | null = null;
 
   try {
     const { workspace } = await getDefaultWorkspace(config);
     valid = true;
     workspaceName = workspace?.label ?? null;
+    workspaceId = workspace?.id ?? null;
   } catch (error) {
     if (error instanceof GqlApiError) {
       errorMessage = `${error.statusCode}: ${error.message}`;
@@ -61,6 +63,7 @@ async function status(
       configPath: getConfigPath(),
       ...(config.tokenId && { tokenId: config.tokenId }),
       ...(workspaceName && { workspace: workspaceName }),
+      ...(workspaceId && { workspaceId }),
       ...(errorMessage && { error: errorMessage }),
     };
     writer.write(JSON.stringify(result, null, 2));
@@ -73,17 +76,20 @@ async function status(
     writer.error("Authentication invalid\n");
   }
 
-  writer.write(chalk.dim("  Customer ID  ") + config.customerId);
-  writer.write(chalk.dim("  Domain       ") + config.domain);
-  writer.write(chalk.dim("  API URL      ") + baseUrl);
-  writer.write(chalk.dim("  Token        ") + maskedToken);
+  writer.write(chalk.dim("  Customer ID   ") + config.customerId);
+  writer.write(chalk.dim("  Domain        ") + config.domain);
+  writer.write(chalk.dim("  API URL       ") + baseUrl);
+  writer.write(chalk.dim("  Token         ") + maskedToken);
   if (config.tokenId) {
-    writer.write(chalk.dim("  Token ID     ") + config.tokenId);
+    writer.write(chalk.dim("  Token ID      ") + config.tokenId);
   }
   if (workspaceName) {
-    writer.write(chalk.dim("  Workspace    ") + workspaceName);
+    writer.write(chalk.dim("  Workspace     ") + workspaceName);
   }
-  writer.write(chalk.dim("  Config       ") + getConfigPath());
+  if (workspaceId) {
+    writer.write(chalk.dim("  Workspace ID  ") + workspaceId);
+  }
+  writer.write(chalk.dim("  Config        ") + getConfigPath());
 
   if (errorMessage) {
     writer.write("\n" + chalk.red("  Error: ") + errorMessage);

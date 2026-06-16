@@ -1,0 +1,11 @@
+query ViewWorkspace {
+  currentUser {
+    workspaces {
+      id
+      label
+      timezone
+      locale
+      createdDate
+    }
+  }
+}
