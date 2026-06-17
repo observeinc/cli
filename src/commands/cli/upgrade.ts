@@ -73,8 +73,11 @@ async function upgrade(this: LocalContext, flags: UpgradeFlags) {
   // access here is what actually matters — not access to the binary file.
   try {
     accessSync(targetDir, fsConstants.W_OK);
-  } catch {
-    throw permissionDeniedError(targetPath);
+  } catch (accessErr) {
+    if (isPermissionError(accessErr)) {
+      throw permissionDeniedError(targetPath);
+    }
+    throw accessErr;
   }
 
   // Stage the download in the same directory as the target so the final swap
