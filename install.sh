@@ -96,13 +96,14 @@ fi
 
 GITHUB_REPO="https://github.com/observeinc/cli"
 
-# Resolve version
+# Resolve version via releases/latest redirect (avoids GitHub API rate limits)
 version="$requested_version"
 if [[ -z "$version" ]]; then
-  version=$(curl -fsSL https://api.github.com/repos/observeinc/cli/releases/latest \
-    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+  version=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+    "${GITHUB_REPO}/releases/latest" \
+    | sed -n 's|.*/releases/tag/v||p')
   if [[ -z "$version" ]]; then
-    error "Failed to fetch latest version from GitHub"
+    error "Failed to fetch latest version from GitHub. Try pinning the version: OBSERVE_VERSION=<version> curl -fsSL .../install.sh | bash"
   fi
 fi
 
