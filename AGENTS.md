@@ -95,7 +95,11 @@ src/
 
 3. **Register in routes**:
    - Export from `src/commands/<resource>/index.ts`
-   - Add to `src/app.ts` routes
+   - Add to `src/app.ts` routes. New routes should be added at the bottom of the route map, but the `cli` command must always remain last.
+
+4. **Update documentation**:
+   - Update the **Project Structure** section in this `AGENTS.md` to include the new command/resource.
+   - Update the **Commands** table in `README.md`. The README command order must always match the route order in `src/app.ts`.
 
 ### Command Pattern
 
