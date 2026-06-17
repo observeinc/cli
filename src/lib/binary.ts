@@ -23,7 +23,7 @@ import { pipeline } from "node:stream/promises";
 import { createGunzip } from "node:zlib";
 import type { Readable } from "node:stream";
 import { CONFIG_DIR_NAME, CONFIG_FILES } from "./constants";
-import { fetchReleaseByTag, type ReleaseAsset } from "./github-release";
+import { fetchReleaseChecksums, releaseAssetUrl } from "./github-release";
 
 const BINARY_NAME = "observe";
 
@@ -91,36 +91,8 @@ export function detectPlatform() {
   return { platform, arch };
 }
 
-export function parseSha256Digest(digest: string) {
-  const match = /^sha256:([a-f0-9]{64})$/i.exec(digest.trim());
-  if (!match) {
-    throw new Error(`Invalid release asset digest: ${digest}`);
-  }
-  // match[1] is guaranteed by the regex having a capture group
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  return match[1]!.toLowerCase();
-}
-
-export function sha256HexOfFile(filePath: string) {
+function sha256HexOfFile(filePath: string) {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
-}
-
-export function verifyFileDigest({
-  filePath,
-  digest,
-  assetName,
-}: {
-  filePath: string;
-  digest: string;
-  assetName: string;
-}) {
-  const expected = parseSha256Digest(digest);
-  const actual = sha256HexOfFile(filePath);
-  if (actual !== expected) {
-    throw new Error(
-      `Binary integrity check failed for ${assetName}: digest mismatch`,
-    );
-  }
 }
 
 async function downloadToFile({
@@ -157,30 +129,26 @@ async function gunzipFile({
 }
 
 async function downloadAndVerifyAsset({
-  asset,
+  url,
+  assetName,
+  expectedHash,
   destPath,
   signal,
 }: {
-  asset: ReleaseAsset;
+  url: string;
+  assetName: string;
+  expectedHash: string;
   destPath: string;
   signal?: AbortSignal;
 }) {
-  if (!asset.digest) {
+  await downloadToFile({ url, destPath, signal });
+
+  const actual = sha256HexOfFile(destPath);
+  if (actual !== expectedHash) {
     throw new Error(
-      `Release asset ${asset.name} is missing a digest; refusing to install`,
+      `Binary integrity check failed for ${assetName}: checksum mismatch`,
     );
   }
-
-  await downloadToFile({
-    url: asset.browser_download_url,
-    destPath,
-    signal,
-  });
-  verifyFileDigest({
-    filePath: destPath,
-    digest: asset.digest,
-    assetName: asset.name,
-  });
 }
 
 export async function downloadReleaseBinary({
@@ -197,31 +165,39 @@ export async function downloadReleaseBinary({
   signal?: AbortSignal;
 }) {
   const baseName = `observe-${platform}-${arch}`;
-  const release = await fetchReleaseByTag({ tag, signal });
-  const gzAsset = release.assets.find(
-    (asset) => asset.name === `${baseName}.gz`,
-  );
-  const rawAsset = release.assets.find((asset) => asset.name === baseName);
+  const checksums = await fetchReleaseChecksums({ tag, signal });
 
-  if (gzAsset) {
+  const gzName = `${baseName}.gz`;
+  const gzHash = checksums.get(gzName);
+  const rawHash = checksums.get(baseName);
+
+  if (gzHash) {
     const gzPath = `${destPath}.gz`;
     try {
       await downloadAndVerifyAsset({
-        asset: gzAsset,
+        url: releaseAssetUrl({ tag, assetName: gzName }),
+        assetName: gzName,
+        expectedHash: gzHash,
         destPath: gzPath,
         signal,
       });
       await gunzipFile({ sourcePath: gzPath, destPath });
       return;
     } catch (err) {
-      if (!rawAsset) throw err;
+      if (!rawHash) throw err;
     } finally {
       rmSync(gzPath, { force: true });
     }
   }
 
-  if (rawAsset) {
-    await downloadAndVerifyAsset({ asset: rawAsset, destPath, signal });
+  if (rawHash) {
+    await downloadAndVerifyAsset({
+      url: releaseAssetUrl({ tag, assetName: baseName }),
+      assetName: baseName,
+      expectedHash: rawHash,
+      destPath,
+      signal,
+    });
     return;
   }
 

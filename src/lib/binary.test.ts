@@ -7,13 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import {
-  determineInstallDir,
-  installBinary,
-  parseSha256Digest,
-  sha256HexOfFile,
-  verifyFileDigest,
-} from "./binary";
+import { determineInstallDir, installBinary } from "./binary";
 
 function makeTempDir(): string {
   const dir = join(
@@ -95,54 +89,6 @@ describe("determineInstallDir", () => {
       homeDir: testDir,
     });
     expect(result).toBe(customDir);
-  });
-});
-
-describe("parseSha256Digest", () => {
-  test("parses sha256: prefix and normalizes case", () => {
-    const hex = "a".repeat(64);
-    expect(parseSha256Digest(`sha256:${hex.toUpperCase()}`)).toBe(hex);
-  });
-
-  test("rejects invalid digest format", () => {
-    expect(() => parseSha256Digest("md5:deadbeef")).toThrow(
-      "Invalid release asset digest",
-    );
-  });
-});
-
-describe("verifyFileDigest", () => {
-  let testDir: string;
-  let filePath: string;
-
-  beforeEach(() => {
-    testDir = makeTempDir();
-    filePath = join(testDir, "payload.bin");
-    writeFileSync(filePath, "observe-cli-test-payload");
-  });
-
-  afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true });
-  });
-
-  test("accepts matching digest", () => {
-    const hex = sha256HexOfFile(filePath);
-    verifyFileDigest({
-      filePath,
-      digest: `sha256:${hex}`,
-      assetName: "observe-linux-x64.gz",
-    });
-  });
-
-  test("rejects mismatched digest", () => {
-    const hex = "0".repeat(64);
-    expect(() =>
-      verifyFileDigest({
-        filePath,
-        digest: `sha256:${hex}`,
-        assetName: "observe-linux-x64.gz",
-      }),
-    ).toThrow("Binary integrity check failed");
   });
 });
 
