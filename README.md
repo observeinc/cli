@@ -4,16 +4,16 @@ Command line interface for [Observe Inc](https://www.observeinc.com).
 
 ## Features
 
-- **OPAL Query Execution** - Run OPAL queries directly from your terminal with schema-aware table output.
+- **Knowledge Graph Search** - Resolve entities and entity types via tag keys and tag values to ground investigations in real data.
 - **Dataset Management** - List, view, and explore datasets with filtering and field selection.
-- **Datastream Management** - Create, list, view, and update datastreams.
-- **Ingest Token Management** - Full CRUD for ingest tokens with datastream association.
-- **Data Integrations** - Create data connections and datasources (AWS, Kubernetes, host) and generate CloudFormation quick-create URLs for AWS filedrop deployments.
 - **Metric Exploration** - Search, list, and inspect metrics including type, unit, and available dimensions.
+- **OPAL Query Execution** - Run OPAL queries directly from your terminal with schema-aware table output.
+- **AI Agent Skills** - List and view reusable AI-agent instruction documents stored in Observe.
 - **Alert Monitoring** - List and view alerts with severity filtering and active-only views.
 - **Content Packs** - Install and view Host Explorer, Kubernetes Explorer, and Trace Explorer content.
-- **Knowledge Graph Search** - Resolve entities and entity types via tag keys and tag values to ground investigations in real data.
-- **AI Agent Skills** - List and view reusable AI-agent instruction documents stored in Observe.
+- **Ingest Token Management** - Full CRUD for ingest tokens with datastream association.
+- **Data Integrations** - Create data connections and datasources (AWS, Kubernetes, host) and generate CloudFormation quick-create URLs for AWS filedrop deployments.
+- **Datastream Management** - Create, list, view, and update datastreams.
 - **Multiple Output Formats** - All commands support `--format json` and `--format csv` for scripting and pipelines.
 - **Responsive Tables** - Terminal-aware column widths with automatic text wrapping.
 
