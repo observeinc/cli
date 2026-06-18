@@ -6,9 +6,7 @@
  * redirect; asset downloads and checksums use predictable release URLs.
  */
 
-import { GITHUB_REPO } from "./constants";
-
-const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
+import { GITHUB_RELEASES_URL } from "./constants";
 
 /**
  * Resolves the latest release tag by following the releases/latest redirect.
