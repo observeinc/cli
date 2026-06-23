@@ -92,10 +92,16 @@ const FIELD_COLUMNS = {
   }),
 } satisfies Record<FieldName, ColumnDef<MonitorMuteResource>>;
 
-async function list(
+export interface ListMonitorMutesDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function list(
   this: LocalContext,
   flags: ListMonitorMutesFlags,
+  deps: ListMonitorMutesDeps = {},
 ): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const { process, writer: _writer } = this;
 
   const format = flags.json ? ("json" as const) : flags.format;
@@ -104,7 +110,7 @@ async function list(
   });
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Searching monitor mutes...");
 

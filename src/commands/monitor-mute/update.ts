@@ -21,11 +21,17 @@ Example body:
   "schedule": { "kind": "OneTime", "oneTime": { "startTime": "2026-06-23T18:00:00Z", "endTime": "2026-06-23T22:00:00Z" } }
 }`;
 
-async function update(
+export interface UpdateMonitorMuteDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function update(
   this: LocalContext,
   flags: UpdateMonitorMuteFlags,
   id: string,
+  deps: UpdateMonitorMuteDeps = {},
 ): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json });
 
@@ -40,7 +46,7 @@ async function update(
   }
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Updating monitor mute...");
 

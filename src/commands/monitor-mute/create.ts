@@ -21,10 +21,16 @@ const BODY_EXAMPLE = `Example body:
   "schedule": { "kind": "OneTime", "oneTime": { "startTime": "2026-06-23T18:00:00Z", "endTime": "2026-06-23T20:00:00Z" } }
 }`;
 
-async function create(
+export interface CreateMonitorMuteDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function create(
   this: LocalContext,
   flags: CreateMonitorMuteFlags,
+  deps: CreateMonitorMuteDeps = {},
 ): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json });
 
@@ -39,7 +45,7 @@ async function create(
   }
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Creating monitor mute...");
 

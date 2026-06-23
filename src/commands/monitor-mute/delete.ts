@@ -31,16 +31,22 @@ async function confirm(this: LocalContext, question: string): Promise<boolean> {
   }
 }
 
-async function remove(
+export interface DeleteMonitorMuteDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function remove(
   this: LocalContext,
   flags: DeleteMonitorMuteFlags,
   id: string,
+  deps: DeleteMonitorMuteDeps = {},
 ): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json });
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     if (!flags.yes) {
       // Fetch first so we can warn when deleting a rule that mutes several
