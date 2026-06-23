@@ -34,6 +34,7 @@ src/
 ├── context.ts          # CLI context (process, env)
 ├── commands/           # CLI commands organized by resource
 │   ├── alert/          # Alert commands (list, view)
+│   ├── monitor-mute/   # Monitor mute commands (list, view, create, update, delete)
 │   ├── auth/           # Auth commands (configure, login, logout, status)
 │   ├── cli/            # CLI management (install, uninstall, upgrade)
 │   ├── content/        # Content pack management
