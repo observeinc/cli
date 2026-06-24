@@ -14,7 +14,7 @@ description: >-
   pod, status code, etc.; or pull any observability data out of the
   platform for analysis, dashboards, or scripting. Also covers the
   underlying primitives the CLI exposes (datasets, OPAL queries,
-  knowledge-graph tag search, alerts, AI agent skills, auth) when the
+  knowledge-graph tag search, alerts, monitors, AI agent skills, auth) when the
   user asks about them directly.
 ---
 
@@ -281,6 +281,39 @@ The `related` field on each result lists the metrics and datasets that
 emit that tag — use it to jump directly to the right resources without
 a separate `dataset list` / `metric list` call. Default search mode is
 semantic; switch to `--mode regex` when you need an exact pattern.
+
+### Monitors — `observe monitor ...`
+
+```bash
+observe monitor list --json                                  # all monitors
+observe monitor list --match "checkout" --json               # filter by name
+
+observe monitor view <id> --json                             # full monitor definition
+
+observe monitor create --name "My Monitor" \
+  --rule-kind Count \
+  --definition-file ./definition.json --json                 # create; --json returns the created object
+
+observe monitor update <id> --name "New Name" --json         # rename; --json returns the updated object
+observe monitor update <id> --definition-file ./def.json --json
+
+observe monitor enable  <id>                                 # un-suppress a monitor
+observe monitor disable <id>                                 # suppress without deleting
+
+observe monitor delete  <id>                                 # permanent removal
+```
+
+Notes:
+
+- `--definition-file` accepts a path to a JSON file containing a
+  `MonitorV2Definition` object (OPAL `inputQuery` + alert `rules`).
+- `--action-rules-file` (create/update) accepts a path to a JSON file
+  containing an array of `MonitorV2ActionRule` objects; omit to leave
+  action rules unchanged.
+- `enable`/`disable` are a boolean `disabled` patch under the hood —
+  use them instead of `update --disabled` for clarity.
+- `--json` on mutation commands (`create`, `update`, `enable`, `disable`)
+  fetches and returns the full monitor after the operation.
 
 ### Skills — `observe skill ...`
 

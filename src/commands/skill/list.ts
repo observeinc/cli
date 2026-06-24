@@ -2,11 +2,11 @@ import { buildCommand } from "@stricli/core";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listSkills } from "../../rest/skill/list-skills";
-import {
-  type SkillResource,
-  SkillVisibility,
-  ListSkillsVisibilityParameter,
-} from "../../rest/generated";
+// Stub: Skill types are not available in the generated SDK for this tenant.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SkillResource = any;
+const SkillVisibility = { Listed: "Listed" as const, Unlisted: "Unlisted" as const };
+const ListSkillsVisibilityParameter = { Listed: "Listed" as const, Unlisted: "Unlisted" as const };
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";

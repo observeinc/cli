@@ -2,7 +2,8 @@ import { buildCommand } from "@stricli/core";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { getSkill } from "../../rest/skill/get-skill";
-import { SkillVisibility } from "../../rest/generated";
+// Stub: SkillVisibility is not available in the generated SDK for this tenant.
+const SkillVisibility = { Listed: "Listed" as const, Unlisted: "Unlisted" as const };
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";

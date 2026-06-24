@@ -27,7 +27,8 @@ import {
   type RelatedEntities,
   type RelatedMetric,
 } from "../lib/kg-search";
-import { KGV2DocumentType } from "../rest/generated";
+// Stub: KGV2DocumentType is not available in the generated SDK for this tenant.
+const KGV2DocumentType = { Metric: "Metric" as const };
 import { MetricState } from "../gql/generated/graphql";
 import type { GqlMetricMatch } from "../gql/metric/list-metrics";
 

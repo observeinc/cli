@@ -10,6 +10,7 @@ Command line interface for [Observe Inc](https://www.observeinc.com).
 - **OPAL Query Execution** - Run OPAL queries directly from your terminal with schema-aware table output.
 - **AI Agent Skills** - List and view reusable AI-agent instruction documents stored in Observe.
 - **Alert Monitoring** - List and view alerts with severity filtering and active-only views.
+- **Monitor Management** - Full CRUD for MonitorV2: create, list, view, update, delete, enable, and disable monitors.
 - **Content Packs** - Install and view Host Explorer, Kubernetes Explorer, and Trace Explorer content.
 - **Ingest Token Management** - Full CRUD for ingest tokens with datastream association.
 - **Data Integrations** - Create data connections and datasources (AWS, Kubernetes, host) and generate CloudFormation quick-create URLs for AWS filedrop deployments.
@@ -53,6 +54,13 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe skill view`                    | View skill details and content                          |
 | `observe alert list`                    | List alerts with severity and status filtering          |
 | `observe alert view`                    | View full alert details                                 |
+| `observe monitor list`                  | List monitors with optional name search                 |
+| `observe monitor view`                  | View monitor details and definition                     |
+| `observe monitor create`                | Create a new monitor from a definition file             |
+| `observe monitor update`                | Update a monitor's name, description, or definition     |
+| `observe monitor delete`                | Delete a monitor                                        |
+| `observe monitor enable`                | Enable a monitor                                        |
+| `observe monitor disable`               | Disable a monitor                                       |
 | `observe content host install`          | Install Host Explorer content                           |
 | `observe content host view`             | View Host Explorer content                              |
 | `observe content kubernetes install`    | Install Kubernetes Explorer content                     |
