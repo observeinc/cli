@@ -8,10 +8,10 @@ import {
   test,
 } from "bun:test";
 import { resolve } from "node:path";
-import type { LocalContext } from "../../context";
-import { createWriter } from "../../lib/writer";
+import type { LocalContext } from "../../../context";
+import { createWriter } from "../../../lib/writer";
 
-const repoRoot = resolve(import.meta.dir, "../../..");
+const repoRoot = resolve(import.meta.dir, "../../../..");
 const restModulePath = resolve(
   repoRoot,
   "src/rest/monitor-mute/get-monitor-mute.ts",

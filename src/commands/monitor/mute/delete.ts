@@ -1,13 +1,13 @@
 import { buildCommand } from "@stricli/core";
 import chalk from "chalk";
 import { createInterface } from "node:readline/promises";
-import type { LocalContext } from "../../context";
-import { getMonitorMute } from "../../rest/monitor-mute/get-monitor-mute";
-import { deleteMonitorMute } from "../../rest/monitor-mute/delete-monitor-mute";
-import { MonitorMuteTargetKind } from "../../rest/generated";
-import { loadConfig } from "../../lib/config";
-import { formatApiError } from "../../lib/format-error";
-import { muteStatusWriter } from "../../lib/writer";
+import type { LocalContext } from "../../../context";
+import { getMonitorMute } from "../../../rest/monitor-mute/get-monitor-mute";
+import { deleteMonitorMute } from "../../../rest/monitor-mute/delete-monitor-mute";
+import { MonitorMuteTargetKind } from "../../../rest/generated";
+import { loadConfig } from "../../../lib/config";
+import { formatApiError } from "../../../lib/format-error";
+import { muteStatusWriter } from "../../../lib/writer";
 
 interface DeleteMonitorMuteFlags {
   yes?: boolean;

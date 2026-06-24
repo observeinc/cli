@@ -1,22 +1,22 @@
 import { buildCommand } from "@stricli/core";
 import chalk from "chalk";
-import type { LocalContext } from "../../context";
-import { listMonitorMutes } from "../../rest/monitor-mute/list-monitor-mutes";
+import type { LocalContext } from "../../../context";
+import { listMonitorMutes } from "../../../rest/monitor-mute/list-monitor-mutes";
 import {
   type MonitorMuteResource,
   MonitorMuteTargetKind,
-} from "../../rest/generated";
-import { celMatchesInsensitive } from "../../lib/cel";
-import { loadConfig } from "../../lib/config";
-import { formatApiError } from "../../lib/format-error";
-import { muteStatusWriter } from "../../lib/writer";
-import { parseNonNegativeInt } from "../../lib/parsers";
+} from "../../../rest/generated";
+import { celMatchesInsensitive } from "../../../lib/cel";
+import { loadConfig } from "../../../lib/config";
+import { formatApiError } from "../../../lib/format-error";
+import { muteStatusWriter } from "../../../lib/writer";
+import { parseNonNegativeInt } from "../../../lib/parsers";
 import {
   formatTable,
   createColumnHelper,
   type ColumnDef,
-} from "../../lib/formatters/table";
-import { renderAsCSV } from "../../lib/formatters/csv";
+} from "../../../lib/formatters/table";
+import { renderAsCSV } from "../../../lib/formatters/csv";
 
 type OutputFormat = "json" | "csv";
 type SortField = "id" | "label" | "createdAt" | "updatedAt";

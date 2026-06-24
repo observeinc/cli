@@ -8,13 +8,17 @@ import {
   test,
 } from "bun:test";
 import { resolve } from "node:path";
-import type { LocalContext } from "../../context";
-import { createWriter } from "../../lib/writer";
+import type { LocalContext } from "../../../context";
+import { createWriter } from "../../../lib/writer";
 
-const repoRoot = resolve(import.meta.dir, "../../..");
-const restModulePath = resolve(
+const repoRoot = resolve(import.meta.dir, "../../../..");
+const getModulePath = resolve(
   repoRoot,
-  "src/rest/monitor-mute/update-monitor-mute.ts",
+  "src/rest/monitor-mute/get-monitor-mute.ts",
+);
+const deleteModulePath = resolve(
+  repoRoot,
+  "src/rest/monitor-mute/delete-monitor-mute.ts",
 );
 
 const loadConfigFn = mock(() => ({
@@ -23,18 +27,23 @@ const loadConfigFn = mock(() => ({
   domain: "observeinc.com",
 }));
 
-const updateMonitorMuteFn = mock((_args: unknown) =>
-  Promise.resolve({ id: "mute-1", label: "renamed" }),
+const getMonitorMuteFn = mock((_args: unknown) =>
+  Promise.resolve({
+    id: "mute-1",
+    label: "Snooze checkout",
+    target: { kind: "Monitors", monitors: [{ id: "42" }, { id: "43" }] },
+  }),
 );
+const deleteMonitorMuteFn = mock((_args: unknown) => Promise.resolve());
 
-let update: (typeof import("./update"))["update"];
+let remove: (typeof import("./delete"))["remove"];
 
 let previousNoColor: string | undefined;
 let previousForceColor: string | undefined;
 
 const deps = {
   loadConfig: loadConfigFn,
-} as Parameters<(typeof import("./update"))["update"]>[2];
+} as Parameters<(typeof import("./delete"))["remove"]>[2];
 
 beforeAll(async () => {
   previousNoColor = process.env.NO_COLOR;
@@ -42,12 +51,15 @@ beforeAll(async () => {
   process.env.NO_COLOR = "1";
   process.env.FORCE_COLOR = "0";
 
-  void mock.module(restModulePath, () => ({
-    updateMonitorMute: updateMonitorMuteFn,
+  void mock.module(getModulePath, () => ({
+    getMonitorMute: getMonitorMuteFn,
+  }));
+  void mock.module(deleteModulePath, () => ({
+    deleteMonitorMute: deleteMonitorMuteFn,
   }));
 
-  const mod = await import("./update.ts");
-  update = mod.update;
+  const mod = await import("./delete.ts");
+  remove = mod.remove;
 });
 
 afterAll(() => {
@@ -70,6 +82,8 @@ function createMockContext() {
   let exitCode: number | undefined;
 
   const processMock = {
+    // Non-interactive: the confirm() helper bails out unless --yes is passed.
+    stdin: { isTTY: false },
     stdout: {
       write: (msg: string) => {
         stdout.push(msg);
@@ -96,47 +110,44 @@ function createMockContext() {
   return { context, stdout, stderr, getExitCode: () => exitCode };
 }
 
-describe("monitor-mute update", () => {
+describe("monitor-mute delete", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
-    updateMonitorMuteFn.mockClear();
+    getMonitorMuteFn.mockClear();
+    deleteMonitorMuteFn.mockClear();
   });
 
-  test("forwards id and parsed body to updateMonitorMute", async () => {
+  test("with --yes, deletes without fetching or prompting", async () => {
     const { context, stdout } = createMockContext();
-    await update.call(
-      context,
-      { data: '{"label":"renamed"}', json: true },
-      "mute-1",
-      deps,
-    );
+    await remove.call(context, { yes: true }, "mute-1", deps);
 
-    expect(updateMonitorMuteFn).toHaveBeenCalledTimes(1);
-    const [args] = updateMonitorMuteFn.mock.calls[0]!;
-    expect(args).toMatchObject({ id: "mute-1", body: { label: "renamed" } });
-    const output = JSON.parse(stdout.join(""));
-    expect(output.label).toBe("renamed");
+    expect(getMonitorMuteFn).not.toHaveBeenCalled();
+    expect(deleteMonitorMuteFn).toHaveBeenCalledTimes(1);
+    const [args] = deleteMonitorMuteFn.mock.calls[0]!;
+    expect((args as { id: string }).id).toBe("mute-1");
+    expect(stdout.join("")).toContain("Deleted monitor mute");
   });
 
-  test("exits 1 on invalid JSON without calling the API", async () => {
+  test("without --yes on a non-TTY, aborts (exit 1) and does not delete", async () => {
     const { context, getExitCode } = createMockContext();
     try {
-      await update.call(context, { data: "nope" }, "mute-1", deps);
+      await remove.call(context, {}, "mute-1", deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
     }
+    expect(getMonitorMuteFn).toHaveBeenCalledTimes(1);
+    expect(deleteMonitorMuteFn).not.toHaveBeenCalled();
     expect(getExitCode()).toBe(1);
-    expect(updateMonitorMuteFn).not.toHaveBeenCalled();
   });
 
   test("exits 1 on API error", async () => {
-    updateMonitorMuteFn.mockImplementationOnce(() => {
-      throw new Error("bad schedule");
+    deleteMonitorMuteFn.mockImplementationOnce(() => {
+      throw new Error("not found");
     });
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await update.call(context, { data: '{"label":"x"}' }, "mute-1", deps);
+      await remove.call(context, { yes: true }, "missing", deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");

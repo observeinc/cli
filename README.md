@@ -54,11 +54,11 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe skill view`                    | View skill details and content                          |
 | `observe alert list`                    | List alerts with severity and status filtering          |
 | `observe alert view`                    | View full alert details                                 |
-| `observe monitor-mute list`             | List and search monitor mute rules                      |
-| `observe monitor-mute view`             | View full monitor mute rule details                     |
-| `observe monitor-mute create`           | Create a monitor mute rule                              |
-| `observe monitor-mute update`           | Update a monitor mute rule                              |
-| `observe monitor-mute delete`           | Delete a monitor mute rule                              |
+| `observe monitor mute list`             | List and search monitor mute rules                      |
+| `observe monitor mute view`             | View full monitor mute rule details                     |
+| `observe monitor mute create`           | Create a monitor mute rule                              |
+| `observe monitor mute update`           | Update a monitor mute rule                              |
+| `observe monitor mute delete`           | Delete a monitor mute rule                              |
 | `observe content host install`          | Install Host Explorer content                           |
 | `observe content host view`             | View Host Explorer content                              |
 | `observe content kubernetes install`    | Install Kubernetes Explorer content                     |
