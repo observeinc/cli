@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../lib/experimental";
 import type { LocalContext } from "../../context.js";
 import { getConnection } from "../../gql/connection/get-connection.js";
 import {
@@ -230,8 +234,9 @@ function mapExistingConfigToInput(
   };
 }
 
+// EXPERIMENTAL
 export const updateDatasourceCommand = buildCommand({
-  loader: async () => updateDatasourceCmd,
+  loader: async () => gateExperimental(updateDatasourceCmd),
   parameters: {
     positional: {
       kind: "tuple",
@@ -308,7 +313,7 @@ export const updateDatasourceCommand = buildCommand({
     },
   },
   docs: {
-    brief: "Update an existing datasource",
+    brief: withExperimentalBadge("Update an existing datasource"),
     fullDescription:
       "Updates the configuration of an existing datasource.\n\n" +
       "Use 'observe data-connection view <id>' to find datasource IDs.\n\n" +

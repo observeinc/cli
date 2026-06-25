@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../../lib/experimental";
 import type { LocalContext } from "../../../context";
 import { installTracingContent } from "../../../gql/content/install-tracing-content";
 import { GqlApiError } from "../../../gql/gql-request";
@@ -55,8 +59,9 @@ export async function install(
   }
 }
 
+// EXPERIMENTAL
 export const installCommand = buildCommand({
-  loader: async () => install,
+  loader: async () => gateExperimental(install),
   parameters: {
     positional: {
       kind: "tuple",
@@ -90,7 +95,7 @@ export const installCommand = buildCommand({
     },
   },
   docs: {
-    brief: "Install Trace Explorer content",
+    brief: withExperimentalBadge("Install Trace Explorer content"),
     fullDescription:
       "Install Trace Explorer content. If dataset IDs are provided, uses those\n" +
       "specific datasets; otherwise auto-discovers from existing datastreams.\n\n" +

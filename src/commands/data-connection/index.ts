@@ -1,4 +1,5 @@
 import { buildRouteMap } from "@stricli/core";
+import { withExperimentalBadge } from "../../lib/experimental.js";
 import { createConnectionRoutes } from "./create/index.js";
 import { generateStackUrlCommand } from "./generate-stack-url.js";
 import { listCommand } from "./list.js";
@@ -12,7 +13,8 @@ export const dataConnectionRoutes = buildRouteMap({
     view: viewCommand,
   },
   docs: {
-    brief: "Manage data connections",
+    // EXPERIMENTAL
+    brief: withExperimentalBadge("Manage data connections"),
     fullDescription: [
       "Create, list, and view data connections in Observe.",
       "",

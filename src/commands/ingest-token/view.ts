@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../lib/experimental";
 import type { LocalContext } from "../../context";
 import { viewIngestToken } from "../../gql/ingest-token/view-ingest-token";
 import { GqlApiError } from "../../gql/gql-request";
@@ -32,8 +36,9 @@ export async function view(
   }
 }
 
+// EXPERIMENTAL
 export const viewCommand = buildCommand({
-  loader: async () => view,
+  loader: async () => gateExperimental(view),
   parameters: {
     positional: {
       kind: "tuple",
@@ -47,6 +52,6 @@ export const viewCommand = buildCommand({
     flags: {},
   },
   docs: {
-    brief: "View an ingest token by ID",
+    brief: withExperimentalBadge("View an ingest token by ID"),
   },
 });

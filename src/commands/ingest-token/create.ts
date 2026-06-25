@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../lib/experimental";
 import type { LocalContext } from "../../context";
 import { createIngestToken } from "../../gql/ingest-token/create-ingest-token";
 import { updateIngestTokenAssociation } from "../../gql/ingest-token/update-ingest-token-association";
@@ -62,8 +66,9 @@ export async function create(
   }
 }
 
+// EXPERIMENTAL
 export const createCommand = buildCommand({
-  loader: async () => create,
+  loader: async () => gateExperimental(create),
   parameters: {
     positional: {
       kind: "tuple",
@@ -92,7 +97,7 @@ export const createCommand = buildCommand({
     },
   },
   docs: {
-    brief: "Create an ingest token",
+    brief: withExperimentalBadge("Create an ingest token"),
     fullDescription:
       "Create a new ingest token, optionally associating it with datastreams.\n\n" +
       "When --datastream-ids is omitted, the token is created with no associations\n" +

@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../lib/experimental";
 import type { LocalContext } from "../../context";
 import { updateIngestToken } from "../../gql/ingest-token/update-ingest-token";
 import { viewIngestToken } from "../../gql/ingest-token/view-ingest-token";
@@ -73,8 +77,9 @@ export async function update(
   }
 }
 
+// EXPERIMENTAL
 export const updateCommand = buildCommand({
-  loader: async () => update,
+  loader: async () => gateExperimental(update),
   parameters: {
     positional: {
       kind: "tuple",
@@ -108,7 +113,7 @@ export const updateCommand = buildCommand({
     },
   },
   docs: {
-    brief: "Update an ingest token",
+    brief: withExperimentalBadge("Update an ingest token"),
     fullDescription:
       "Update an ingest token's name, description, and/or disabled state.\n" +
       "Only the fields you pass are changed; omitted fields keep their current\n" +

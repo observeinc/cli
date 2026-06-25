@@ -1,4 +1,5 @@
 import { buildRouteMap } from "@stricli/core";
+import { withExperimentalBadge } from "../../../lib/experimental";
 import { installCommand } from "./install";
 import { viewCommand } from "./view";
 
@@ -8,6 +9,6 @@ export const tracingContentRoutes = buildRouteMap({
     view: viewCommand,
   },
   docs: {
-    brief: "Manage Trace Explorer content",
+    brief: withExperimentalBadge("Manage Trace Explorer content"),
   },
 });

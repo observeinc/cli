@@ -17,6 +17,7 @@ import { skillRoutes } from "./commands/skill/index.js";
 import { tagKeyRoutes } from "./commands/tag-key/index.js";
 import { tagValueRoutes } from "./commands/tag-value/index.js";
 import { CURRENT_CLI_VERSION } from "./lib/constants.js";
+import { hideExperimentalRoutes } from "./lib/experimental.js";
 
 /** Top-level route map containing all CLI commands */
 export const routes = buildRouteMap({
@@ -44,6 +45,13 @@ export const routes = buildRouteMap({
     fullDescription:
       "observe is a command-line interface for interacting with Observe Inc. " +
       "It provides commands for configuration, querying datasets, and more.",
+    // Hide experimental command groups unless OBSERVE_CLI_EXPERIMENTAL=1.
+    hideRoute: hideExperimentalRoutes([
+      "content",
+      "data-connection",
+      "ingest-token",
+      "datasource",
+    ]),
   },
 });
 

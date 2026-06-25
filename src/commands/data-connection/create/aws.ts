@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../../lib/experimental";
 import type { LocalContext } from "../../../context.js";
 import { createConnection } from "../../../gql/connection/create-connection.js";
 import {
@@ -75,8 +79,9 @@ export async function createAwsConnectionCmd(
   }
 }
 
+// EXPERIMENTAL
 export const createAwsConnectionCommand = buildCommand({
-  loader: async () => createAwsConnectionCmd,
+  loader: async () => gateExperimental(createAwsConnectionCmd),
   parameters: {
     positional: { kind: "tuple", parameters: [] },
     flags: {
@@ -121,7 +126,7 @@ export const createAwsConnectionCommand = buildCommand({
     },
   },
   docs: {
-    brief: "Create an AWS data connection",
+    brief: withExperimentalBadge("Create an AWS data connection"),
     fullDescription:
       `Creates a new AWS data connection (module: ${AWS_MODULE_ID}).\n\n` +
       "--version defaults to the latest stable version published to the\n" +

@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../../lib/experimental";
 import type { LocalContext } from "../../../context";
 import { updateHostContent } from "../../../gql/content/update-host-content";
 import { GqlApiError } from "../../../gql/gql-request";
@@ -42,8 +46,9 @@ export async function install(
   }
 }
 
+// EXPERIMENTAL
 export const installCommand = buildCommand({
-  loader: async () => install,
+  loader: async () => gateExperimental(install),
   parameters: {
     positional: {
       kind: "tuple",
@@ -65,7 +70,7 @@ export const installCommand = buildCommand({
     },
   },
   docs: {
-    brief: "Install or update Host Explorer content",
+    brief: withExperimentalBadge("Install or update Host Explorer content"),
     fullDescription: [
       "Install or update Host Explorer content. This creates the derived host logs",
       "content used by the Host Explorer UI.",

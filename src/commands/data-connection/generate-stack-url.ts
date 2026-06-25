@@ -5,6 +5,10 @@ import { getConnection } from "../../gql/connection/get-connection.js";
 import { DatasourceType } from "../../gql/generated/graphql.js";
 import { GqlApiError } from "../../gql/gql-request.js";
 import { loadConfig } from "../../lib/config.js";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../lib/experimental.js";
 import { buildCloudFormationUrl } from "./stack-url-utils.js";
 
 interface GenerateStackUrlFlags {
@@ -172,8 +176,9 @@ export async function generateStackUrlCmd(
   }
 }
 
+// EXPERIMENTAL
 export const generateStackUrlCommand = buildCommand({
-  loader: async () => generateStackUrlCmd,
+  loader: async () => gateExperimental(generateStackUrlCmd),
   parameters: {
     positional: {
       kind: "tuple",
@@ -202,8 +207,9 @@ export const generateStackUrlCommand = buildCommand({
     },
   },
   docs: {
-    brief:
+    brief: withExperimentalBadge(
       "Generate a CloudFormation quick-create URL for a data connection's AWS stack",
+    ),
     fullDescription:
       "Builds the CloudFormation quick-create URL that deploys the AWS collection\n" +
       "stack for a data connection. The CLI reads the connection's variables and\n" +

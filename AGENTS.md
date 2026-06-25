@@ -36,13 +36,13 @@ src/
 │   ├── alert/          # Alert commands (list, view)
 │   ├── auth/           # Auth commands (configure, login, logout, status)
 │   ├── cli/            # CLI management (install, uninstall, upgrade)
-│   ├── content/        # Content pack management
+│   ├── content/        # Content pack management (experimental: gated + hidden)
 │   │   ├── host/       # Host Explorer (install, view)
 │   │   ├── kubernetes/ # Kubernetes Explorer (install, view)
 │   │   └── tracing/    # Trace Explorer (install, view)
 │   ├── dataset/        # Dataset commands (list, view)
 │   ├── datastream/     # Datastream commands (create, list, view, update)
-│   ├── ingest-token/   # Ingest token commands (create, list, view, update)
+│   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view)
 │   ├── tag-key/        # Tag key commands (list)
@@ -78,6 +78,7 @@ src/
     ├── cel.ts          # CEL expression support
     ├── kg-search.ts    # Knowledge graph search
     ├── writer.ts       # Output writer
+    ├── experimental.ts # Experimental command gating (env flag, badge, hide)
     └── format-error.ts # Error formatting
 ```
 
@@ -100,6 +101,46 @@ src/
 4. **Update documentation**:
    - Update the **Project Structure** section in this `AGENTS.md` to include the new command/resource.
    - Update the **Commands** table in `README.md`. The README command order must always match the route order in `src/app.ts`.
+
+### Adding an Experimental Command
+
+Experimental commands live behind `OBSERVE_CLI_EXPERIMENTAL=1`: hidden from help
+and non-runnable unless the flag is set, tagged `[experimental]` when visible.
+All helpers come from [`src/lib/experimental.ts`](src/lib/experimental.ts).
+
+A developer marks a command experimental by touching three things:
+
+1. **Gate the handler** — wrap the loader so it refuses to run without the flag
+   (see [`data-connection/generate-stack-url.ts`](src/commands/data-connection/generate-stack-url.ts)):
+
+   ```typescript
+   import { gateExperimental } from "../../lib/experimental";
+   loader: async () => gateExperimental(myHandler),
+   ```
+
+2. **Badge the brief** — so it reads `[experimental] …` in help:
+
+   ```typescript
+   import { withExperimentalBadge } from "../../lib/experimental";
+   docs: { brief: withExperimentalBadge("Do the experimental thing") },
+   ```
+
+3. **Hide it in the parent route map** — a command cannot hide itself, so list
+   it in the parent's `docs.hideRoute`. For a subcommand, hide it in its group's
+   route map; for a top-level command, hide it in `src/app.ts`:
+
+   ```typescript
+   import { hideExperimentalRoutes } from "../../lib/experimental";
+   docs: { brief: "…", hideRoute: hideExperimentalRoutes(["myCommand"]) },
+   ```
+
+**Marking a whole group experimental** (see the `content` group): badge the
+group's brief in its `index.ts`, hide the group name in the parent map's
+`hideRoute`, and — because hiding does not block execution — wrap the loader of
+_every leaf command_ in the group with `gateExperimental`.
+
+**Promote to GA** by deleting those markers — drop `gateExperimental`, drop
+`withExperimentalBadge`, and remove the name from `hideExperimentalRoutes`.
 
 ### Command Pattern
 

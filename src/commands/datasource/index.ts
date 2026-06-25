@@ -1,4 +1,5 @@
 import { buildRouteMap } from "@stricli/core";
+import { withExperimentalBadge } from "../../lib/experimental.js";
 import { createDatasourceCommand } from "./create.js";
 import { updateDatasourceCommand } from "./update.js";
 
@@ -8,7 +9,8 @@ export const datasourceRoutes = buildRouteMap({
     update: updateDatasourceCommand,
   },
   docs: {
-    brief: "Manage datasources",
+    // EXPERIMENTAL
+    brief: withExperimentalBadge("Manage datasources"),
     fullDescription: [
       "Create and update datasources.",
       "",

@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../lib/experimental";
 import type { LocalContext } from "../../context.js";
 import { createDatasource } from "../../gql/connection/create-datasource.js";
 import { getConnection } from "../../gql/connection/get-connection.js";
@@ -127,8 +131,9 @@ export async function createDatasourceCmd(
   }
 }
 
+// EXPERIMENTAL
 export const createDatasourceCommand = buildCommand({
-  loader: async () => createDatasourceCmd,
+  loader: async () => gateExperimental(createDatasourceCmd),
   parameters: {
     positional: { kind: "tuple", parameters: [] },
     flags: {
@@ -203,7 +208,7 @@ export const createDatasourceCommand = buildCommand({
     },
   },
   docs: {
-    brief: "Create a datasource",
+    brief: withExperimentalBadge("Create a datasource"),
     fullDescription:
       "Creates a new datasource within an existing data connection.\n\n" +
       "Named flags (--collect-logs, --collect-metrics, --collect-resources) override\n" +

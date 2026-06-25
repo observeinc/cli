@@ -1,4 +1,8 @@
 import { buildCommand } from "@stricli/core";
+import {
+  gateExperimental,
+  withExperimentalBadge,
+} from "../../lib/experimental";
 import type { LocalContext } from "../../context.js";
 import { searchConnections } from "../../gql/connection/search-connections.js";
 import { GqlApiError } from "../../gql/gql-request.js";
@@ -39,8 +43,9 @@ export async function list(
   }
 }
 
+// EXPERIMENTAL
 export const listCommand = buildCommand({
-  loader: async () => list,
+  loader: async () => gateExperimental(list),
   parameters: {
     positional: { kind: "tuple", parameters: [] },
     flags: {
@@ -59,6 +64,6 @@ export const listCommand = buildCommand({
     },
   },
   docs: {
-    brief: "List data connections",
+    brief: withExperimentalBadge("List data connections"),
   },
 });
