@@ -19,7 +19,9 @@ describe("parseMonitorId", () => {
     expect(parseMonitorId("1")).toBe(1);
     expect(parseMonitorId("42")).toBe(42);
     expect(parseMonitorId("41076897")).toBe(41076897);
-    expect(parseMonitorId(String(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parseMonitorId(String(Number.MAX_SAFE_INTEGER))).toBe(
+      Number.MAX_SAFE_INTEGER,
+    );
   });
 
   test("rejects zero", () => {

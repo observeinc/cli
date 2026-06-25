@@ -49,7 +49,9 @@ const getMonitorFn = mock(
     Promise.resolve(monitorStub()),
 );
 
-const readFileFn = mock((_path: string): string => JSON.stringify(STUB_DEFINITION));
+const readFileFn = mock((_path: string): string =>
+  JSON.stringify(STUB_DEFINITION),
+);
 
 let create: (typeof import("./create"))["create"];
 
@@ -139,7 +141,9 @@ describe("monitor create — API forwarding", () => {
       deps,
     );
     expect(createMonitorFn).toHaveBeenCalledTimes(1);
-    const call = createMonitorFn.mock.calls[0]![0] as unknown as { monitorV2: { name: string; ruleKind: string; definition: unknown } };
+    const call = createMonitorFn.mock.calls[0]![0] as unknown as {
+      monitorV2: { name: string; ruleKind: string; definition: unknown };
+    };
     expect(call.monitorV2.name).toBe("My Monitor");
     expect(call.monitorV2.ruleKind).toBe(MonitorV2RuleKind.Count);
     expect(call.monitorV2.definition).toMatchObject(STUB_DEFINITION);
@@ -174,7 +178,9 @@ describe("monitor create — API forwarding", () => {
       },
       deps,
     );
-    const call = createMonitorFn.mock.calls[0]![0] as unknown as { monitorV2: { actionRules: unknown[] } };
+    const call = createMonitorFn.mock.calls[0]![0] as unknown as {
+      monitorV2: { actionRules: unknown[] };
+    };
     expect(call.monitorV2.actionRules).toEqual(actionRules);
   });
 
@@ -189,7 +195,9 @@ describe("monitor create — API forwarding", () => {
       },
       deps,
     );
-    const call = createMonitorFn.mock.calls[0]![0] as unknown as { monitorV2: object };
+    const call = createMonitorFn.mock.calls[0]![0] as unknown as {
+      monitorV2: object;
+    };
     expect(call.monitorV2).not.toHaveProperty("actionRules");
   });
 });

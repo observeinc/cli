@@ -20,7 +20,10 @@ const loadConfigFn = mock(
   }),
 );
 
-function monitorStub(id: string, overrides: Partial<MonitorV2> = {}): MonitorV2 {
+function monitorStub(
+  id: string,
+  overrides: Partial<MonitorV2> = {},
+): MonitorV2 {
   return {
     id,
     name: "Test Monitor",
@@ -177,7 +180,10 @@ describe("monitor view — output", () => {
   test("JSON output matches MonitorV2 shape", async () => {
     getMonitorFn.mockImplementationOnce(() =>
       Promise.resolve(
-        monitorStub("42", { name: "My Monitor", ruleKind: MonitorV2RuleKind.Threshold }),
+        monitorStub("42", {
+          name: "My Monitor",
+          ruleKind: MonitorV2RuleKind.Threshold,
+        }),
       ),
     );
     const { context, stdout } = createMockContext();

@@ -119,7 +119,12 @@ describe("monitor disable — ID validation", () => {
   test("ID exceeding MAX_SAFE_INTEGER exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await disable.call(context, {}, String(Number.MAX_SAFE_INTEGER + 1), deps);
+      await disable.call(
+        context,
+        {},
+        String(Number.MAX_SAFE_INTEGER + 1),
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -181,7 +186,9 @@ describe("monitor disable — API forwarding", () => {
     const { context } = createMockContext();
     await disable.call(context, { json: true }, TEST_MONITOR_ID, deps);
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
-    expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({ id: Number(TEST_MONITOR_ID) });
+    expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({
+      id: Number(TEST_MONITOR_ID),
+    });
   });
 });
 

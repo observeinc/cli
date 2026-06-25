@@ -2,10 +2,7 @@ import { buildCommand } from "@stricli/core";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listMonitors } from "../../rest/monitor/list-monitors";
-import {
-  type MonitorV2Terse,
-  MonitorV2RuleKind,
-} from "../../rest/generated";
+import { type MonitorV2Terse, MonitorV2RuleKind } from "../../rest/generated";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -61,7 +58,10 @@ const RULE_KIND_ORDER: Record<string, number> = {
   [MonitorV2RuleKind.Threshold]: 2,
 };
 
-function sortMonitors(monitors: MonitorV2Terse[], sort: SortField): MonitorV2Terse[] {
+function sortMonitors(
+  monitors: MonitorV2Terse[],
+  sort: SortField,
+): MonitorV2Terse[] {
   return [...monitors].sort((a, b) => {
     switch (sort) {
       case "id":
@@ -69,7 +69,10 @@ function sortMonitors(monitors: MonitorV2Terse[], sort: SortField): MonitorV2Ter
       case "name":
         return (a.name ?? "").localeCompare(b.name ?? "");
       case "kind":
-        return (RULE_KIND_ORDER[a.ruleKind ?? ""] ?? 99) - (RULE_KIND_ORDER[b.ruleKind ?? ""] ?? 99);
+        return (
+          (RULE_KIND_ORDER[a.ruleKind ?? ""] ?? 99) -
+          (RULE_KIND_ORDER[b.ruleKind ?? ""] ?? 99)
+        );
       case "disabled":
         return Number(a.disabled ?? false) - Number(b.disabled ?? false);
     }
@@ -94,8 +97,7 @@ const FIELD_COLUMNS = {
   }),
   disabled: col.accessor((row) => row.disabled ?? false, {
     header: "DISABLED",
-    format: (value) =>
-      value ? chalk.yellow("Yes") : chalk.dim("No"),
+    format: (value) => (value ? chalk.yellow("Yes") : chalk.dim("No")),
   }),
 } satisfies Record<FieldName, ColumnDef<MonitorV2Terse>>;
 
@@ -132,11 +134,15 @@ export async function list(
 
     if (flags.kind) {
       const filterKinds = flags.kind;
-      monitors = monitors.filter((m) => m.ruleKind != null && filterKinds.includes(m.ruleKind));
+      monitors = monitors.filter(
+        (m) => m.ruleKind != null && filterKinds.includes(m.ruleKind),
+      );
     }
 
     if (flags.disabled != null) {
-      monitors = monitors.filter((m) => (m.disabled ?? false) === flags.disabled);
+      monitors = monitors.filter(
+        (m) => (m.disabled ?? false) === flags.disabled,
+      );
     }
 
     if (flags.sort) {
@@ -220,7 +226,8 @@ export const listCommand = buildCommand({
       },
       disabled: {
         kind: "boolean",
-        brief: "Filter by disabled status (--disabled shows only disabled, --no-disabled shows only enabled)",
+        brief:
+          "Filter by disabled status (--disabled shows only disabled, --no-disabled shows only enabled)",
         optional: true,
       },
       sort: {

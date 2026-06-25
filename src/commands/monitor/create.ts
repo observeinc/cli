@@ -74,7 +74,9 @@ export async function create(
     try {
       createdId = parseMonitorId(created.id);
     } catch {
-      throw new Error(`Create API returned unexpected monitor ID: "${created.id}"`);
+      throw new Error(
+        `Create API returned unexpected monitor ID: "${created.id}"`,
+      );
     }
 
     if (flags.json) {
@@ -106,7 +108,11 @@ export const createCommand = buildCommand({
       },
       ruleKind: {
         kind: "enum",
-        values: [MonitorV2RuleKind.Count, MonitorV2RuleKind.Threshold, MonitorV2RuleKind.Promote],
+        values: [
+          MonitorV2RuleKind.Count,
+          MonitorV2RuleKind.Threshold,
+          MonitorV2RuleKind.Promote,
+        ],
         brief: "Alert rule kind (Count, Threshold, Promote)",
         optional: false,
       },

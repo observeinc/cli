@@ -181,7 +181,9 @@ describe("monitor enable — API forwarding", () => {
     const { context } = createMockContext();
     await enable.call(context, { json: true }, TEST_MONITOR_ID, deps);
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
-    expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({ id: Number(TEST_MONITOR_ID) });
+    expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({
+      id: Number(TEST_MONITOR_ID),
+    });
   });
 });
 

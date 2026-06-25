@@ -50,7 +50,9 @@ const getMonitorFn = mock(
     Promise.resolve(monitorStub()),
 );
 
-const readFileFn = mock((_path: string): string => JSON.stringify(STUB_DEFINITION));
+const readFileFn = mock((_path: string): string =>
+  JSON.stringify(STUB_DEFINITION),
+);
 
 let update: (typeof import("./update"))["update"];
 
@@ -180,7 +182,10 @@ describe("monitor update — API forwarding", () => {
     const { context } = createMockContext();
     await update.call(context, { name: "New Name" }, TEST_MONITOR_ID, deps);
     expect(updateMonitorFn).toHaveBeenCalledTimes(1);
-    const call = updateMonitorFn.mock.calls[0]![0] as unknown as { id: number; name: string };
+    const call = updateMonitorFn.mock.calls[0]![0] as unknown as {
+      id: number;
+      name: string;
+    };
     expect(call.id).toBe(Number(TEST_MONITOR_ID));
     expect(call.name).toBe("New Name");
   });
@@ -203,7 +208,9 @@ describe("monitor update — API forwarding", () => {
       deps,
     );
     expect(readFileFn).toHaveBeenCalledWith("/path/to/def.json");
-    const call = updateMonitorFn.mock.calls[0]![0] as unknown as { definition: unknown };
+    const call = updateMonitorFn.mock.calls[0]![0] as unknown as {
+      definition: unknown;
+    };
     expect(call.definition).toMatchObject(STUB_DEFINITION);
   });
 
@@ -215,7 +222,12 @@ describe("monitor update — API forwarding", () => {
 
   test("calls getMonitor with numeric ID when --json is set", async () => {
     const { context } = createMockContext();
-    await update.call(context, { name: "foo", json: true }, TEST_MONITOR_ID, deps);
+    await update.call(
+      context,
+      { name: "foo", json: true },
+      TEST_MONITOR_ID,
+      deps,
+    );
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
     expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({
       id: Number(TEST_MONITOR_ID),
@@ -258,7 +270,12 @@ describe("monitor update — ID validation", () => {
   test("ID exceeding MAX_SAFE_INTEGER exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await update.call(context, { name: "foo" }, String(Number.MAX_SAFE_INTEGER + 1), deps);
+      await update.call(
+        context,
+        { name: "foo" },
+        String(Number.MAX_SAFE_INTEGER + 1),
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -348,7 +365,12 @@ describe("monitor update — error handling", () => {
     getMonitorFn.mockImplementationOnce(() => Promise.resolve(null));
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await update.call(context, { name: "foo", json: true }, TEST_MONITOR_ID, deps);
+      await update.call(
+        context,
+        { name: "foo", json: true },
+        TEST_MONITOR_ID,
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");

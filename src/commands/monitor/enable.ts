@@ -35,7 +35,9 @@ export async function enable(
   try {
     id = parseMonitorId(monitorId);
   } catch {
-    writer.error(`Invalid monitor ID: "${monitorId}". Must be a positive integer.`);
+    writer.error(
+      `Invalid monitor ID: "${monitorId}". Must be a positive integer.`,
+    );
     process.exit(1);
     return;
   }

@@ -50,7 +50,9 @@ export async function update(
   try {
     id = parseMonitorId(monitorId);
   } catch {
-    writer.error(`Invalid monitor ID: "${monitorId}". Must be a positive integer.`);
+    writer.error(
+      `Invalid monitor ID: "${monitorId}". Must be a positive integer.`,
+    );
     process.exit(1);
     return;
   }
@@ -132,7 +134,11 @@ export const updateCommand = buildCommand({
       },
       ruleKind: {
         kind: "enum",
-        values: [MonitorV2RuleKind.Count, MonitorV2RuleKind.Threshold, MonitorV2RuleKind.Promote],
+        values: [
+          MonitorV2RuleKind.Count,
+          MonitorV2RuleKind.Threshold,
+          MonitorV2RuleKind.Promote,
+        ],
         brief: "New alert rule kind (Count, Threshold, Promote)",
         optional: true,
       },

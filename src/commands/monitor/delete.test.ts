@@ -97,7 +97,12 @@ describe("monitor delete — ID validation", () => {
   test("ID exceeding MAX_SAFE_INTEGER exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await deleteMonitorCommand.call(context, {}, String(Number.MAX_SAFE_INTEGER + 1), deps);
+      await deleteMonitorCommand.call(
+        context,
+        {},
+        String(Number.MAX_SAFE_INTEGER + 1),
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");

@@ -56,7 +56,9 @@ export async function view(
   try {
     id = parseMonitorId(monitorId);
   } catch {
-    writer.error(`Invalid monitor ID: "${monitorId}". Must be a positive integer.`);
+    writer.error(
+      `Invalid monitor ID: "${monitorId}". Must be a positive integer.`,
+    );
     process.exit(1);
     return;
   }
@@ -106,7 +108,8 @@ export async function view(
             transform: monitor.effectiveScheduling.transform
               ? "transform-driven"
               : undefined,
-            scheduled: monitor.effectiveScheduling.scheduled?.cronConfig ?? undefined,
+            scheduled:
+              monitor.effectiveScheduling.scheduled?.cronConfig ?? undefined,
           }
         : undefined,
     };

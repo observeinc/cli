@@ -1,5 +1,9 @@
 import type { Config } from "../../lib/config";
-import { MonitorApi, type MonitorApiCreateMonitorRequest, type MonitorV2 } from "../generated";
+import {
+  MonitorApi,
+  type MonitorApiCreateMonitorRequest,
+  type MonitorV2,
+} from "../generated";
 import { createApiConfiguration } from "../api-config";
 
 export async function createMonitor({

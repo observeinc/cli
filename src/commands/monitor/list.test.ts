@@ -37,8 +37,13 @@ function monitorTerseStub(
 
 const STUB_MONITORS: MonitorV2Terse[] = [
   monitorTerseStub("1", "Alpha Monitor", { ruleKind: MonitorV2RuleKind.Count }),
-  monitorTerseStub("2", "Beta Monitor", { ruleKind: MonitorV2RuleKind.Threshold, disabled: true }),
-  monitorTerseStub("3", "Gamma Monitor", { ruleKind: MonitorV2RuleKind.Promote }),
+  monitorTerseStub("2", "Beta Monitor", {
+    ruleKind: MonitorV2RuleKind.Threshold,
+    disabled: true,
+  }),
+  monitorTerseStub("3", "Gamma Monitor", {
+    ruleKind: MonitorV2RuleKind.Promote,
+  }),
 ];
 
 const listMonitorsFn = mock(
@@ -122,7 +127,9 @@ describe("monitor list — API forwarding", () => {
     const { context } = createMockContext();
     await list.call(context, { match: "alpha", json: true }, deps);
     expect(listMonitorsFn).toHaveBeenCalledTimes(1);
-    expect(listMonitorsFn.mock.calls[0]![0]).toMatchObject({ nameSubstring: "alpha" });
+    expect(listMonitorsFn.mock.calls[0]![0]).toMatchObject({
+      nameSubstring: "alpha",
+    });
   });
 
   test("calls listMonitors without nameSubstring when --match is absent", async () => {
@@ -138,22 +145,37 @@ describe("monitor list — kind filter", () => {
 
   test("--kind Count returns only Count monitors", async () => {
     const { context, stdout } = createMockContext();
-    await list.call(context, { kind: [MonitorV2RuleKind.Count], json: true }, deps);
+    await list.call(
+      context,
+      { kind: [MonitorV2RuleKind.Count], json: true },
+      deps,
+    );
     const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
-    expect(result.every((m) => m.ruleKind === MonitorV2RuleKind.Count)).toBe(true);
+    expect(result.every((m) => m.ruleKind === MonitorV2RuleKind.Count)).toBe(
+      true,
+    );
   });
 
   test("--kind Count,Promote returns Count and Promote monitors", async () => {
     const { context, stdout } = createMockContext();
     await list.call(
       context,
-      { kind: [MonitorV2RuleKind.Count, MonitorV2RuleKind.Promote], json: true },
+      {
+        kind: [MonitorV2RuleKind.Count, MonitorV2RuleKind.Promote],
+        json: true,
+      },
       deps,
     );
     const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
-    expect(result.every((m) => m.ruleKind !== MonitorV2RuleKind.Threshold)).toBe(true);
-    expect(result.some((m) => m.ruleKind === MonitorV2RuleKind.Count)).toBe(true);
-    expect(result.some((m) => m.ruleKind === MonitorV2RuleKind.Promote)).toBe(true);
+    expect(
+      result.every((m) => m.ruleKind !== MonitorV2RuleKind.Threshold),
+    ).toBe(true);
+    expect(result.some((m) => m.ruleKind === MonitorV2RuleKind.Count)).toBe(
+      true,
+    );
+    expect(result.some((m) => m.ruleKind === MonitorV2RuleKind.Promote)).toBe(
+      true,
+    );
   });
 });
 

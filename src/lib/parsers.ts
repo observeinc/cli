@@ -11,7 +11,12 @@ export function parseMonitorId(value: string): number {
     throw new Error("Monitor ID must be a positive integer");
   }
   const num = Number(value);
-  if (isNaN(num) || !Number.isInteger(num) || num <= 0 || num > Number.MAX_SAFE_INTEGER) {
+  if (
+    isNaN(num) ||
+    !Number.isInteger(num) ||
+    num <= 0 ||
+    num > Number.MAX_SAFE_INTEGER
+  ) {
     throw new Error("Monitor ID must be a positive integer");
   }
   return num;
