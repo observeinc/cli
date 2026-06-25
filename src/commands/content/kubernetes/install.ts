@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../../lib/stricli-wrappers";
 import type { LocalContext } from "../../../context";
 import { updateKubernetesContent } from "../../../gql/content/update-kubernetes-content";
 import { GqlApiError } from "../../../gql/gql-request";
@@ -51,7 +51,8 @@ export async function install(
   }
 }
 
-export const installCommand = buildCommand({
+export const installCommand = defineCommand({
+  experimental: true,
   loader: async () => install,
   parameters: {
     positional: {

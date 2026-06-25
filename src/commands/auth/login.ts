@@ -5,7 +5,7 @@
  * for the Observe CLI.
  */
 
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { configExists, getConfigPath, saveConfig } from "../../lib/config";
@@ -352,7 +352,7 @@ async function login(
   }
 }
 
-export const loginCommand = buildCommand({
+export const loginCommand = defineCommand({
   loader: async () => login,
   parameters: {
     positional: {

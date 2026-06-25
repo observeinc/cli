@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { createWriter } from "../../lib/writer";
 import { detectShell, removeObserveBlocks } from "../../lib/shell";
@@ -39,7 +39,7 @@ async function uninstall(
   writer.success("Uninstall complete.");
 }
 
-export const uninstallCommand = buildCommand({
+export const uninstallCommand = defineCommand({
   loader: async () => uninstall,
   parameters: {
     flags: {

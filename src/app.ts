@@ -1,4 +1,4 @@
-import { buildApplication, buildRouteMap } from "@stricli/core";
+import { buildApplication } from "@stricli/core";
 import { name } from "../package.json";
 import { alertRoutes } from "./commands/alert/index.js";
 import { dataConnectionRoutes } from "./commands/data-connection/index.js";
@@ -17,9 +17,10 @@ import { skillRoutes } from "./commands/skill/index.js";
 import { tagKeyRoutes } from "./commands/tag-key/index.js";
 import { tagValueRoutes } from "./commands/tag-value/index.js";
 import { CURRENT_CLI_VERSION } from "./lib/constants.js";
+import { defineRoutes } from "./lib/stricli-wrappers.js";
 
 /** Top-level route map containing all CLI commands */
-export const routes = buildRouteMap({
+export const routes = defineRoutes({
   routes: {
     help: helpCommand,
     auth: authRoutes,

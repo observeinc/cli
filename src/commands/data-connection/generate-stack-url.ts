@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context.js";
 import { getCloudInfo } from "../../gql/customer/get-cloud-info.js";
 import { getConnection } from "../../gql/connection/get-connection.js";
@@ -172,7 +172,8 @@ export async function generateStackUrlCmd(
   }
 }
 
-export const generateStackUrlCommand = buildCommand({
+export const generateStackUrlCommand = defineCommand({
+  experimental: true,
   loader: async () => generateStackUrlCmd,
   parameters: {
     positional: {

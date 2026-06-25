@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { getDataset } from "../../rest/dataset/get-dataset";
@@ -72,7 +72,7 @@ async function view(
   }
 }
 
-export const viewCommand = buildCommand({
+export const viewCommand = defineCommand({
   loader: async () => view,
   parameters: {
     positional: {

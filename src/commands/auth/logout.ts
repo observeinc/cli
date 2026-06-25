@@ -4,7 +4,7 @@
  * Removes stored credentials and revokes authentication token.
  */
 
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { configExists, deleteConfig, loadConfig } from "../../lib/config";
 import { deleteAuthtoken } from "../../gql/authtoken/delete-authtoken";
@@ -36,7 +36,7 @@ async function run(this: LocalContext, _flags: Record<string, never>) {
   writer.success("Logged out successfully.");
 }
 
-export const logoutCommand = buildCommand({
+export const logoutCommand = defineCommand({
   loader: async () => run,
   parameters: {
     flags: {},

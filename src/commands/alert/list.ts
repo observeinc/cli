@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listAlerts } from "../../rest/alert/list-alerts";
@@ -216,7 +216,7 @@ function parseLevels(value: string): AlertLevel[] {
   return levels;
 }
 
-export const listCommand = buildCommand({
+export const listCommand = defineCommand({
   loader: async () => list,
   parameters: {
     positional: {

@@ -1,8 +1,8 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../../lib/stricli-wrappers";
 import { installCommand } from "./install";
 import { viewCommand } from "./view";
 
-export const kubernetesContentRoutes = buildRouteMap({
+export const kubernetesContentRoutes = defineRoutes({
   routes: {
     install: installCommand,
     view: viewCommand,

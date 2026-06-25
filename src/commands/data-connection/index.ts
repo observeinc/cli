@@ -1,10 +1,10 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../lib/stricli-wrappers";
 import { createConnectionRoutes } from "./create/index.js";
 import { generateStackUrlCommand } from "./generate-stack-url.js";
 import { listCommand } from "./list.js";
 import { viewCommand } from "./view.js";
 
-export const dataConnectionRoutes = buildRouteMap({
+export const dataConnectionRoutes = defineRoutes({
   routes: {
     create: createConnectionRoutes,
     "generate-stack-url": generateStackUrlCommand,

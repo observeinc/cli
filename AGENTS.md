@@ -36,13 +36,13 @@ src/
 │   ├── alert/          # Alert commands (list, view)
 │   ├── auth/           # Auth commands (configure, login, logout, status)
 │   ├── cli/            # CLI management (install, uninstall, upgrade)
-│   ├── content/        # Content pack management
+│   ├── content/        # Content pack management (experimental: gated + hidden)
 │   │   ├── host/       # Host Explorer (install, view)
 │   │   ├── kubernetes/ # Kubernetes Explorer (install, view)
 │   │   └── tracing/    # Trace Explorer (install, view)
 │   ├── dataset/        # Dataset commands (list, view)
 │   ├── datastream/     # Datastream commands (create, list, view, update)
-│   ├── ingest-token/   # Ingest token commands (create, list, view, update)
+│   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view)
 │   ├── tag-key/        # Tag key commands (list)
@@ -78,6 +78,8 @@ src/
     ├── cel.ts          # CEL expression support
     ├── kg-search.ts    # Knowledge graph search
     ├── writer.ts       # Output writer
+    ├── stricli-wrappers.ts # defineCommand/defineRoutes (use these, not stricli's builders directly)
+    ├── experimental.ts # Experimental-command feature (env gate, badge, hide)
     └── format-error.ts # Error formatting
 ```
 
@@ -91,22 +93,45 @@ src/
 2. **Create command file**:
    - Add `src/commands/<resource>/<command>.ts`
    - Follow existing patterns (see `dataset/list.ts` as reference)
-   - Use `buildCommand` from `@stricli/core`
+   - Use `defineCommand` from `lib/stricli-wrappers` (not stricli's `buildCommand` directly)
 
 3. **Register in routes**:
-   - Export from `src/commands/<resource>/index.ts`
+   - Export from `src/commands/<resource>/index.ts`, building the route map with `defineRoutes` from `lib/stricli-wrappers` (not stricli's `buildRouteMap` directly)
    - Add to `src/app.ts` routes. New routes should be added at the bottom of the route map, but the `cli` command must always remain last.
 
 4. **Update documentation**:
    - Update the **Project Structure** section in this `AGENTS.md` to include the new command/resource.
    - Update the **Commands** table in `README.md`. The README command order must always match the route order in `src/app.ts`.
 
+### Adding an Experimental Command
+
+`defineCommand`/`defineRoutes` are thin wrappers over stricli's builders that
+add support for custom declarative fields; today the only field is
+`experimental`. Mark a command experimental by setting it:
+
+```typescript
+export const predictCommand = defineCommand({
+  experimental: true, // the only change vs a normal command
+  loader: async () => predict,
+  parameters: {
+    /* ... */
+  },
+  docs: { brief: "Predict dataset usage" },
+});
+```
+
+An experimental command is hidden from help and refuses to run unless
+`OBSERVE_CLI_EXPERIMENTAL=1`, and shows an `[experimental]` badge when visible.
+A route group becomes experimental automatically once **all** of its children
+are — no annotation needed on the `defineRoutes` call. Promote to GA by deleting
+the `experimental: true` line. The feature lives in `lib/experimental.ts`.
+
 ### Command Pattern
 
 Commands follow this structure:
 
 ```typescript
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 
 interface CommandFlags {
@@ -122,7 +147,7 @@ async function commandFn(
   // implementation
 }
 
-export const myCommand = buildCommand({
+export const myCommand = defineCommand({
   loader: async () => commandFn,
   parameters: {
     flags: {

@@ -10,9 +10,6 @@ Command line interface for [Observe Inc](https://www.observeinc.com).
 - **OPAL Query Execution** - Run OPAL queries directly from your terminal with schema-aware table output.
 - **AI Agent Skills** - List and view reusable AI-agent instruction documents stored in Observe.
 - **Alert Monitoring** - List and view alerts with severity filtering and active-only views.
-- **Content Packs** - Install and view Host Explorer, Kubernetes Explorer, and Trace Explorer content.
-- **Ingest Token Management** - Full CRUD for ingest tokens with datastream association.
-- **Data Integrations** - Create data connections and datasources (AWS, Kubernetes, host) and generate CloudFormation quick-create URLs for AWS filedrop deployments.
 - **Datastream Management** - Create, list, view, and update datastreams.
 - **Multiple Output Formats** - All commands support `--format json` and `--format csv` for scripting and pipelines.
 - **Responsive Tables** - Terminal-aware column widths with automatic text wrapping.
@@ -53,22 +50,6 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe skill view`                    | View skill details and content                          |
 | `observe alert list`                    | List alerts with severity and status filtering          |
 | `observe alert view`                    | View full alert details                                 |
-| `observe content host install`          | Install Host Explorer content                           |
-| `observe content host view`             | View Host Explorer content                              |
-| `observe content kubernetes install`    | Install Kubernetes Explorer content                     |
-| `observe content kubernetes view`       | View Kubernetes Explorer content                        |
-| `observe content tracing install`       | Install Trace Explorer content                          |
-| `observe content tracing view`          | View Trace Explorer content                             |
-| `observe ingest-token create`           | Create a new ingest token                               |
-| `observe ingest-token list`             | List and search ingest tokens                           |
-| `observe ingest-token view`             | View an ingest token by ID                              |
-| `observe ingest-token update`           | Update an ingest token                                  |
-| `observe datasource create`             | Create a datasource attached to a data connection       |
-| `observe datasource update`             | Update an existing datasource's config                  |
-| `observe datasource generate-stack-url` | Build a CloudFormation quick-create URL for a filedrop  |
-| `observe data-connection create`        | Create a data connection (AWS, kubernetes, host, etc.)  |
-| `observe data-connection list`          | List data connections                                   |
-| `observe data-connection view`          | View a data connection by ID (with its datasources)     |
 | `observe datastream create`             | Create a new datastream                                 |
 | `observe datastream list`               | List datastreams                                        |
 | `observe datastream view`               | View a datastream by ID                                 |
@@ -77,6 +58,18 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe cli install`                   | Configure shell integration (PATH, completions)         |
 | `observe cli uninstall`                 | Remove shell integration                                |
 | `observe cli upgrade`                   | Upgrade to the latest version                           |
+
+### Experimental commands
+
+Experimental commands are hidden by default and gated behind an environment
+variable. They are **not** covered by SemVer — their names, flags, and output
+may change or be removed without notice.
+
+```bash
+# Enable experimental commands for the session
+export OBSERVE_CLI_EXPERIMENTAL=1
+observe help            # experimental commands now appear, tagged [experimental]
+```
 
 ## Configuration
 

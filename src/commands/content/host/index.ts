@@ -1,8 +1,8 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../../lib/stricli-wrappers";
 import { installCommand } from "./install";
 import { viewCommand } from "./view";
 
-export const hostContentRoutes = buildRouteMap({
+export const hostContentRoutes = defineRoutes({
   routes: {
     install: installCommand,
     view: viewCommand,
