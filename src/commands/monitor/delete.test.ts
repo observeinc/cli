@@ -33,7 +33,7 @@ let previousForceColor: string | undefined;
 const deps = {
   loadConfig: loadConfigFn,
   deleteMonitor: deleteMonitorFn,
-} as Parameters<(typeof import("./delete"))["deleteMonitorCommand"]>[3];
+} as Parameters<(typeof import("./delete"))["deleteMonitorCommand"]>[2];
 
 beforeAll(async () => {
   previousNoColor = process.env.NO_COLOR;
@@ -140,7 +140,7 @@ describe("monitor delete — API forwarding", () => {
     const { context } = createMockContext();
     await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
     expect(deleteMonitorFn).toHaveBeenCalledTimes(1);
-    expect(deleteMonitorFn.mock.calls[0][0]).toMatchObject({
+    expect(deleteMonitorFn.mock.calls[0]![0]).toMatchObject({
       id: Number(TEST_MONITOR_ID),
     });
   });

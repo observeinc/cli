@@ -27,7 +27,7 @@ const loadConfigFn = mock(
 );
 
 const STUB_DEFINITION: MonitorV2Definition = {
-  inputQuery: { stages: [] } as MonitorV2Definition["inputQuery"],
+  inputQuery: { outputStage: "main", stages: [] } as MonitorV2Definition["inputQuery"],
   rules: [],
 };
 
@@ -62,7 +62,7 @@ const deps = {
   updateMonitor: updateMonitorFn,
   getMonitor: getMonitorFn,
   readFile: readFileFn,
-} as Parameters<(typeof import("./update"))["update"]>[3];
+} as Parameters<(typeof import("./update"))["update"]>[2];
 
 beforeAll(async () => {
   previousNoColor = process.env.NO_COLOR;
@@ -180,7 +180,7 @@ describe("monitor update — API forwarding", () => {
     const { context } = createMockContext();
     await update.call(context, { name: "New Name" }, TEST_MONITOR_ID, deps);
     expect(updateMonitorFn).toHaveBeenCalledTimes(1);
-    const call = updateMonitorFn.mock.calls[0][0] as { id: number; name: string };
+    const call = updateMonitorFn.mock.calls[0]![0] as unknown as { id: number; name: string };
     expect(call.id).toBe(Number(TEST_MONITOR_ID));
     expect(call.name).toBe("New Name");
   });
@@ -188,7 +188,7 @@ describe("monitor update — API forwarding", () => {
   test("only includes explicitly provided fields in the patch", async () => {
     const { context } = createMockContext();
     await update.call(context, { name: "Only Name" }, TEST_MONITOR_ID, deps);
-    const call = updateMonitorFn.mock.calls[0][0] as object;
+    const call = updateMonitorFn.mock.calls[0]![0] as unknown as object;
     expect(call).not.toHaveProperty("description");
     expect(call).not.toHaveProperty("ruleKind");
     expect(call).not.toHaveProperty("definition");
@@ -203,7 +203,7 @@ describe("monitor update — API forwarding", () => {
       deps,
     );
     expect(readFileFn).toHaveBeenCalledWith("/path/to/def.json");
-    const call = updateMonitorFn.mock.calls[0][0] as { definition: unknown };
+    const call = updateMonitorFn.mock.calls[0]![0] as unknown as { definition: unknown };
     expect(call.definition).toMatchObject(STUB_DEFINITION);
   });
 
@@ -217,7 +217,7 @@ describe("monitor update — API forwarding", () => {
     const { context } = createMockContext();
     await update.call(context, { name: "foo", json: true }, TEST_MONITOR_ID, deps);
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
-    expect(getMonitorFn.mock.calls[0][0]).toMatchObject({
+    expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({
       id: Number(TEST_MONITOR_ID),
     });
   });

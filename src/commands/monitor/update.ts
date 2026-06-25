@@ -137,7 +137,7 @@ export const updateCommand = buildCommand({
       },
       ruleKind: {
         kind: "enum",
-        values: ["Count", "Threshold", "Promote"],
+        values: [MonitorV2RuleKind.Count, MonitorV2RuleKind.Threshold, MonitorV2RuleKind.Promote],
         brief: "New alert rule kind (Count, Threshold, Promote)",
         optional: true,
       },

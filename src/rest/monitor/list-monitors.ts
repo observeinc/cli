@@ -1,11 +1,11 @@
 import type { Config } from "../../lib/config";
-import type { MonitorApiListMonitorsRequest } from "../generated";
-import { ObserveRestSDK } from "../client";
+import { MonitorApi, type MonitorApiListMonitorsRequest } from "../generated";
+import { createApiConfiguration } from "../api-config";
 
 export async function listMonitors({
   config,
   ...params
 }: { config: Config } & MonitorApiListMonitorsRequest) {
-  const sdk = new ObserveRestSDK(config);
-  return await sdk.monitorApi.listMonitors(params);
+  const api = new MonitorApi(createApiConfiguration(config));
+  return await api.listMonitors(params);
 }

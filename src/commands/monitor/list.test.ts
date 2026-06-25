@@ -54,7 +54,7 @@ let previousForceColor: string | undefined;
 const deps = {
   loadConfig: loadConfigFn,
   listMonitors: listMonitorsFn,
-} as Parameters<(typeof import("./list"))["list"]>[2];
+} as Parameters<(typeof import("./list"))["list"]>[1];
 
 beforeAll(async () => {
   previousNoColor = process.env.NO_COLOR;
@@ -122,14 +122,14 @@ describe("monitor list — API forwarding", () => {
     const { context } = createMockContext();
     await list.call(context, { match: "alpha", json: true }, deps);
     expect(listMonitorsFn).toHaveBeenCalledTimes(1);
-    expect(listMonitorsFn.mock.calls[0][0]).toMatchObject({ nameSubstring: "alpha" });
+    expect(listMonitorsFn.mock.calls[0]![0]).toMatchObject({ nameSubstring: "alpha" });
   });
 
   test("calls listMonitors without nameSubstring when --match is absent", async () => {
     const { context } = createMockContext();
     await list.call(context, { json: true }, deps);
     expect(listMonitorsFn).toHaveBeenCalledTimes(1);
-    expect(listMonitorsFn.mock.calls[0][0].nameSubstring).toBeUndefined();
+    expect(listMonitorsFn.mock.calls[0]![0].nameSubstring).toBeUndefined();
   });
 });
 

@@ -1,7 +1,7 @@
 import type { Config } from "../../lib/config";
-import type { MonitorV2 } from "../generated";
+import { MonitorApi, type MonitorV2 } from "../generated";
 import { ResponseError } from "../generated/runtime";
-import { ObserveRestSDK } from "../client";
+import { createApiConfiguration } from "../api-config";
 
 export async function getMonitor({
   config,
@@ -10,9 +10,9 @@ export async function getMonitor({
   config: Config;
   id: number;
 }): Promise<MonitorV2 | null> {
-  const sdk = new ObserveRestSDK(config);
+  const api = new MonitorApi(createApiConfiguration(config));
   try {
-    return await sdk.monitorApi.getMonitor({ id });
+    return await api.getMonitor({ id });
   } catch (error) {
     if (error instanceof ResponseError && error.response.status === 404) {
       return null;

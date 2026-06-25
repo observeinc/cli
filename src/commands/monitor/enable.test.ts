@@ -52,7 +52,7 @@ const deps = {
   loadConfig: loadConfigFn,
   updateMonitor: updateMonitorFn,
   getMonitor: getMonitorFn,
-} as Parameters<(typeof import("./enable"))["enable"]>[3];
+} as Parameters<(typeof import("./enable"))["enable"]>[2];
 
 beforeAll(async () => {
   previousNoColor = process.env.NO_COLOR;
@@ -165,7 +165,7 @@ describe("monitor enable — API forwarding", () => {
     const { context } = createMockContext();
     await enable.call(context, {}, TEST_MONITOR_ID, deps);
     expect(updateMonitorFn).toHaveBeenCalledTimes(1);
-    expect(updateMonitorFn.mock.calls[0][0]).toMatchObject({
+    expect(updateMonitorFn.mock.calls[0]![0]).toMatchObject({
       id: Number(TEST_MONITOR_ID),
       disabled: false,
     });
@@ -181,7 +181,7 @@ describe("monitor enable — API forwarding", () => {
     const { context } = createMockContext();
     await enable.call(context, { json: true }, TEST_MONITOR_ID, deps);
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
-    expect(getMonitorFn.mock.calls[0][0]).toMatchObject({ id: Number(TEST_MONITOR_ID) });
+    expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({ id: Number(TEST_MONITOR_ID) });
   });
 });
 

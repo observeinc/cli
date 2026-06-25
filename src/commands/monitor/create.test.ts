@@ -25,7 +25,7 @@ const loadConfigFn = mock(
 );
 
 const STUB_DEFINITION: MonitorV2Definition = {
-  inputQuery: { stages: [] } as MonitorV2Definition["inputQuery"],
+  inputQuery: { outputStage: "main", stages: [] } as MonitorV2Definition["inputQuery"],
   rules: [],
 };
 
@@ -61,7 +61,7 @@ const deps = {
   createMonitor: createMonitorFn,
   getMonitor: getMonitorFn,
   readFile: readFileFn,
-} as Parameters<(typeof import("./create"))["create"]>[2];
+} as Parameters<(typeof import("./create"))["create"]>[1];
 
 beforeAll(async () => {
   previousNoColor = process.env.NO_COLOR;
@@ -139,7 +139,7 @@ describe("monitor create — API forwarding", () => {
       deps,
     );
     expect(createMonitorFn).toHaveBeenCalledTimes(1);
-    const call = createMonitorFn.mock.calls[0][0] as { monitorV2: { name: string; ruleKind: string; definition: unknown } };
+    const call = createMonitorFn.mock.calls[0]![0] as unknown as { monitorV2: { name: string; ruleKind: string; definition: unknown } };
     expect(call.monitorV2.name).toBe("My Monitor");
     expect(call.monitorV2.ruleKind).toBe(MonitorV2RuleKind.Count);
     expect(call.monitorV2.definition).toMatchObject(STUB_DEFINITION);
@@ -174,7 +174,7 @@ describe("monitor create — API forwarding", () => {
       },
       deps,
     );
-    const call = createMonitorFn.mock.calls[0][0] as { monitorV2: { actionRules: unknown[] } };
+    const call = createMonitorFn.mock.calls[0]![0] as unknown as { monitorV2: { actionRules: unknown[] } };
     expect(call.monitorV2.actionRules).toEqual(actionRules);
   });
 
@@ -189,7 +189,7 @@ describe("monitor create — API forwarding", () => {
       },
       deps,
     );
-    const call = createMonitorFn.mock.calls[0][0] as { monitorV2: object };
+    const call = createMonitorFn.mock.calls[0]![0] as unknown as { monitorV2: object };
     expect(call.monitorV2).not.toHaveProperty("actionRules");
   });
 });
@@ -238,7 +238,7 @@ describe("monitor create — output", () => {
       deps,
     );
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
-    expect(getMonitorFn.mock.calls[0][0]).toMatchObject({ id: 99001 });
+    expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({ id: 99001 });
     const result = JSON.parse(stdout.join("")) as MonitorV2;
     expect(result).toMatchObject({ id: "99001", name: "My Monitor" });
   });

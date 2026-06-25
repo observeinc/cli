@@ -43,7 +43,7 @@ let previousForceColor: string | undefined;
 const deps = {
   loadConfig: loadConfigFn,
   getMonitor: getMonitorFn,
-} as Parameters<(typeof import("./view"))["view"]>[3];
+} as Parameters<(typeof import("./view"))["view"]>[2];
 
 beforeAll(async () => {
   previousNoColor = process.env.NO_COLOR;
@@ -167,7 +167,7 @@ describe("monitor view — API forwarding", () => {
     const { context } = createMockContext();
     await view.call(context, { json: true }, "42", deps);
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
-    expect(getMonitorFn.mock.calls[0][0]).toMatchObject({ id: 42 });
+    expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({ id: 42 });
   });
 });
 

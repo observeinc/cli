@@ -7,14 +7,8 @@
  */
 
 import { ObserveRestSDK } from "../rest/client";
+import { KGV2DocumentType } from "../rest/generated";
 import type { Config } from "./config";
-
-// Stub: KGV2DocumentType is not available in the generated SDK for this tenant.
-const KGV2DocumentType = {
-  TagKey: "TagKey" as const,
-  TagValue: "TagValue" as const,
-  Metric: "Metric" as const,
-};
 
 /**
  * KG tag-value document ids strip surrounding quotes and replace dots with

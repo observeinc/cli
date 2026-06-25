@@ -106,7 +106,7 @@ export async function view(
             transform: monitor.effectiveScheduling.transform
               ? "transform-driven"
               : undefined,
-            scheduled: monitor.effectiveScheduling.scheduled?.interval ?? undefined,
+            scheduled: monitor.effectiveScheduling.scheduled?.cronConfig ?? undefined,
           }
         : undefined,
     };
