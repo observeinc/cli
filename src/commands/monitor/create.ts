@@ -72,7 +72,7 @@ export async function create(
 
     let createdId: number;
     try {
-      createdId = parseMonitorId(String(created.id ?? ""));
+      createdId = parseMonitorId(created.id);
     } catch {
       throw new Error(`Create API returned unexpected monitor ID: "${created.id}"`);
     }
@@ -94,8 +94,7 @@ export async function create(
 }
 
 export const createCommand = buildCommand({
-  loader: async () =>
-    create as (this: LocalContext, flags: CreateMonitorFlags) => Promise<void>,
+  loader: async () => create,
   parameters: {
     positional: { kind: "tuple", parameters: [] },
     flags: {

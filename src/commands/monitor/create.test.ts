@@ -25,7 +25,7 @@ const loadConfigFn = mock(
 );
 
 const STUB_DEFINITION: MonitorV2Definition = {
-  inputQuery: { outputStage: "main", stages: [] } as MonitorV2Definition["inputQuery"],
+  inputQuery: { outputStage: "main", stages: [] },
   rules: [],
 };
 

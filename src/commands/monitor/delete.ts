@@ -46,12 +46,7 @@ export async function deleteMonitorCommand(
 }
 
 export const deleteCommand = buildCommand({
-  loader: async () =>
-    deleteMonitorCommand as (
-      this: LocalContext,
-      flags: Record<string, never>,
-      monitorId: string,
-    ) => Promise<void>,
+  loader: async () => deleteMonitorCommand,
   parameters: {
     positional: {
       kind: "tuple",

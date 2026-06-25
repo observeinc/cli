@@ -17,12 +17,14 @@ export function parseMonitorId(value: string): number {
   return num;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export function parseJsonFile<T>(content: string, flag: string): T {
   try {
     return JSON.parse(content) as T;
   } catch (cause) {
     throw new Error(
       `Failed to parse ${flag}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
     );
   }
 }

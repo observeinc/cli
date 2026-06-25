@@ -64,7 +64,7 @@ export async function disable(
 }
 
 export const disableCommand = buildCommand({
-  loader: async () => disable as (this: LocalContext, flags: DisableMonitorFlags, monitorId: string) => Promise<void>,
+  loader: async () => disable,
   parameters: {
     positional: {
       kind: "tuple",

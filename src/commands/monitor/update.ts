@@ -111,12 +111,7 @@ export async function update(
 }
 
 export const updateCommand = buildCommand({
-  loader: async () =>
-    update as (
-      this: LocalContext,
-      flags: UpdateMonitorFlags,
-      monitorId: string,
-    ) => Promise<void>,
+  loader: async () => update,
   parameters: {
     positional: {
       kind: "tuple",

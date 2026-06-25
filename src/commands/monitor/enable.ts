@@ -64,7 +64,7 @@ export async function enable(
 }
 
 export const enableCommand = buildCommand({
-  loader: async () => enable as (this: LocalContext, flags: EnableMonitorFlags, monitorId: string) => Promise<void>,
+  loader: async () => enable,
   parameters: {
     positional: {
       kind: "tuple",

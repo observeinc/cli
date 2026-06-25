@@ -90,7 +90,7 @@ const FIELD_COLUMNS = {
   }),
   ruleKind: col.accessor((row) => row.ruleKind, {
     header: "KIND",
-    format: (value) => ruleKindColor(value as MonitorV2RuleKind | undefined),
+    format: (value) => ruleKindColor(value),
   }),
   disabled: col.accessor((row) => row.disabled ?? false, {
     header: "DISABLED",
@@ -131,7 +131,8 @@ export async function list(
     });
 
     if (flags.kind) {
-      monitors = monitors.filter((m) => flags.kind!.includes(m.ruleKind as MonitorV2RuleKind));
+      const filterKinds = flags.kind;
+      monitors = monitors.filter((m) => m.ruleKind != null && filterKinds.includes(m.ruleKind));
     }
 
     if (flags.disabled != null) {
@@ -198,7 +199,7 @@ function parseFields(value: string): FieldName[] {
 }
 
 export const listCommand = buildCommand({
-  loader: async () => list as (this: LocalContext, flags: ListMonitorsFlags) => Promise<void>,
+  loader: async () => list,
   parameters: {
     positional: {
       kind: "tuple",

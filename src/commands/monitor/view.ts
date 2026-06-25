@@ -119,7 +119,7 @@ export async function view(
 }
 
 export const viewCommand = buildCommand({
-  loader: async () => view as (this: LocalContext, flags: ViewMonitorFlags, monitorId: string) => Promise<void>,
+  loader: async () => view,
   parameters: {
     positional: {
       kind: "tuple",
