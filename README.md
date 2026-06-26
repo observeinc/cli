@@ -134,11 +134,20 @@ bun dev tag-value list --match checkout
 
 ```bash
 bun dev              # Run CLI in development mode
-bun test             # Run codegen, typecheck, lint, format, and tests
+bun test             # Run codegen, typecheck, lint, format, and unit tests
+bun test:integration # Integration tests against a real tenant (requires env vars below)
 bun typecheck        # Type checking
 bun lint             # Check for issues
 bun format           # Check formatting
 bun codegen          # Generate GraphQL and REST API types
+```
+
+### Integration tests
+
+Add credentials to `.env` (see `.env.example`), then run:
+
+```bash
+bun run test:integration
 ```
 
 ## License

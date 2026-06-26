@@ -22,6 +22,6 @@
     "noPropertyAccessFromIndexSignature": false,
     "strictNullChecks": true
   },
-  "include": ["src", "scripts"],
+  "include": ["src", "scripts", "integration"],
   "exclude": ["node_modules", "dist", "**/generated/**"]
 }
