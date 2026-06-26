@@ -1,0 +1,6 @@
+mutation DeleteDataset($dsid: ObjectId!) {
+  deleteDataset(dsid: $dsid) {
+    success
+    errorMessage
+  }
+}

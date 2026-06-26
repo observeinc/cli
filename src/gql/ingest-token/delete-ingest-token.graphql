@@ -1,0 +1,6 @@
+mutation DeleteIngestToken($id: ObjectId!) {
+  deleteIngestToken(id: $id) {
+    success
+    errorMessage
+  }
+}

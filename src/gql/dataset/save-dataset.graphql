@@ -1,0 +1,13 @@
+mutation SaveDataset(
+  $workspaceId: ObjectId
+  $dataset: DatasetInput!
+  $query: MultiStageQueryInput!
+) {
+  saveDataset(workspaceId: $workspaceId, dataset: $dataset, query: $query) {
+    dataset {
+      id
+      name
+      description
+    }
+  }
+}

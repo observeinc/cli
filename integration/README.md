@@ -46,9 +46,9 @@ File names like `smoke.test.ts` are for human organization only.
 Mutating tests must follow the create → assert → delete lifecycle:
 
 1. Generate a unique prefix with `testPrefix()` (e.g. `cli-a1b2c3d4`).
-2. Create resources using that prefix in the name.
-3. Assert only on resources this test created (by name or ID in list/view output).
-4. Delete those resources in `finally`.
+2. Create resources using that prefix in the name (via CLI under test, or via `setup.ts` when seeding fixtures).
+3. **Register teardown immediately** after creation succeeds — before assertions — so resources are cleaned up even when a test fails mid-way. For resources created via CLI: `fixture.registerCleanup(() => deleteIngestToken(tenant, created.id))`. Setup helpers in `setup.ts` register their own cleanup.
+4. Assert only on resources this test created (by name or ID in list/view output).
 
 **Do not:**
 
@@ -74,12 +74,13 @@ Prefix pattern: `cli-<8 hex chars>`. A future sweeper can match `^cli-` to clean
 `parseJsonOutput` throws when the CLI exits non-zero, so a successful parse means the command succeeded.
 
 ```typescript
-// Good — assert on a resource this test created
+// Good — register cleanup right after create, before assertions
 const prefix = testPrefix();
 const result =
   await fixture.runCli`observe ingest-token create --name ${prefix}-token`;
-const tokens = parseJsonOutput(result) as Token[];
-expect(tokens.some((t) => t.name === `${prefix}-token`)).toBe(true);
+const created = parseJsonOutput(result) as Token;
+fixture.registerCleanup(() => deleteIngestToken(tenant, created.id));
+expect(created.name).toBe(`${prefix}-token`);
 
 // Good — validate response shape; datasets are guaranteed on any functional tenant
 expect(Array.isArray(datasets)).toBe(true);
@@ -135,3 +136,31 @@ await fixture.runCli`
 ## Parallelism
 
 Tests are designed to run in parallel against a shared tenant. Unique prefixes and the ownership rules above make that safe. `bun run test:integration` runs with `--concurrent --max-concurrency 5`. Use `test.serial` only when a test genuinely cannot run alongside others (rare).
+
+## Timeouts
+
+`test:integration` defaults to **10s** per test. Slow tests override with `INTEGRATION_TIMEOUT` from `fixture.ts`:
+
+| Tier              | Timeout | Use for                             |
+| ----------------- | ------- | ----------------------------------- |
+| default           | 10s     | CRUD, read-only, smoke              |
+| `graphRebuild`    | 30s     | Dataset/datastream/monitor creation |
+| `materialization` | 90s     | Poll until queryable/ingested       |
+
+Set `retryUntil` poll budgets via `MATERIALIZATION_POLL_TIMEOUT_MS` (80s); keep them below the test timeout.
+
+```typescript
+test(
+  "…",
+  async () => {
+    /* … */
+  },
+  { timeout: INTEGRATION_TIMEOUT.graphRebuild },
+);
+```
+
+## Cleanup and setup helpers
+
+**Cleanup** (`integration/cleanup.ts`) — every resource created during a test must be cleaned up. Register teardown with `fixture.registerCleanup()` immediately after creation, before assertions. Cleanups run in LIFO order when the fixture is torn down; failures are logged but do not fail the test.
+
+**Setup** (`integration/setup.ts`) — when a test needs resources in the environment that aren't part of what it's testing, use setup helpers to create them via API instead of CLI. This includes resources the CLI can't create yet, but also resources the CLI _can_ create when the test simply doesn't care about exercising that path. Setup helpers register their own cleanup automatically.

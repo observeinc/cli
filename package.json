@@ -19,7 +19,7 @@
     "build:single": "bun run codegen && bun run scripts/build.ts --single",
     "dev": "bun run ifneeded:codegen && bun run src/bin.ts",
     "test": "bun run codegen && bun run typecheck && bun run lint && bun run format && bun test src",
-    "test:integration": "bun test integration/ --concurrent --max-concurrency 5",
+    "test:integration": "bun test integration/ --concurrent --max-concurrency 5 --timeout 10000",
     "typecheck": "tsc",
     "lint": "eslint",
     "lint:fix": "eslint --fix",

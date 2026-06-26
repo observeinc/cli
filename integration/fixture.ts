@@ -41,6 +41,19 @@ export interface CliResult {
  */
 export const testCiOnly = process.env.CI === "true" ? test : test.skip;
 
+/** Per-test timeout tiers for integration tests. See integration/README.md. */
+export const INTEGRATION_TIMEOUT = {
+  /** CRUD and read-only; `test:integration` script default matches this tier. */
+  default: 10_000,
+  /** Graph rebuild (dataset/datastream creation). */
+  graphRebuild: 30_000,
+  /** Poll until queryable or ingested after creation. */
+  materialization: 90_000,
+} as const;
+
+/** Poll budget for materialization-tier tests; keep below `INTEGRATION_TIMEOUT.materialization`. */
+export const MATERIALIZATION_POLL_TIMEOUT_MS = 80_000;
+
 /**
  * Unique prefix for resource names in a test (e.g. `cli-a1b2c3d4`).
  * See integration/README.md.
@@ -61,14 +74,17 @@ export async function withIntegrationFixture(
   try {
     await fn(fixture);
   } finally {
-    fixture.cleanup();
+    await fixture.cleanup();
   }
 }
+
+export type CleanupFn = () => void | Promise<void>;
 
 export class IntegrationFixture {
   readonly tenant: Config;
   readonly tempHome: string;
   readonly env: NodeJS.ProcessEnv;
+  private readonly cleanups: CleanupFn[] = [];
 
   constructor(tenant: Config) {
     this.tenant = tenant;
@@ -77,6 +93,7 @@ export class IntegrationFixture {
     this.env = {
       ...process.env,
       HOME: this.tempHome,
+      OBSERVE_CLI_EXPERIMENTAL: "1",
       OBSERVE_NO_UPDATE_NOTIFIER: "1",
       NO_COLOR: "1",
     };
@@ -106,9 +123,50 @@ export class IntegrationFixture {
     };
   };
 
-  cleanup(): void {
+  /** Register teardown to run when the fixture is cleaned up (LIFO order). */
+  registerCleanup(fn: CleanupFn): void {
+    this.cleanups.push(fn);
+  }
+
+  async cleanup(): Promise<void> {
+    for (const fn of [...this.cleanups].reverse()) {
+      try {
+        await fn();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`integration cleanup failed: ${message}`);
+      }
+    }
+    this.cleanups.length = 0;
     rmSync(this.tempHome, { recursive: true, force: true });
   }
+}
+
+/**
+ * Repeatedly run `fn` until `isReady` returns true, or throw after timeout.
+ * Catch and re-throw at the call site to attach test-specific context.
+ */
+export async function retryUntil<T>(
+  fn: () => Promise<T>,
+  isReady: (value: T) => boolean,
+  options: {
+    timeoutMs?: number;
+    intervalMs?: number;
+  } = {},
+): Promise<T> {
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  const intervalMs = options.intervalMs ?? 500;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const value = await fn();
+    if (isReady(value)) {
+      return value;
+    }
+    await Bun.sleep(intervalMs);
+  }
+
+  throw new Error(`retryUntil timed out after ${String(timeoutMs)}ms`);
 }
 
 export function parseJsonOutput(result: CliResult): unknown {
