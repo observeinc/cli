@@ -12,6 +12,7 @@ import {
   type ColumnDef,
 } from "../../lib/formatters/table";
 import { renderAsCSV } from "../../lib/formatters/csv";
+import { parseNonNegativeInt } from "../../lib/parsers";
 
 type OutputFormat = "json" | "csv";
 type SortField = "id" | "name" | "kind" | "disabled";
@@ -24,6 +25,20 @@ interface ListMonitorsFlags {
   format?: OutputFormat;
   json?: boolean;
   fields?: FieldName[];
+  limit?: number;
+  offset?: number;
+}
+
+const MAX_LIMIT = 1000;
+const MIN_LIMIT = 1;
+const DEFAULT_LIMIT = 100;
+
+function parseLimit(value: string): number {
+  const num = Number(value);
+  if (isNaN(num) || num < MIN_LIMIT || num > MAX_LIMIT) {
+    throw new Error(`Limit must be between ${MIN_LIMIT} and ${MAX_LIMIT}`);
+  }
+  return num;
 }
 
 const AVAILABLE_FIELDS = [
@@ -149,6 +164,11 @@ export async function list(
       monitors = sortMonitors(monitors, flags.sort);
     }
 
+    const limit = flags.limit ?? DEFAULT_LIMIT;
+    const start = flags.offset ?? 0;
+    const totalBeforePaging = monitors.length;
+    monitors = monitors.slice(start, start + limit);
+
     const fieldNames = flags.fields ?? DEFAULT_FIELDS;
 
     if (format === "json") {
@@ -166,10 +186,17 @@ export async function list(
       return;
     }
 
-    writer.write(chalk.green(`Found ${monitors.length} monitor(s):\n`));
+    writer.write(chalk.green(`Found ${totalBeforePaging} monitor(s):\n`));
 
     const columns = fieldNames.map((field) => FIELD_COLUMNS[field]);
     writer.write(formatTable(monitors, columns));
+
+    if (monitors.length === limit) {
+      const nextOffset = start + limit;
+      writer.info(
+        `\nMore results may be available. Use --offset ${nextOffset} to see the next page.`,
+      );
+    }
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exit(1);
@@ -251,6 +278,18 @@ export const listCommand = buildCommand({
         kind: "parsed",
         parse: parseFields,
         brief: `Comma-separated list of fields: ${AVAILABLE_FIELDS.join(", ")}`,
+        optional: true,
+      },
+      limit: {
+        kind: "parsed",
+        parse: parseLimit,
+        brief: `Maximum monitors to return (${MIN_LIMIT}-${MAX_LIMIT}, default ${DEFAULT_LIMIT})`,
+        optional: true,
+      },
+      offset: {
+        kind: "parsed",
+        parse: parseNonNegativeInt,
+        brief: "Offset for pagination (skip this many results)",
         optional: true,
       },
     },

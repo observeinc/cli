@@ -138,5 +138,19 @@ export const createCommand = buildCommand({
   },
   docs: {
     brief: "Create a new monitor",
+    fullDescription:
+      "Creates a new MonitorV2 monitor.\n\n" +
+      "--definition-file schema (MonitorV2Definition as JSON):\n" +
+      "Full schema reference: https://developer.observeinc.com/#model/monitorv2definition\n\n" +
+      "Minimal example:\n" +
+      "{\n" +
+      '  "inputQuery": {\n' +
+      '    "outputStage": "main",\n' +
+      '    "stages": [{ "stageID": "main", "pipeline": "filter true" }]\n' +
+      "  },\n" +
+      '  "rules": []\n' +
+      "}\n\n" +
+      "--action-rules-file schema (Array<MonitorV2ActionRule> as JSON):\n" +
+      "Full schema reference: https://developer.observeinc.com/#model/monitorv2actionrule\n",
   },
 });

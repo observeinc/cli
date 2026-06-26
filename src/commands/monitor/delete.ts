@@ -5,6 +5,10 @@ import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { parseMonitorId } from "../../lib/parsers";
 
+interface DeleteMonitorFlags {
+  force?: boolean;
+}
+
 export interface DeleteMonitorDeps {
   loadConfig?: typeof loadConfig;
   deleteMonitor?: typeof deleteMonitor;
@@ -12,7 +16,7 @@ export interface DeleteMonitorDeps {
 
 export async function deleteMonitorCommand(
   this: LocalContext,
-  _flags: Record<string, never>,
+  flags: DeleteMonitorFlags,
   monitorId: string,
   deps: DeleteMonitorDeps = {},
 ): Promise<void> {
@@ -29,6 +33,12 @@ export async function deleteMonitorCommand(
     writer.error(
       `Invalid monitor ID: "${monitorId}". Must be a positive integer.`,
     );
+    process.exit(1);
+    return;
+  }
+
+  if (!flags.force) {
+    writer.error(`Deleting a monitor is irreversible. Use --force to confirm.`);
     process.exit(1);
     return;
   }
@@ -54,7 +64,13 @@ export const deleteCommand = buildCommand({
       kind: "tuple",
       parameters: [{ brief: "Monitor ID", parse: String }],
     },
-    flags: {},
+    flags: {
+      force: {
+        kind: "boolean",
+        brief: "Confirm deletion (required — deletion is irreversible)",
+        optional: true,
+      },
+    },
     aliases: {},
   },
   docs: {

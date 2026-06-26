@@ -242,6 +242,49 @@ describe("monitor list — output", () => {
   });
 });
 
+describe("monitor list — pagination", () => {
+  beforeEach(() => listMonitorsFn.mockClear());
+
+  test("--limit 2 returns only the first 2 results", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 2, json: true }, deps);
+    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    expect(result.length).toBe(2);
+    expect(result[0]!.id).toBe("1");
+    expect(result[1]!.id).toBe("2");
+  });
+
+  test("--offset 1 skips the first result", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { offset: 1, json: true }, deps);
+    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    expect(result[0]!.id).toBe("2");
+  });
+
+  test("--limit 2 --offset 1 returns one result starting from index 1", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 2, offset: 1, json: true }, deps);
+    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    expect(result.length).toBe(2);
+    expect(result[0]!.id).toBe("2");
+    expect(result[1]!.id).toBe("3");
+  });
+
+  test("pagination hint shown in table output when results equal limit", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 3 }, deps);
+    const out = stdout.join("");
+    expect(out).toContain("--offset 3");
+  });
+
+  test("no pagination hint when results fewer than limit", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 100 }, deps);
+    const out = stdout.join("");
+    expect(out).not.toContain("--offset");
+  });
+});
+
 describe("monitor list — error handling", () => {
   beforeEach(() => {
     listMonitorsFn.mockClear();

@@ -138,12 +138,46 @@ describe("monitor delete — ID validation", () => {
   });
 });
 
+describe("monitor delete — force guard", () => {
+  beforeEach(() => deleteMonitorFn.mockClear());
+
+  test("without --force exits 1 with irreversible message and does not call deleteMonitor", async () => {
+    const { context, stderr, getExitCode } = createMockContext();
+    try {
+      await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("irreversible");
+    expect(deleteMonitorFn).not.toHaveBeenCalled();
+  });
+
+  test("with --force proceeds to delete", async () => {
+    const { context, stdout } = createMockContext();
+    await deleteMonitorCommand.call(
+      context,
+      { force: true },
+      TEST_MONITOR_ID,
+      deps,
+    );
+    expect(deleteMonitorFn).toHaveBeenCalledTimes(1);
+    expect(stdout.join("")).toContain("deleted");
+  });
+});
+
 describe("monitor delete — API forwarding", () => {
   beforeEach(() => deleteMonitorFn.mockClear());
 
   test("passes the correct numeric ID to deleteMonitor", async () => {
     const { context } = createMockContext();
-    await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
+    await deleteMonitorCommand.call(
+      context,
+      { force: true },
+      TEST_MONITOR_ID,
+      deps,
+    );
     expect(deleteMonitorFn).toHaveBeenCalledTimes(1);
     expect(deleteMonitorFn.mock.calls[0]![0]).toMatchObject({
       id: Number(TEST_MONITOR_ID),
@@ -156,7 +190,12 @@ describe("monitor delete — output", () => {
 
   test("prints success message containing the monitor ID", async () => {
     const { context, stdout } = createMockContext();
-    await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
+    await deleteMonitorCommand.call(
+      context,
+      { force: true },
+      TEST_MONITOR_ID,
+      deps,
+    );
     expect(stdout.join("")).toContain(TEST_MONITOR_ID);
     expect(stdout.join("")).toContain("deleted");
   });
@@ -174,7 +213,12 @@ describe("monitor delete — error handling", () => {
     });
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
+      await deleteMonitorCommand.call(
+        context,
+        { force: true },
+        TEST_MONITOR_ID,
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -189,7 +233,12 @@ describe("monitor delete — error handling", () => {
     );
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
+      await deleteMonitorCommand.call(
+        context,
+        { force: true },
+        TEST_MONITOR_ID,
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
