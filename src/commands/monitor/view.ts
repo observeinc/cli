@@ -2,33 +2,19 @@ import { buildCommand } from "@stricli/core";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { getMonitor } from "../../rest/monitor/get-monitor";
-import { MonitorV2RuleKind } from "../../rest/generated";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
 import { renderObject } from "../../lib/formatters/object";
 import { renderAsCSV } from "../../lib/formatters/csv";
 import { parseMonitorId } from "../../lib/parsers";
+import { ruleKindColor } from "./monitor-utils";
 
 type OutputFormat = "json" | "csv";
 
 interface ViewMonitorFlags {
   format?: OutputFormat;
   json?: boolean;
-}
-
-function ruleKindColor(kind: MonitorV2RuleKind | undefined): string {
-  if (!kind) return "-";
-  switch (kind) {
-    case MonitorV2RuleKind.Threshold:
-      return chalk.cyan(kind);
-    case MonitorV2RuleKind.Count:
-      return chalk.blue(kind);
-    case MonitorV2RuleKind.Promote:
-      return chalk.magenta(kind);
-    default:
-      return chalk.dim(kind);
-  }
 }
 
 export interface ViewMonitorDeps {
@@ -115,6 +101,10 @@ export async function view(
     };
 
     renderObject(viewData, (text) => writer.write(text));
+
+    writer.write("");
+    writer.write(chalk.bold("Definition:"));
+    writer.write(JSON.stringify(monitor.definition, null, 2));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exit(1);

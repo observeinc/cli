@@ -3,6 +3,7 @@ import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listMonitors } from "../../rest/monitor/list-monitors";
 import { type MonitorV2Terse, MonitorV2RuleKind } from "../../rest/generated";
+import { ruleKindColor } from "./monitor-utils";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -52,20 +53,6 @@ const AVAILABLE_FIELDS = [
 type FieldName = (typeof AVAILABLE_FIELDS)[number];
 
 const DEFAULT_FIELDS: FieldName[] = ["id", "name", "ruleKind", "disabled"];
-
-function ruleKindColor(kind: MonitorV2RuleKind | undefined): string {
-  if (!kind) return chalk.dim("-");
-  switch (kind) {
-    case MonitorV2RuleKind.Threshold:
-      return chalk.cyan(kind);
-    case MonitorV2RuleKind.Count:
-      return chalk.blue(kind);
-    case MonitorV2RuleKind.Promote:
-      return chalk.magenta(kind);
-    default:
-      return chalk.dim(kind);
-  }
-}
 
 const RULE_KIND_ORDER: Record<string, number> = {
   [MonitorV2RuleKind.Count]: 0,

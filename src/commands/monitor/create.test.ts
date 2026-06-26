@@ -129,13 +129,13 @@ describe("monitor create — API forwarding", () => {
     loadConfigFn.mockClear();
   });
 
-  test("passes name, ruleKind, and parsed definition to createMonitor", async () => {
+  test("passes name, kind, and parsed definition to createMonitor", async () => {
     const { context } = createMockContext();
     await create.call(
       context,
       {
         name: "My Monitor",
-        ruleKind: MonitorV2RuleKind.Count,
+        kind: MonitorV2RuleKind.Count,
         definitionFile: "/fake/definition.json",
       },
       deps,
@@ -155,7 +155,7 @@ describe("monitor create — API forwarding", () => {
       context,
       {
         name: "My Monitor",
-        ruleKind: MonitorV2RuleKind.Threshold,
+        kind: MonitorV2RuleKind.Threshold,
         definitionFile: "/path/to/def.json",
       },
       deps,
@@ -172,7 +172,7 @@ describe("monitor create — API forwarding", () => {
       context,
       {
         name: "My Monitor",
-        ruleKind: MonitorV2RuleKind.Count,
+        kind: MonitorV2RuleKind.Count,
         definitionFile: "/def.json",
         actionRulesFile: "/rules.json",
       },
@@ -190,7 +190,7 @@ describe("monitor create — API forwarding", () => {
       context,
       {
         name: "My Monitor",
-        ruleKind: MonitorV2RuleKind.Count,
+        kind: MonitorV2RuleKind.Count,
         definitionFile: "/def.json",
       },
       deps,
@@ -218,7 +218,7 @@ describe("monitor create — output", () => {
       context,
       {
         name: "My Monitor",
-        ruleKind: MonitorV2RuleKind.Count,
+        kind: MonitorV2RuleKind.Count,
         definitionFile: "/def.json",
       },
       deps,
@@ -239,7 +239,7 @@ describe("monitor create — output", () => {
       context,
       {
         name: "My Monitor",
-        ruleKind: MonitorV2RuleKind.Count,
+        kind: MonitorV2RuleKind.Count,
         definitionFile: "/def.json",
         json: true,
       },
@@ -270,7 +270,7 @@ describe("monitor create — error handling", () => {
         context,
         {
           name: "My Monitor",
-          ruleKind: MonitorV2RuleKind.Count,
+          kind: MonitorV2RuleKind.Count,
           definitionFile: "/def.json",
         },
         deps,
@@ -293,7 +293,7 @@ describe("monitor create — error handling", () => {
         context,
         {
           name: "My Monitor",
-          ruleKind: MonitorV2RuleKind.Count,
+          kind: MonitorV2RuleKind.Count,
           definitionFile: "/def.json",
         },
         deps,
@@ -316,7 +316,7 @@ describe("monitor create — error handling", () => {
         context,
         {
           name: "My Monitor",
-          ruleKind: MonitorV2RuleKind.Count,
+          kind: MonitorV2RuleKind.Count,
           definitionFile: "/def.json",
         },
         deps,
@@ -337,7 +337,7 @@ describe("monitor create — error handling", () => {
         context,
         {
           name: "My Monitor",
-          ruleKind: MonitorV2RuleKind.Count,
+          kind: MonitorV2RuleKind.Count,
           definitionFile: "/def.json",
         },
         deps,
@@ -361,7 +361,7 @@ describe("monitor create — error handling", () => {
         context,
         {
           name: "My Monitor",
-          ruleKind: MonitorV2RuleKind.Count,
+          kind: MonitorV2RuleKind.Count,
           definitionFile: "/def.json",
           actionRulesFile: "/rules.json",
         },
@@ -384,7 +384,7 @@ describe("monitor create — error handling", () => {
         context,
         {
           name: "My Monitor",
-          ruleKind: MonitorV2RuleKind.Count,
+          kind: MonitorV2RuleKind.Count,
           definitionFile: "/def.json",
           actionRulesFile: "/rules.json",
         },
@@ -408,7 +408,7 @@ describe("monitor create — error handling", () => {
         context,
         {
           name: "My Monitor",
-          ruleKind: MonitorV2RuleKind.Count,
+          kind: MonitorV2RuleKind.Count,
           definitionFile: "/def.json",
         },
         deps,
@@ -432,7 +432,7 @@ describe("monitor create — error handling", () => {
         context,
         {
           name: "My Monitor",
-          ruleKind: MonitorV2RuleKind.Count,
+          kind: MonitorV2RuleKind.Count,
           definitionFile: "/def.json",
           json: true,
         },

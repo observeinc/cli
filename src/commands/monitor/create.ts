@@ -16,8 +16,9 @@ import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 
 interface CreateMonitorFlags {
   name: string;
-  ruleKind: MonitorV2RuleKind;
-  definitionFile: string;
+  kind: MonitorV2RuleKind;
+  definition?: string;
+  definitionFile?: string;
   actionRulesFile?: string;
   json?: boolean;
 }
@@ -43,14 +44,29 @@ export async function create(
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
 
+  if (flags.definition != null && flags.definitionFile != null) {
+    writer.error("--definition and --definition-file are mutually exclusive.");
+    process.exit(1);
+    return;
+  }
+
+  if (flags.definition == null && flags.definitionFile == null) {
+    writer.error("One of --definition or --definition-file is required.");
+    process.exit(1);
+    return;
+  }
+
   try {
     const config = loadConfigImpl();
 
     writer.info("Creating monitor...");
 
+    const rawDefinition =
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      flags.definition ?? readFileImpl(resolve(flags.definitionFile!));
     const definition = parseJsonFile<MonitorV2Definition>(
-      readFileImpl(resolve(flags.definitionFile)),
-      "--definition-file",
+      rawDefinition,
+      "--definition / --definition-file",
     );
 
     const actionRules = flags.actionRulesFile
@@ -64,7 +80,7 @@ export async function create(
       config,
       monitorV2: {
         name: flags.name,
-        ruleKind: flags.ruleKind,
+        ruleKind: flags.kind,
         definition,
         ...(actionRules != null && { actionRules }),
       },
@@ -106,7 +122,7 @@ export const createCommand = buildCommand({
         brief: "Monitor name",
         optional: false,
       },
-      ruleKind: {
+      kind: {
         kind: "enum",
         values: [
           MonitorV2RuleKind.Count,
@@ -116,11 +132,18 @@ export const createCommand = buildCommand({
         brief: "Alert rule kind (Count, Threshold, Promote)",
         optional: false,
       },
+      definition: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "MonitorV2Definition as inline JSON (alternative to --definition-file)",
+        optional: true,
+      },
       definitionFile: {
         kind: "parsed",
         parse: String,
         brief: "Path to JSON file containing the MonitorV2Definition",
-        optional: false,
+        optional: true,
       },
       actionRulesFile: {
         kind: "parsed",

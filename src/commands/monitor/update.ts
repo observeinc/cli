@@ -18,7 +18,8 @@ import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 interface UpdateMonitorFlags {
   name?: string;
   description?: string;
-  ruleKind?: MonitorV2RuleKind;
+  kind?: MonitorV2RuleKind;
+  definition?: string;
   definitionFile?: string;
   actionRulesFile?: string;
   json?: boolean;
@@ -57,16 +58,23 @@ export async function update(
     return;
   }
 
+  if (flags.definition != null && flags.definitionFile != null) {
+    writer.error("--definition and --definition-file are mutually exclusive.");
+    process.exit(1);
+    return;
+  }
+
   const hasUpdate =
     flags.name != null ||
     flags.description != null ||
-    flags.ruleKind != null ||
+    flags.kind != null ||
+    flags.definition != null ||
     flags.definitionFile != null ||
     flags.actionRulesFile != null;
 
   if (!hasUpdate) {
     writer.error(
-      "At least one update flag is required (--name, --description, --rule-kind, --definition-file, --action-rules-file).",
+      "At least one update flag is required (--name, --description, --kind, --definition-file, --action-rules-file).",
     );
     process.exit(1);
     return;
@@ -80,11 +88,16 @@ export async function update(
     const patch: MonitorV2PatchRequest = {};
     if (flags.name != null) patch.name = flags.name;
     if (flags.description != null) patch.description = flags.description;
-    if (flags.ruleKind != null) patch.ruleKind = flags.ruleKind;
-    if (flags.definitionFile != null) {
+    if (flags.kind != null) patch.ruleKind = flags.kind;
+    const rawDefinition =
+      flags.definition ??
+      (flags.definitionFile
+        ? readFileImpl(resolve(flags.definitionFile))
+        : null);
+    if (rawDefinition != null) {
       patch.definition = parseJsonFile<MonitorV2Definition>(
-        readFileImpl(resolve(flags.definitionFile)),
-        "--definition-file",
+        rawDefinition,
+        "--definition / --definition-file",
       );
     }
     if (flags.actionRulesFile != null) {
@@ -132,7 +145,7 @@ export const updateCommand = buildCommand({
         brief: "New monitor description",
         optional: true,
       },
-      ruleKind: {
+      kind: {
         kind: "enum",
         values: [
           MonitorV2RuleKind.Count,
@@ -140,6 +153,13 @@ export const updateCommand = buildCommand({
           MonitorV2RuleKind.Promote,
         ],
         brief: "New alert rule kind (Count, Threshold, Promote)",
+        optional: true,
+      },
+      definition: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "MonitorV2Definition as inline JSON (alternative to --definition-file)",
         optional: true,
       },
       definitionFile: {

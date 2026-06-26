@@ -18,7 +18,7 @@ export const monitorRoutes = buildRouteMap({
     disable: disableCommand,
   },
   docs: {
-    brief: "View observe monitors",
+    brief: "Manage observe monitors",
     fullDescription: [
       "View and manage monitors in Observe",
       "",
