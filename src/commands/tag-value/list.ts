@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listTagValues } from "../../rest/tag-value/list-tag-values";
@@ -95,7 +95,7 @@ function parseLimit(value: string): number {
   return num;
 }
 
-export const listCommand = buildCommand({
+export const listCommand = defineCommand({
   loader: async () => list,
   parameters: {
     flags: {

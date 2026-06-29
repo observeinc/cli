@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import {
   accessSync,
@@ -151,7 +151,7 @@ async function upgrade(this: LocalContext, flags: UpgradeFlags) {
   }
 }
 
-export const upgradeCommand = buildCommand({
+export const upgradeCommand = defineCommand({
   loader: async () => upgrade,
   parameters: {
     flags: {

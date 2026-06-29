@@ -6,11 +6,12 @@
  * - `observe help <command>`: Shows Stricli's detailed help (--helpAll) for that command
  */
 
-import { buildCommand, run } from "@stricli/core";
+import { run } from "@stricli/core";
+import { defineCommand } from "../lib/stricli-wrappers";
 import type { LocalContext } from "../context.js";
 import { printCustomHelp } from "../lib/help.js";
 
-export const helpCommand = buildCommand({
+export const helpCommand = defineCommand({
   docs: {
     brief: "Display help for a command",
     fullDescription:

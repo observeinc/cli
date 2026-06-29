@@ -1,10 +1,10 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../lib/stricli-wrappers";
 import { configureCommand } from "./configure";
 import { loginCommand } from "./login";
 import { logoutCommand } from "./logout";
 import { statusCommand } from "./status";
 
-export const authRoutes = buildRouteMap({
+export const authRoutes = defineRoutes({
   routes: {
     configure: configureCommand,
     login: loginCommand,

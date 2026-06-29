@@ -1,7 +1,7 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../../lib/stricli-wrappers";
 import { createAwsConnectionCommand } from "./aws.js";
 
-export const createConnectionRoutes = buildRouteMap({
+export const createConnectionRoutes = defineRoutes({
   routes: {
     aws: createAwsConnectionCommand,
   },

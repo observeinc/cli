@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../../lib/stricli-wrappers";
 import type { LocalContext } from "../../../context.js";
 import { createConnection } from "../../../gql/connection/create-connection.js";
 import {
@@ -75,7 +75,8 @@ export async function createAwsConnectionCmd(
   }
 }
 
-export const createAwsConnectionCommand = buildCommand({
+export const createAwsConnectionCommand = defineCommand({
+  experimental: true,
   loader: async () => createAwsConnectionCmd,
   parameters: {
     positional: { kind: "tuple", parameters: [] },

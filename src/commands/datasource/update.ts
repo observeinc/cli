@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context.js";
 import { getConnection } from "../../gql/connection/get-connection.js";
 import {
@@ -230,7 +230,8 @@ function mapExistingConfigToInput(
   };
 }
 
-export const updateDatasourceCommand = buildCommand({
+export const updateDatasourceCommand = defineCommand({
+  experimental: true,
   loader: async () => updateDatasourceCmd,
   parameters: {
     positional: {

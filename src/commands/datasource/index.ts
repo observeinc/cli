@@ -1,8 +1,8 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../lib/stricli-wrappers";
 import { createDatasourceCommand } from "./create.js";
 import { updateDatasourceCommand } from "./update.js";
 
-export const datasourceRoutes = buildRouteMap({
+export const datasourceRoutes = defineRoutes({
   routes: {
     create: createDatasourceCommand,
     update: updateDatasourceCommand,

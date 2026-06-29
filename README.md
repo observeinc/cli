@@ -84,6 +84,18 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe cli uninstall`                 | Remove shell integration                                |
 | `observe cli upgrade`                   | Upgrade to the latest version                           |
 
+### Experimental commands
+
+Experimental commands are hidden by default and gated behind an environment
+variable. They are **not** covered by SemVer — their names, flags, and output
+may change or be removed without notice.
+
+```bash
+# Enable experimental commands for the session
+export OBSERVE_CLI_EXPERIMENTAL=1
+observe help            # experimental commands now appear, tagged [experimental]
+```
+
 ## Configuration
 
 Credentials are stored in `~/.observe/config.json` with mode `600` (owner-only access). Permissions are automatically enforced on every write.
@@ -147,11 +159,20 @@ bun dev tag-value list --match checkout
 
 ```bash
 bun dev              # Run CLI in development mode
-bun test             # Run codegen, typecheck, lint, format, and tests
+bun test             # Run codegen, typecheck, lint, format, and unit tests
+bun test:integration # Integration tests against a real tenant (requires env vars below)
 bun typecheck        # Type checking
 bun lint             # Check for issues
 bun format           # Check formatting
 bun codegen          # Generate GraphQL and REST API types
+```
+
+### Integration tests
+
+Add credentials to `.env` (see `.env.example`), then run:
+
+```bash
+bun run test:integration
 ```
 
 ## License

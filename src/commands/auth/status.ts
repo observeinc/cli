@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import {
@@ -94,7 +94,7 @@ async function status(
   }
 }
 
-export const statusCommand = buildCommand({
+export const statusCommand = defineCommand({
   loader: async () => status,
   parameters: {
     flags: {
