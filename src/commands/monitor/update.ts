@@ -74,7 +74,7 @@ export async function update(
 
   if (!hasUpdate) {
     writer.error(
-      "At least one update flag is required (--name, --description, --kind, --definition-file, --action-rules-file).",
+      "At least one update flag is required (--name, --description, --kind, --definition, --definition-file, --action-rules-file).",
     );
     process.exit(1);
     return;
