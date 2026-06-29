@@ -16,6 +16,7 @@ import { muteStatusWriter } from "../../lib/writer";
 import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 
 interface UpdateMonitorFlags {
+  file?: string;
   name?: string;
   description?: string;
   kind?: MonitorV2RuleKind;
@@ -31,6 +32,15 @@ export interface UpdateMonitorDeps {
   getMonitor?: typeof getMonitor;
   readFile?: (path: string) => string;
 }
+
+const FILE_EXCLUSIVE_FLAGS = [
+  "--name",
+  "--description",
+  "--kind",
+  "--definition",
+  "--definition-file",
+  "--action-rules-file",
+];
 
 export async function update(
   this: LocalContext,
@@ -58,13 +68,7 @@ export async function update(
     return;
   }
 
-  if (flags.definition != null && flags.definitionFile != null) {
-    writer.error("--definition and --definition-file are mutually exclusive.");
-    process.exit(1);
-    return;
-  }
-
-  const hasUpdate =
+  const hasFieldFlags =
     flags.name != null ||
     flags.description != null ||
     flags.kind != null ||
@@ -72,9 +76,23 @@ export async function update(
     flags.definitionFile != null ||
     flags.actionRulesFile != null;
 
-  if (!hasUpdate) {
+  if (flags.file != null && hasFieldFlags) {
     writer.error(
-      "At least one update flag is required (--name, --description, --kind, --definition, --definition-file, --action-rules-file).",
+      `--file is mutually exclusive with ${FILE_EXCLUSIVE_FLAGS.join(", ")}.`,
+    );
+    process.exit(1);
+    return;
+  }
+
+  if (flags.definition != null && flags.definitionFile != null) {
+    writer.error("--definition and --definition-file are mutually exclusive.");
+    process.exit(1);
+    return;
+  }
+
+  if (flags.file == null && !hasFieldFlags) {
+    writer.error(
+      "At least one update flag is required (--file, --name, --description, --kind, --definition, --definition-file, --action-rules-file).",
     );
     process.exit(1);
     return;
@@ -85,26 +103,49 @@ export async function update(
 
     writer.info("Updating monitor...");
 
-    const patch: MonitorV2PatchRequest = {};
-    if (flags.name != null) patch.name = flags.name;
-    if (flags.description != null) patch.description = flags.description;
-    if (flags.kind != null) patch.ruleKind = flags.kind;
-    const rawDefinition =
-      flags.definition ??
-      (flags.definitionFile
-        ? readFileImpl(resolve(flags.definitionFile))
-        : null);
-    if (rawDefinition != null) {
-      patch.definition = parseJsonFile<MonitorV2Definition>(
-        rawDefinition,
-        "--definition / --definition-file",
-      );
-    }
-    if (flags.actionRulesFile != null) {
-      patch.actionRules = parseJsonFile<MonitorV2ActionRule[]>(
-        readFileImpl(resolve(flags.actionRulesFile)),
-        "--action-rules-file",
-      );
+    let patch: MonitorV2PatchRequest;
+
+    if (flags.file != null) {
+      const raw = readFileImpl(resolve(flags.file));
+      const parsed = parseJsonFile<Record<string, unknown>>(raw, "--file");
+      patch = {
+        ...(parsed.name != null && { name: parsed.name as string }),
+        ...(parsed.description != null && {
+          description: parsed.description as string,
+        }),
+        ...(parsed.ruleKind != null && {
+          ruleKind: parsed.ruleKind as MonitorV2RuleKind,
+        }),
+        ...(parsed.definition != null && {
+          definition: parsed.definition as MonitorV2Definition,
+        }),
+        ...(parsed.actionRules != null && {
+          actionRules: parsed.actionRules as MonitorV2ActionRule[],
+        }),
+        ...(parsed.disabled != null && { disabled: parsed.disabled as boolean }),
+      };
+    } else {
+      patch = {};
+      if (flags.name != null) patch.name = flags.name;
+      if (flags.description != null) patch.description = flags.description;
+      if (flags.kind != null) patch.ruleKind = flags.kind;
+      const rawDefinition =
+        flags.definition ??
+        (flags.definitionFile
+          ? readFileImpl(resolve(flags.definitionFile))
+          : null);
+      if (rawDefinition != null) {
+        patch.definition = parseJsonFile<MonitorV2Definition>(
+          rawDefinition,
+          "--definition / --definition-file",
+        );
+      }
+      if (flags.actionRulesFile != null) {
+        patch.actionRules = parseJsonFile<MonitorV2ActionRule[]>(
+          readFileImpl(resolve(flags.actionRulesFile)),
+          "--action-rules-file",
+        );
+      }
     }
 
     await updateMonitorImpl({ config, id, ...patch });
@@ -134,6 +175,13 @@ export const updateCommand = defineCommand({
       parameters: [{ brief: "Monitor ID", parse: String }],
     },
     flags: {
+      file: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "Path to a full monitor JSON file (e.g. from `monitor view --json`). Mutually exclusive with all other flags.",
+        optional: true,
+      },
       name: {
         kind: "parsed",
         parse: String,
@@ -185,5 +233,15 @@ export const updateCommand = defineCommand({
   },
   docs: {
     brief: "Update a monitor",
+    fullDescription: [
+      "Update a monitor's name, description, rule kind, definition, or action rules.",
+      "",
+      "Edit flow (--file):",
+      "  observe monitor view <id> --json > monitor.json",
+      "  # edit monitor.json",
+      "  observe monitor update <id> --file monitor.json",
+      "",
+      "--file is mutually exclusive with all other flags.",
+    ].join("\n"),
   },
 });

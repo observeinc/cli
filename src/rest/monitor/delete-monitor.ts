@@ -1,6 +1,5 @@
 import type { Config } from "../../lib/config";
-import { MonitorApi } from "../generated";
-import { createApiConfiguration } from "../api-config";
+import { ObserveRestSDK } from "../client";
 
 export async function deleteMonitor({
   config,
@@ -9,6 +8,6 @@ export async function deleteMonitor({
   config: Config;
   id: number;
 }): Promise<void> {
-  const api = new MonitorApi(createApiConfiguration(config));
-  await api.deleteMonitor({ id });
+  const sdk = new ObserveRestSDK(config);
+  await sdk.monitorApi.deleteMonitor({ id });
 }
