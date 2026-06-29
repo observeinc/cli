@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { listDatastreams } from "../../gql/datastream/list-datastreams";
 import { GqlApiError } from "../../gql/gql-request";
@@ -36,7 +36,7 @@ export async function list(
   }
 }
 
-export const listCommand = buildCommand({
+export const listCommand = defineCommand({
   loader: async () => list,
   parameters: {
     positional: {

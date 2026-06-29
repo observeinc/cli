@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context.js";
 import { getDatastreamToken } from "../../gql/connection/get-datastream-token.js";
 import { GqlApiError } from "../../gql/gql-request.js";
@@ -68,7 +68,7 @@ export async function checkStatus(
   }
 }
 
-export const checkStatusCommand = buildCommand({
+export const checkStatusCommand = defineCommand({
   loader: async () => checkStatus,
   parameters: {
     positional: { kind: "tuple", parameters: [] },

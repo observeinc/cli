@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { updateIngestToken } from "../../gql/ingest-token/update-ingest-token";
 import { viewIngestToken } from "../../gql/ingest-token/view-ingest-token";
@@ -73,7 +73,8 @@ export async function update(
   }
 }
 
-export const updateCommand = buildCommand({
+export const updateCommand = defineCommand({
+  experimental: true,
   loader: async () => update,
   parameters: {
     positional: {

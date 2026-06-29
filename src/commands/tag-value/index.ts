@@ -1,7 +1,7 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../lib/stricli-wrappers";
 import { listCommand } from "./list";
 
-export const tagValueRoutes = buildRouteMap({
+export const tagValueRoutes = defineRoutes({
   routes: {
     list: listCommand,
   },

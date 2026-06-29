@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context.js";
 import { createDatasource } from "../../gql/connection/create-datasource.js";
 import { getConnection } from "../../gql/connection/get-connection.js";
@@ -127,7 +127,8 @@ export async function createDatasourceCmd(
   }
 }
 
-export const createDatasourceCommand = buildCommand({
+export const createDatasourceCommand = defineCommand({
+  experimental: true,
   loader: async () => createDatasourceCmd,
   parameters: {
     positional: { kind: "tuple", parameters: [] },

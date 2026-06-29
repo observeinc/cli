@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { createIngestToken } from "../../gql/ingest-token/create-ingest-token";
 import { updateIngestTokenAssociation } from "../../gql/ingest-token/update-ingest-token-association";
@@ -62,7 +62,8 @@ export async function create(
   }
 }
 
-export const createCommand = buildCommand({
+export const createCommand = defineCommand({
+  experimental: true,
   loader: async () => create,
   parameters: {
     positional: {

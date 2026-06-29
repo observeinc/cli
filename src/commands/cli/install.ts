@@ -8,7 +8,7 @@
  * TODO: Add agent skill installation for AI coding assistants.
  */
 
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import { arch, platform } from "node:os";
 import { dirname, join } from "node:path";
 import type { LocalContext } from "../../context";
@@ -138,7 +138,7 @@ export async function install(
   }
 }
 
-export const installCommand = buildCommand({
+export const installCommand = defineCommand({
   loader: async () => install,
   parameters: {
     flags: {

@@ -1,9 +1,9 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../lib/stricli-wrappers";
 import { hostContentRoutes } from "./host/index";
 import { kubernetesContentRoutes } from "./kubernetes/index";
 import { tracingContentRoutes } from "./tracing/index";
 
-export const contentRoutes = buildRouteMap({
+export const contentRoutes = defineRoutes({
   routes: {
     host: hostContentRoutes,
     kubernetes: kubernetesContentRoutes,

@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { getMonitor } from "../../rest/monitor/get-monitor";
@@ -104,14 +104,27 @@ export async function view(
 
     writer.write("");
     writer.write(chalk.bold("Definition:"));
-    writer.write(JSON.stringify(monitor.definition, null, 2));
+    writer.write(JSON.stringify(stripLayout(monitor.definition), null, 2));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exit(1);
   }
 }
 
-export const viewCommand = buildCommand({
+function stripLayout(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(stripLayout);
+  if (obj !== null && typeof obj === "object") {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>)
+        .filter(([key]) => key !== "layout")
+        .map(([key, val]) => [key, stripLayout(val)]),
+    );
+  }
+  return obj;
+}
+
+export const viewCommand = defineCommand({
+  experimental: true,
   loader: async () => view,
   parameters: {
     positional: {

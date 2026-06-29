@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { viewIngestToken } from "../../gql/ingest-token/view-ingest-token";
 import { GqlApiError } from "../../gql/gql-request";
@@ -32,7 +32,8 @@ export async function view(
   }
 }
 
-export const viewCommand = buildCommand({
+export const viewCommand = defineCommand({
+  experimental: true,
   loader: async () => view,
   parameters: {
     positional: {

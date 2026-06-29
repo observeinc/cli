@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { LocalContext } from "../../context";
@@ -111,7 +111,8 @@ export async function create(
   }
 }
 
-export const createCommand = buildCommand({
+export const createCommand = defineCommand({
+  experimental: true,
   loader: async () => create,
   parameters: {
     positional: { kind: "tuple", parameters: [] },

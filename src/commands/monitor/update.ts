@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { LocalContext } from "../../context";
@@ -125,7 +125,8 @@ export async function update(
   }
 }
 
-export const updateCommand = buildCommand({
+export const updateCommand = defineCommand({
+  experimental: true,
   loader: async () => update,
   parameters: {
     positional: {

@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { createDatastream } from "../../gql/datastream/create-datastream";
 import { GqlApiError } from "../../gql/gql-request";
@@ -64,7 +64,7 @@ export async function create(
   }
 }
 
-export const createCommand = buildCommand({
+export const createCommand = defineCommand({
   loader: async () => create,
   parameters: {
     positional: {

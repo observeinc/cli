@@ -138,10 +138,10 @@ describe("monitor delete — ID validation", () => {
   });
 });
 
-describe("monitor delete — force guard", () => {
+describe("monitor delete — yes guard", () => {
   beforeEach(() => deleteMonitorFn.mockClear());
 
-  test("without --force exits 1 with irreversible message and does not call deleteMonitor", async () => {
+  test("without --yes exits 1 with irreversible message and does not call deleteMonitor", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     try {
       await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
@@ -154,16 +154,52 @@ describe("monitor delete — force guard", () => {
     expect(deleteMonitorFn).not.toHaveBeenCalled();
   });
 
-  test("with --force proceeds to delete", async () => {
+  test("with --yes proceeds to delete", async () => {
     const { context, stdout } = createMockContext();
     await deleteMonitorCommand.call(
       context,
-      { force: true },
+      { yes: true },
       TEST_MONITOR_ID,
       deps,
     );
     expect(deleteMonitorFn).toHaveBeenCalledTimes(1);
     expect(stdout.join("")).toContain("deleted");
+  });
+
+  test("with confirmFn returning true proceeds to delete", async () => {
+    const getMonitorFn = mock(
+      (_params: { config: Config; id: number }) =>
+        Promise.resolve({ id: Number(TEST_MONITOR_ID), name: "Test Monitor" }),
+    );
+    const { context, stdout } = createMockContext();
+    await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, {
+      ...deps,
+      getMonitor: getMonitorFn as never,
+      confirmFn: async () => true,
+    });
+    expect(deleteMonitorFn).toHaveBeenCalledTimes(1);
+    expect(stdout.join("")).toContain("deleted");
+  });
+
+  test("with confirmFn returning false exits 1 without deleting", async () => {
+    const getMonitorFn = mock(
+      (_params: { config: Config; id: number }) =>
+        Promise.resolve({ id: Number(TEST_MONITOR_ID), name: "Test Monitor" }),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    try {
+      await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, {
+        ...deps,
+        getMonitor: getMonitorFn as never,
+        confirmFn: async () => false,
+      });
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("cancelled");
+    expect(deleteMonitorFn).not.toHaveBeenCalled();
   });
 });
 
@@ -174,7 +210,7 @@ describe("monitor delete — API forwarding", () => {
     const { context } = createMockContext();
     await deleteMonitorCommand.call(
       context,
-      { force: true },
+      { yes: true },
       TEST_MONITOR_ID,
       deps,
     );
@@ -192,7 +228,7 @@ describe("monitor delete — output", () => {
     const { context, stdout } = createMockContext();
     await deleteMonitorCommand.call(
       context,
-      { force: true },
+      { yes: true },
       TEST_MONITOR_ID,
       deps,
     );
@@ -215,7 +251,7 @@ describe("monitor delete — error handling", () => {
     try {
       await deleteMonitorCommand.call(
         context,
-        { force: true },
+        { yes: true },
         TEST_MONITOR_ID,
         deps,
       );
@@ -235,7 +271,7 @@ describe("monitor delete — error handling", () => {
     try {
       await deleteMonitorCommand.call(
         context,
-        { force: true },
+        { yes: true },
         TEST_MONITOR_ID,
         deps,
       );

@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../lib/stricli-wrappers";
 import type { LocalContext } from "../context";
 import { getDataset } from "../rest/dataset/get-dataset";
 import { loadConfig } from "../lib/config";
@@ -300,7 +300,7 @@ function parseLimit(value: string): number {
   return num;
 }
 
-export const queryCommand = buildCommand({
+export const queryCommand = defineCommand({
   loader: async () => query,
   parameters: {
     flags: {

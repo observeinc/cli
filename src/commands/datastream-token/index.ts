@@ -1,7 +1,7 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../lib/stricli-wrappers";
 import { checkStatusCommand } from "./check-status.js";
 
-export const datastreamTokenRoutes = buildRouteMap({
+export const datastreamTokenRoutes = defineRoutes({
   routes: {
     "check-status": checkStatusCommand,
   },

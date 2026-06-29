@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listDatasets } from "../../rest/dataset/list-datasets";
@@ -242,7 +242,7 @@ function parseFields(value: string) {
   });
 }
 
-export const listCommand = buildCommand({
+export const listCommand = defineCommand({
   loader: async () => list,
   parameters: {
     positional: {

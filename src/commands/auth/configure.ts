@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { configExists, getConfigPath, saveConfig } from "../../lib/config";
 
@@ -42,7 +42,7 @@ async function configure(
   }
 }
 
-export const configureCommand = buildCommand({
+export const configureCommand = defineCommand({
   loader: async () => configure,
   parameters: {
     positional: {

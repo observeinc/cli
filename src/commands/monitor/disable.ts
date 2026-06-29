@@ -1,4 +1,4 @@
-import { buildCommand } from "@stricli/core";
+import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { updateMonitor } from "../../rest/monitor/update-monitor";
 import { getMonitor } from "../../rest/monitor/get-monitor";
@@ -65,7 +65,8 @@ export async function disable(
   }
 }
 
-export const disableCommand = buildCommand({
+export const disableCommand = defineCommand({
+  experimental: true,
   loader: async () => disable,
   parameters: {
     positional: {

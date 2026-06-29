@@ -1,4 +1,4 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../lib/stricli-wrappers";
 import { listCommand } from "./list";
 import { viewCommand } from "./view";
 import { createCommand } from "./create";
@@ -7,7 +7,7 @@ import { deleteCommand } from "./delete";
 import { enableCommand } from "./enable";
 import { disableCommand } from "./disable";
 
-export const monitorRoutes = buildRouteMap({
+export const monitorRoutes = defineRoutes({
   routes: {
     list: listCommand,
     view: viewCommand,

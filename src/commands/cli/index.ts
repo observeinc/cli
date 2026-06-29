@@ -1,9 +1,9 @@
-import { buildRouteMap } from "@stricli/core";
+import { defineRoutes } from "../../lib/stricli-wrappers";
 import { installCommand } from "./install";
 import { uninstallCommand } from "./uninstall";
 import { upgradeCommand } from "./upgrade";
 
-export const cliRoutes = buildRouteMap({
+export const cliRoutes = defineRoutes({
   routes: {
     install: installCommand,
     uninstall: uninstallCommand,
