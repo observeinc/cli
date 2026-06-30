@@ -122,7 +122,9 @@ export async function update(
         ...(parsed.actionRules != null && {
           actionRules: parsed.actionRules as MonitorV2ActionRule[],
         }),
-        ...(parsed.disabled != null && { disabled: parsed.disabled as boolean }),
+        ...(parsed.disabled != null && {
+          disabled: parsed.disabled as boolean,
+        }),
       };
     } else {
       patch = {};

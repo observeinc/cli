@@ -69,7 +69,10 @@ export async function deleteMonitorCommand(
 
     if (!flags.yes) {
       // When no confirmFn is injected (real usage), require a TTY.
-      if (!confirmFn && !(process.stdin as NodeJS.ReadStream | undefined)?.isTTY) {
+      if (
+        !confirmFn &&
+        !(process.stdin as NodeJS.ReadStream | undefined)?.isTTY
+      ) {
         writer.error(
           "Deleting a monitor is irreversible. Use --yes to confirm deletion in non-interactive mode.",
         );

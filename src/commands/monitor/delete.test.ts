@@ -167,9 +167,8 @@ describe("monitor delete — yes guard", () => {
   });
 
   test("with confirmFn returning true proceeds to delete", async () => {
-    const getMonitorFn = mock(
-      (_params: { config: Config; id: number }) =>
-        Promise.resolve({ id: Number(TEST_MONITOR_ID), name: "Test Monitor" }),
+    const getMonitorFn = mock((_params: { config: Config; id: number }) =>
+      Promise.resolve({ id: Number(TEST_MONITOR_ID), name: "Test Monitor" }),
     );
     const { context, stdout } = createMockContext();
     await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, {
@@ -182,9 +181,8 @@ describe("monitor delete — yes guard", () => {
   });
 
   test("with confirmFn returning false exits 1 without deleting", async () => {
-    const getMonitorFn = mock(
-      (_params: { config: Config; id: number }) =>
-        Promise.resolve({ id: Number(TEST_MONITOR_ID), name: "Test Monitor" }),
+    const getMonitorFn = mock((_params: { config: Config; id: number }) =>
+      Promise.resolve({ id: Number(TEST_MONITOR_ID), name: "Test Monitor" }),
     );
     const { context, stderr, getExitCode } = createMockContext();
     try {
