@@ -102,6 +102,12 @@ npx skills add observeinc/cli
 
 To update installed skills after edits in this repo, run `npx skills update`.
 
+## Contributing
+
+Contributions are welcome! For non-trivial changes, please [open an issue](https://github.com/observeinc/cli/issues) first so we can align on the approach — the change may already be planned, in progress, or out of scope.
+
+Please use [Conventional Commits](https://www.conventionalcommits.org) for commit messages (e.g. `fix(query): handle empty result set`).
+
 ---
 
 ## Development
