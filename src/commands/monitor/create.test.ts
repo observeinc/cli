@@ -29,10 +29,16 @@ const STUB_DEFINITION: MonitorV2Definition = {
   rules: [],
 };
 
+const STUB_CREATE_FILE = JSON.stringify({
+  name: "My Monitor",
+  ruleKind: MonitorV2RuleKind.Count,
+  definition: STUB_DEFINITION,
+});
+
 function monitorStub(overrides: Partial<MonitorV2> = {}): MonitorV2 {
   return {
     id: "99001",
-    name: "New Monitor",
+    name: "My Monitor",
     ruleKind: MonitorV2RuleKind.Count,
     definition: STUB_DEFINITION,
     ...overrides,
@@ -49,9 +55,7 @@ const getMonitorFn = mock(
     Promise.resolve(monitorStub()),
 );
 
-const readFileFn = mock((_path: string): string =>
-  JSON.stringify(STUB_DEFINITION),
-);
+const readFileFn = mock((_path: string): string => STUB_CREATE_FILE);
 
 let create: (typeof import("./create"))["create"];
 
@@ -129,17 +133,9 @@ describe("monitor create — API forwarding", () => {
     loadConfigFn.mockClear();
   });
 
-  test("passes name, kind, and parsed definition to createMonitor", async () => {
+  test("passes name, ruleKind, and definition from --file to createMonitor", async () => {
     const { context } = createMockContext();
-    await create.call(
-      context,
-      {
-        name: "My Monitor",
-        kind: MonitorV2RuleKind.Count,
-        definitionFile: "/fake/definition.json",
-      },
-      deps,
-    );
+    await create.call(context, { file: "/fake/monitor.json" }, deps);
     expect(createMonitorFn).toHaveBeenCalledTimes(1);
     const call = createMonitorFn.mock.calls[0]![0] as unknown as {
       monitorV2: { name: string; ruleKind: string; definition: unknown };
@@ -149,52 +145,33 @@ describe("monitor create — API forwarding", () => {
     expect(call.monitorV2.definition).toMatchObject(STUB_DEFINITION);
   });
 
-  test("reads definition from definitionFile path", async () => {
+  test("reads file from the provided path", async () => {
     const { context } = createMockContext();
-    await create.call(
-      context,
-      {
-        name: "My Monitor",
-        kind: MonitorV2RuleKind.Threshold,
-        definitionFile: "/path/to/def.json",
-      },
-      deps,
-    );
-    expect(readFileFn).toHaveBeenCalledWith("/path/to/def.json");
+    await create.call(context, { file: "/path/to/monitor.json" }, deps);
+    expect(readFileFn).toHaveBeenCalledWith("/path/to/monitor.json");
   });
 
-  test("includes actionRules when --action-rules-file is provided", async () => {
+  test("includes actionRules when present in --file", async () => {
     const actionRules = [{ actionId: "act-1" }];
-    readFileFn.mockImplementationOnce(() => JSON.stringify(STUB_DEFINITION));
-    readFileFn.mockImplementationOnce(() => JSON.stringify(actionRules));
-    const { context } = createMockContext();
-    await create.call(
-      context,
-      {
+    readFileFn.mockImplementationOnce(() =>
+      JSON.stringify({
         name: "My Monitor",
-        kind: MonitorV2RuleKind.Count,
-        definitionFile: "/def.json",
-        actionRulesFile: "/rules.json",
-      },
-      deps,
+        ruleKind: MonitorV2RuleKind.Count,
+        definition: STUB_DEFINITION,
+        actionRules,
+      }),
     );
+    const { context } = createMockContext();
+    await create.call(context, { file: "/monitor.json" }, deps);
     const call = createMonitorFn.mock.calls[0]![0] as unknown as {
       monitorV2: { actionRules: unknown[] };
     };
     expect(call.monitorV2.actionRules).toEqual(actionRules);
   });
 
-  test("omits actionRules when --action-rules-file is not provided", async () => {
+  test("omits actionRules when not present in --file", async () => {
     const { context } = createMockContext();
-    await create.call(
-      context,
-      {
-        name: "My Monitor",
-        kind: MonitorV2RuleKind.Count,
-        definitionFile: "/def.json",
-      },
-      deps,
-    );
+    await create.call(context, { file: "/monitor.json" }, deps);
     const call = createMonitorFn.mock.calls[0]![0] as unknown as {
       monitorV2: object;
     };
@@ -214,15 +191,7 @@ describe("monitor create — output", () => {
       Promise.resolve(monitorStub({ id: "99001" })),
     );
     const { context, stdout } = createMockContext();
-    await create.call(
-      context,
-      {
-        name: "My Monitor",
-        kind: MonitorV2RuleKind.Count,
-        definitionFile: "/def.json",
-      },
-      deps,
-    );
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(stdout.join("")).toContain("99001");
     expect(stdout.join("")).toContain("created");
   });
@@ -235,20 +204,82 @@ describe("monitor create — output", () => {
       Promise.resolve(monitorStub({ id: "99001", name: "My Monitor" })),
     );
     const { context, stdout } = createMockContext();
-    await create.call(
-      context,
-      {
-        name: "My Monitor",
-        kind: MonitorV2RuleKind.Count,
-        definitionFile: "/def.json",
-        json: true,
-      },
-      deps,
-    );
+    await create.call(context, { file: "/monitor.json", json: true }, deps);
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
     expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({ id: 99001 });
     const result = JSON.parse(stdout.join("")) as MonitorV2;
     expect(result).toMatchObject({ id: "99001", name: "My Monitor" });
+  });
+});
+
+describe("monitor create — file validation", () => {
+  beforeEach(() => {
+    createMonitorFn.mockClear();
+    readFileFn.mockClear();
+  });
+
+  test("missing name field exits with code 1", async () => {
+    readFileFn.mockImplementationOnce(() =>
+      JSON.stringify({
+        ruleKind: MonitorV2RuleKind.Count,
+        definition: STUB_DEFINITION,
+      }),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    try {
+      await create.call(context, { file: "/monitor.json" }, deps);
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("name");
+    expect(createMonitorFn).not.toHaveBeenCalled();
+  });
+
+  test("missing ruleKind field exits with code 1", async () => {
+    readFileFn.mockImplementationOnce(() =>
+      JSON.stringify({ name: "My Monitor", definition: STUB_DEFINITION }),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    try {
+      await create.call(context, { file: "/monitor.json" }, deps);
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("ruleKind");
+    expect(createMonitorFn).not.toHaveBeenCalled();
+  });
+
+  test("missing definition field exits with code 1", async () => {
+    readFileFn.mockImplementationOnce(() =>
+      JSON.stringify({ name: "My Monitor", ruleKind: MonitorV2RuleKind.Count }),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    try {
+      await create.call(context, { file: "/monitor.json" }, deps);
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("definition");
+    expect(createMonitorFn).not.toHaveBeenCalled();
+  });
+
+  test("invalid JSON in --file exits with code 1 and mentions the flag", async () => {
+    readFileFn.mockImplementationOnce(() => "{ invalid json {{");
+    const { context, stderr, getExitCode } = createMockContext();
+    try {
+      await create.call(context, { file: "/monitor.json" }, deps);
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("--file");
   });
 });
 
@@ -266,15 +297,7 @@ describe("monitor create — error handling", () => {
     );
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await create.call(
-        context,
-        {
-          name: "My Monitor",
-          kind: MonitorV2RuleKind.Count,
-          definitionFile: "/def.json",
-        },
-        deps,
-      );
+      await create.call(context, { file: "/monitor.json" }, deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -289,15 +312,7 @@ describe("monitor create — error handling", () => {
     });
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await create.call(
-        context,
-        {
-          name: "My Monitor",
-          kind: MonitorV2RuleKind.Count,
-          definitionFile: "/def.json",
-        },
-        deps,
-      );
+      await create.call(context, { file: "/monitor.json" }, deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -306,96 +321,21 @@ describe("monitor create — error handling", () => {
     expect(stderr.join("")).toContain("Error");
   });
 
-  test("readFile throwing for --definition-file exits with code 1", async () => {
+  test("readFile throwing exits with code 1", async () => {
     readFileFn.mockImplementationOnce((): never => {
-      throw new Error("ENOENT: no such file or directory, open '/def.json'");
+      throw new Error(
+        "ENOENT: no such file or directory, open '/monitor.json'",
+      );
     });
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await create.call(
-        context,
-        {
-          name: "My Monitor",
-          kind: MonitorV2RuleKind.Count,
-          definitionFile: "/def.json",
-        },
-        deps,
-      );
+      await create.call(context, { file: "/monitor.json" }, deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
     }
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
-  });
-
-  test("invalid JSON in --definition-file exits with code 1 and mentions the flag", async () => {
-    readFileFn.mockImplementationOnce(() => "{ invalid json {{");
-    const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(
-        context,
-        {
-          name: "My Monitor",
-          kind: MonitorV2RuleKind.Count,
-          definitionFile: "/def.json",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("--definition-file");
-  });
-
-  test("readFile throwing for --action-rules-file exits with code 1", async () => {
-    readFileFn.mockImplementationOnce(() => JSON.stringify(STUB_DEFINITION));
-    readFileFn.mockImplementationOnce((): never => {
-      throw new Error("ENOENT: no such file or directory, open '/rules.json'");
-    });
-    const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(
-        context,
-        {
-          name: "My Monitor",
-          kind: MonitorV2RuleKind.Count,
-          definitionFile: "/def.json",
-          actionRulesFile: "/rules.json",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("Error");
-  });
-
-  test("invalid JSON in --action-rules-file exits with code 1 and mentions the flag", async () => {
-    readFileFn.mockImplementationOnce(() => JSON.stringify(STUB_DEFINITION));
-    readFileFn.mockImplementationOnce(() => "not json at all");
-    const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(
-        context,
-        {
-          name: "My Monitor",
-          kind: MonitorV2RuleKind.Count,
-          definitionFile: "/def.json",
-          actionRulesFile: "/rules.json",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("--action-rules-file");
   });
 
   test("createMonitor returning invalid id exits with code 1", async () => {
@@ -404,15 +344,7 @@ describe("monitor create — error handling", () => {
     );
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await create.call(
-        context,
-        {
-          name: "My Monitor",
-          kind: MonitorV2RuleKind.Count,
-          definitionFile: "/def.json",
-        },
-        deps,
-      );
+      await create.call(context, { file: "/monitor.json" }, deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -428,16 +360,7 @@ describe("monitor create — error handling", () => {
     getMonitorFn.mockImplementationOnce(() => Promise.resolve(null));
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await create.call(
-        context,
-        {
-          name: "My Monitor",
-          kind: MonitorV2RuleKind.Count,
-          definitionFile: "/def.json",
-          json: true,
-        },
-        deps,
-      );
+      await create.call(context, { file: "/monitor.json", json: true }, deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");

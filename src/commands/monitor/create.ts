@@ -15,11 +15,7 @@ import { muteStatusWriter } from "../../lib/writer";
 import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 
 interface CreateMonitorFlags {
-  name: string;
-  kind: MonitorV2RuleKind;
-  definition?: string;
-  definitionFile?: string;
-  actionRulesFile?: string;
+  file: string;
   json?: boolean;
 }
 
@@ -44,45 +40,41 @@ export async function create(
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
 
-  if (flags.definition != null && flags.definitionFile != null) {
-    writer.error("--definition and --definition-file are mutually exclusive.");
-    process.exit(1);
-    return;
-  }
-
-  if (flags.definition == null && flags.definitionFile == null) {
-    writer.error("One of --definition or --definition-file is required.");
-    process.exit(1);
-    return;
-  }
-
   try {
     const config = loadConfigImpl();
 
     writer.info("Creating monitor...");
 
-    const rawDefinition =
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      flags.definition ?? readFileImpl(resolve(flags.definitionFile!));
-    const definition = parseJsonFile<MonitorV2Definition>(
-      rawDefinition,
-      "--definition / --definition-file",
-    );
+    const raw = readFileImpl(resolve(flags.file));
+    const parsed = parseJsonFile<Record<string, unknown>>(raw, "--file");
 
-    const actionRules = flags.actionRulesFile
-      ? parseJsonFile<MonitorV2ActionRule[]>(
-          readFileImpl(resolve(flags.actionRulesFile)),
-          "--action-rules-file",
-        )
-      : undefined;
+    if (!parsed.name || typeof parsed.name !== "string") {
+      writer.error('--file must contain a "name" field (string).');
+      process.exit(1);
+      return;
+    }
+    if (!parsed.ruleKind) {
+      writer.error(
+        `--file must contain a "ruleKind" field (${Object.values(MonitorV2RuleKind).join(", ")}).`,
+      );
+      process.exit(1);
+      return;
+    }
+    if (!parsed.definition) {
+      writer.error('--file must contain a "definition" field.');
+      process.exit(1);
+      return;
+    }
 
     const created = await createMonitorImpl({
       config,
       monitorV2: {
-        name: flags.name,
-        ruleKind: flags.kind,
-        definition,
-        ...(actionRules != null && { actionRules }),
+        name: parsed.name,
+        ruleKind: parsed.ruleKind as MonitorV2RuleKind,
+        definition: parsed.definition as MonitorV2Definition,
+        ...(parsed.actionRules != null && {
+          actionRules: parsed.actionRules as MonitorV2ActionRule[],
+        }),
       },
     });
 
@@ -117,40 +109,11 @@ export const createCommand = defineCommand({
   parameters: {
     positional: { kind: "tuple", parameters: [] },
     flags: {
-      name: {
+      file: {
         kind: "parsed",
         parse: String,
-        brief: "Monitor name",
+        brief: "Path to JSON file containing the monitor to create",
         optional: false,
-      },
-      kind: {
-        kind: "enum",
-        values: [
-          MonitorV2RuleKind.Count,
-          MonitorV2RuleKind.Threshold,
-          MonitorV2RuleKind.Promote,
-        ],
-        brief: "Alert rule kind (Count, Threshold, Promote)",
-        optional: false,
-      },
-      definition: {
-        kind: "parsed",
-        parse: String,
-        brief:
-          "MonitorV2Definition as inline JSON (alternative to --definition-file)",
-        optional: true,
-      },
-      definitionFile: {
-        kind: "parsed",
-        parse: String,
-        brief: "Path to JSON file containing the MonitorV2Definition",
-        optional: true,
-      },
-      actionRulesFile: {
-        kind: "parsed",
-        parse: String,
-        brief: "Path to JSON file containing Array<MonitorV2ActionRule>",
-        optional: true,
       },
       json: {
         kind: "boolean",
@@ -162,19 +125,21 @@ export const createCommand = defineCommand({
   },
   docs: {
     brief: "Create a new monitor",
-    fullDescription:
-      "Creates a new MonitorV2 monitor.\n\n" +
-      "--definition-file schema (MonitorV2Definition as JSON):\n" +
-      "Full schema reference: https://developer.observeinc.com/#model/monitorv2definition\n\n" +
-      "Minimal example:\n" +
-      "{\n" +
-      '  "inputQuery": {\n' +
-      '    "outputStage": "main",\n' +
-      '    "stages": [{ "stageID": "main", "pipeline": "filter true" }]\n' +
-      "  },\n" +
-      '  "rules": []\n' +
-      "}\n\n" +
-      "--action-rules-file schema (Array<MonitorV2ActionRule> as JSON):\n" +
-      "Full schema reference: https://developer.observeinc.com/#model/monitorv2actionrule\n",
+    fullDescription: [
+      "Create a new MonitorV2 monitor from a JSON file.",
+      "",
+      "Required fields in the JSON file:",
+      "  name       (string)  Monitor name",
+      `  ruleKind   (${Object.values(MonitorV2RuleKind).join(" | ")})`,
+      "  definition (object)  MonitorV2Definition",
+      "",
+      "Optional fields:",
+      "  actionRules (array)  Array<MonitorV2ActionRule>",
+      "",
+      "Full schema reference: https://developer.observeinc.com/#model/monitorv2definition",
+      "",
+      "Minimal definition example:",
+      '  {"inputQuery":{"outputStage":"main","stages":[{"stageID":"main","pipeline":"filter true"}]},"rules":[]}',
+    ].join("\n"),
   },
 });

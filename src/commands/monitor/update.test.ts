@@ -41,6 +41,8 @@ function monitorStub(overrides: Partial<MonitorV2> = {}): MonitorV2 {
   };
 }
 
+const STUB_FILE = JSON.stringify(monitorStub());
+
 const updateMonitorFn = mock(
   (_params: { config: Config; id: number }): Promise<void> => Promise.resolve(),
 );
@@ -50,9 +52,7 @@ const getMonitorFn = mock(
     Promise.resolve(monitorStub()),
 );
 
-const readFileFn = mock((_path: string): string =>
-  JSON.stringify(STUB_DEFINITION),
-);
+const readFileFn = mock((_path: string): string => STUB_FILE);
 
 let update: (typeof import("./update"))["update"];
 
@@ -131,7 +131,7 @@ describe("monitor update — ID validation", () => {
   test("non-integer ID exits with code 1 and does not call updateMonitor", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await update.call(context, { name: "foo" }, "abc", deps);
+      await update.call(context, { file: "/monitor.json" }, "abc", deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -144,7 +144,7 @@ describe("monitor update — ID validation", () => {
   test("float ID exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await update.call(context, { name: "foo" }, "1.5", deps);
+      await update.call(context, { file: "/monitor.json" }, "1.5", deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -152,21 +152,22 @@ describe("monitor update — ID validation", () => {
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
   });
-});
 
-describe("monitor update — no-op validation", () => {
-  beforeEach(() => updateMonitorFn.mockClear());
-
-  test("exits with code 1 when no update flags are provided", async () => {
+  test("ID exceeding MAX_SAFE_INTEGER exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await update.call(context, {}, TEST_MONITOR_ID, deps);
+      await update.call(
+        context,
+        { file: "/monitor.json" },
+        String(Number.MAX_SAFE_INTEGER + 1),
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
     }
     expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("At least one update flag");
+    expect(stderr.join("")).toContain("Invalid monitor ID");
     expect(updateMonitorFn).not.toHaveBeenCalled();
   });
 });
@@ -178,45 +179,72 @@ describe("monitor update — API forwarding", () => {
     readFileFn.mockClear();
   });
 
-  test("passes numeric ID and name to updateMonitor", async () => {
+  test("passes numeric ID and patchable fields from --file to updateMonitor", async () => {
     const { context } = createMockContext();
-    await update.call(context, { name: "New Name" }, TEST_MONITOR_ID, deps);
+    await update.call(
+      context,
+      { file: "/monitor.json" },
+      TEST_MONITOR_ID,
+      deps,
+    );
     expect(updateMonitorFn).toHaveBeenCalledTimes(1);
     const call = updateMonitorFn.mock.calls[0]![0] as unknown as {
       id: number;
       name: string;
+      ruleKind: string;
     };
     expect(call.id).toBe(Number(TEST_MONITOR_ID));
-    expect(call.name).toBe("New Name");
+    expect(call.name).toBe("Joe - Test Monitor");
+    expect(call.ruleKind).toBe(MonitorV2RuleKind.Count);
   });
 
-  test("only includes explicitly provided fields in the patch", async () => {
-    const { context } = createMockContext();
-    await update.call(context, { name: "Only Name" }, TEST_MONITOR_ID, deps);
-    const call = updateMonitorFn.mock.calls[0]![0] as unknown as object;
-    expect(call).not.toHaveProperty("description");
-    expect(call).not.toHaveProperty("ruleKind");
-    expect(call).not.toHaveProperty("definition");
-  });
-
-  test("reads and forwards definition from --definition-file", async () => {
+  test("excludes effectiveScheduling from patch and uses numeric id", async () => {
+    readFileFn.mockImplementationOnce(() =>
+      JSON.stringify({
+        ...monitorStub(),
+        effectiveScheduling: { type: "Default" },
+      }),
+    );
     const { context } = createMockContext();
     await update.call(
       context,
-      { definitionFile: "/path/to/def.json" },
+      { file: "/monitor.json" },
       TEST_MONITOR_ID,
       deps,
     );
-    expect(readFileFn).toHaveBeenCalledWith("/path/to/def.json");
     const call = updateMonitorFn.mock.calls[0]![0] as unknown as {
-      definition: unknown;
+      id: unknown;
+      effectiveScheduling?: unknown;
     };
-    expect(call.definition).toMatchObject(STUB_DEFINITION);
+    expect(call).not.toHaveProperty("effectiveScheduling");
+    expect(call.id).toBe(Number(TEST_MONITOR_ID));
+  });
+
+  test("excludes fields absent from the file (undefined) from patch", async () => {
+    readFileFn.mockImplementationOnce(() =>
+      JSON.stringify({ name: "Only Name", ruleKind: MonitorV2RuleKind.Count }),
+    );
+    const { context } = createMockContext();
+    await update.call(
+      context,
+      { file: "/monitor.json" },
+      TEST_MONITOR_ID,
+      deps,
+    );
+    const call = updateMonitorFn.mock.calls[0]![0] as unknown as object;
+    expect(call).not.toHaveProperty("description");
+    expect(call).not.toHaveProperty("definition");
+    expect(call).not.toHaveProperty("actionRules");
   });
 
   test("does not call getMonitor when --json is not set", async () => {
     const { context } = createMockContext();
-    await update.call(context, { name: "foo" }, TEST_MONITOR_ID, deps);
+    await update.call(
+      context,
+      { file: "/monitor.json" },
+      TEST_MONITOR_ID,
+      deps,
+    );
     expect(getMonitorFn).not.toHaveBeenCalled();
   });
 
@@ -224,7 +252,7 @@ describe("monitor update — API forwarding", () => {
     const { context } = createMockContext();
     await update.call(
       context,
-      { name: "foo", json: true },
+      { file: "/monitor.json", json: true },
       TEST_MONITOR_ID,
       deps,
     );
@@ -243,7 +271,12 @@ describe("monitor update — output", () => {
 
   test("prints success message with monitor ID", async () => {
     const { context, stdout } = createMockContext();
-    await update.call(context, { name: "foo" }, TEST_MONITOR_ID, deps);
+    await update.call(
+      context,
+      { file: "/monitor.json" },
+      TEST_MONITOR_ID,
+      deps,
+    );
     expect(stdout.join("")).toContain(TEST_MONITOR_ID);
     expect(stdout.join("")).toContain("updated");
   });
@@ -255,34 +288,12 @@ describe("monitor update — output", () => {
     const { context, stdout } = createMockContext();
     await update.call(
       context,
-      { name: "Updated Name", json: true },
+      { file: "/monitor.json", json: true },
       TEST_MONITOR_ID,
       deps,
     );
     const result = JSON.parse(stdout.join("")) as MonitorV2;
     expect(result).toMatchObject({ id: TEST_MONITOR_ID, name: "Updated Name" });
-  });
-});
-
-describe("monitor update — ID validation", () => {
-  beforeEach(() => updateMonitorFn.mockClear());
-
-  test("ID exceeding MAX_SAFE_INTEGER exits with code 1", async () => {
-    const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await update.call(
-        context,
-        { name: "foo" },
-        String(Number.MAX_SAFE_INTEGER + 1),
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("Invalid monitor ID");
-    expect(updateMonitorFn).not.toHaveBeenCalled();
   });
 });
 
@@ -299,7 +310,12 @@ describe("monitor update — error handling", () => {
     );
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await update.call(context, { name: "foo" }, TEST_MONITOR_ID, deps);
+      await update.call(
+        context,
+        { file: "/monitor.json" },
+        TEST_MONITOR_ID,
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -314,7 +330,12 @@ describe("monitor update — error handling", () => {
     });
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await update.call(context, { name: "foo" }, TEST_MONITOR_ID, deps);
+      await update.call(
+        context,
+        { file: "/monitor.json" },
+        TEST_MONITOR_ID,
+        deps,
+      );
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
@@ -323,7 +344,7 @@ describe("monitor update — error handling", () => {
     expect(stderr.join("")).toContain("Error");
   });
 
-  test("readFile throwing for --definition-file exits with code 1", async () => {
+  test("readFile throwing exits with code 1", async () => {
     readFileFn.mockImplementationOnce((): never => {
       throw new Error("ENOENT: no such file or directory");
     });
@@ -331,7 +352,7 @@ describe("monitor update — error handling", () => {
     try {
       await update.call(
         context,
-        { definitionFile: "/missing.json" },
+        { file: "/monitor.json" },
         TEST_MONITOR_ID,
         deps,
       );
@@ -343,13 +364,13 @@ describe("monitor update — error handling", () => {
     expect(stderr.join("")).toContain("Error");
   });
 
-  test("invalid JSON in --definition-file exits with code 1 and mentions the flag", async () => {
+  test("invalid JSON in --file exits with code 1 and mentions the flag", async () => {
     readFileFn.mockImplementationOnce(() => "{ bad json }");
     const { context, stderr, getExitCode } = createMockContext();
     try {
       await update.call(
         context,
-        { definitionFile: "/bad.json" },
+        { file: "/monitor.json" },
         TEST_MONITOR_ID,
         deps,
       );
@@ -358,7 +379,7 @@ describe("monitor update — error handling", () => {
       expect((error as Error).message).toBe("process.exit");
     }
     expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("--definition-file");
+    expect(stderr.join("")).toContain("--file");
   });
 
   test("getMonitor returning null after update exits with code 1", async () => {
@@ -367,7 +388,7 @@ describe("monitor update — error handling", () => {
     try {
       await update.call(
         context,
-        { name: "foo", json: true },
+        { file: "/monitor.json", json: true },
         TEST_MONITOR_ID,
         deps,
       );

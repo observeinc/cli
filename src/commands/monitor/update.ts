@@ -16,13 +16,7 @@ import { muteStatusWriter } from "../../lib/writer";
 import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 
 interface UpdateMonitorFlags {
-  file?: string;
-  name?: string;
-  description?: string;
-  kind?: MonitorV2RuleKind;
-  definition?: string;
-  definitionFile?: string;
-  actionRulesFile?: string;
+  file: string;
   json?: boolean;
 }
 
@@ -32,15 +26,6 @@ export interface UpdateMonitorDeps {
   getMonitor?: typeof getMonitor;
   readFile?: (path: string) => string;
 }
-
-const FILE_EXCLUSIVE_FLAGS = [
-  "--name",
-  "--description",
-  "--kind",
-  "--definition",
-  "--definition-file",
-  "--action-rules-file",
-];
 
 export async function update(
   this: LocalContext,
@@ -68,87 +53,34 @@ export async function update(
     return;
   }
 
-  const hasFieldFlags =
-    flags.name != null ||
-    flags.description != null ||
-    flags.kind != null ||
-    flags.definition != null ||
-    flags.definitionFile != null ||
-    flags.actionRulesFile != null;
-
-  if (flags.file != null && hasFieldFlags) {
-    writer.error(
-      `--file is mutually exclusive with ${FILE_EXCLUSIVE_FLAGS.join(", ")}.`,
-    );
-    process.exit(1);
-    return;
-  }
-
-  if (flags.definition != null && flags.definitionFile != null) {
-    writer.error("--definition and --definition-file are mutually exclusive.");
-    process.exit(1);
-    return;
-  }
-
-  if (flags.file == null && !hasFieldFlags) {
-    writer.error(
-      "At least one update flag is required (--file, --name, --description, --kind, --definition, --definition-file, --action-rules-file).",
-    );
-    process.exit(1);
-    return;
-  }
-
   try {
     const config = loadConfigImpl();
 
     writer.info("Updating monitor...");
 
-    let patch: MonitorV2PatchRequest;
+    const raw = readFileImpl(resolve(flags.file));
+    const parsed = parseJsonFile<Record<string, unknown>>(raw, "--file");
 
-    if (flags.file != null) {
-      const raw = readFileImpl(resolve(flags.file));
-      const parsed = parseJsonFile<Record<string, unknown>>(raw, "--file");
-      patch = {
-        ...(parsed.name != null && { name: parsed.name as string }),
-        ...(parsed.description != null && {
-          description: parsed.description as string,
-        }),
-        ...(parsed.ruleKind != null && {
-          ruleKind: parsed.ruleKind as MonitorV2RuleKind,
-        }),
-        ...(parsed.definition != null && {
-          definition: parsed.definition as MonitorV2Definition,
-        }),
-        ...(parsed.actionRules != null && {
-          actionRules: parsed.actionRules as MonitorV2ActionRule[],
-        }),
-        ...(parsed.disabled != null && {
-          disabled: parsed.disabled as boolean,
-        }),
+    const { name, description, ruleKind, definition, actionRules, disabled } =
+      parsed as {
+        name?: string;
+        description?: string;
+        ruleKind?: MonitorV2RuleKind;
+        definition?: MonitorV2Definition;
+        actionRules?: MonitorV2ActionRule[];
+        disabled?: boolean;
       };
-    } else {
-      patch = {};
-      if (flags.name != null) patch.name = flags.name;
-      if (flags.description != null) patch.description = flags.description;
-      if (flags.kind != null) patch.ruleKind = flags.kind;
-      const rawDefinition =
-        flags.definition ??
-        (flags.definitionFile
-          ? readFileImpl(resolve(flags.definitionFile))
-          : null);
-      if (rawDefinition != null) {
-        patch.definition = parseJsonFile<MonitorV2Definition>(
-          rawDefinition,
-          "--definition / --definition-file",
-        );
-      }
-      if (flags.actionRulesFile != null) {
-        patch.actionRules = parseJsonFile<MonitorV2ActionRule[]>(
-          readFileImpl(resolve(flags.actionRulesFile)),
-          "--action-rules-file",
-        );
-      }
-    }
+
+    const patch = Object.fromEntries(
+      Object.entries({
+        name,
+        description,
+        ruleKind,
+        definition,
+        actionRules,
+        disabled,
+      }).filter(([, v]) => v !== undefined),
+    ) as MonitorV2PatchRequest;
 
     await updateMonitorImpl({ config, id, ...patch });
 
@@ -181,49 +113,8 @@ export const updateCommand = defineCommand({
         kind: "parsed",
         parse: String,
         brief:
-          "Path to a full monitor JSON file (e.g. from `monitor view --json`). Mutually exclusive with all other flags.",
-        optional: true,
-      },
-      name: {
-        kind: "parsed",
-        parse: String,
-        brief: "New monitor name",
-        optional: true,
-      },
-      description: {
-        kind: "parsed",
-        parse: String,
-        brief: "New monitor description",
-        optional: true,
-      },
-      kind: {
-        kind: "enum",
-        values: [
-          MonitorV2RuleKind.Count,
-          MonitorV2RuleKind.Threshold,
-          MonitorV2RuleKind.Promote,
-        ],
-        brief: "New alert rule kind (Count, Threshold, Promote)",
-        optional: true,
-      },
-      definition: {
-        kind: "parsed",
-        parse: String,
-        brief:
-          "MonitorV2Definition as inline JSON (alternative to --definition-file)",
-        optional: true,
-      },
-      definitionFile: {
-        kind: "parsed",
-        parse: String,
-        brief: "Path to JSON file containing the new MonitorV2Definition",
-        optional: true,
-      },
-      actionRulesFile: {
-        kind: "parsed",
-        parse: String,
-        brief: "Path to JSON file containing new Array<MonitorV2ActionRule>",
-        optional: true,
+          "Path to a full monitor JSON file (e.g. from `monitor view --json`)",
+        optional: false,
       },
       json: {
         kind: "boolean",
@@ -236,14 +127,15 @@ export const updateCommand = defineCommand({
   docs: {
     brief: "Update a monitor",
     fullDescription: [
-      "Update a monitor's name, description, rule kind, definition, or action rules.",
+      "Update a monitor from a JSON file.",
       "",
-      "Edit flow (--file):",
+      "Edit flow:",
       "  observe monitor view <id> --json > monitor.json",
       "  # edit monitor.json",
       "  observe monitor update <id> --file monitor.json",
       "",
-      "--file is mutually exclusive with all other flags.",
+      "Patchable fields: name, description, ruleKind, definition, actionRules, disabled.",
+      "Read-only fields (id, effectiveScheduling) are ignored.",
     ].join("\n"),
   },
 });
