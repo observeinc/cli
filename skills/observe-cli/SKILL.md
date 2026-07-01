@@ -290,28 +290,30 @@ observe monitor list --match "checkout" --json               # filter by name
 
 observe monitor view <id> --json                             # full monitor definition
 
-observe monitor create --name "My Monitor" \
-  --rule-kind Count \
-  --definition-file ./definition.json --json                 # create; --json returns the created object
+observe monitor create --file ./monitor.json --json          # create from JSON file; --json returns the created object
 
-observe monitor update <id> --name "New Name" --json         # rename; --json returns the updated object
-observe monitor update <id> --definition-file ./def.json --json
+# Edit flow (view → edit → update):
+observe monitor view <id> --json > monitor.json
+# edit monitor.json
+observe monitor update <id> --file monitor.json --json       # update from JSON file; --json returns the updated object
 
 observe monitor enable  <id>                                 # un-suppress a monitor
 observe monitor disable <id>                                 # suppress without deleting
 
-observe monitor delete  <id>                                 # permanent removal
+observe monitor delete  <id>                                 # permanent removal; prompts for confirmation
+observe monitor delete  <id> --yes                           # skip confirmation (non-interactive / scripting)
 ```
 
 Notes:
 
-- `--definition-file` accepts a path to a JSON file containing a
-  `MonitorV2Definition` object (OPAL `inputQuery` + alert `rules`).
-- `--action-rules-file` (create/update) accepts a path to a JSON file
-  containing an array of `MonitorV2ActionRule` objects; omit to leave
-  action rules unchanged.
+- `--file` on `create` expects a JSON file with `name`, `ruleKind`, and
+  `definition` fields. Optional: `actionRules`.
+- `--file` on `update` accepts the full monitor JSON (e.g. from
+  `monitor view --json`). Patchable fields: `name`, `description`,
+  `ruleKind`, `definition`, `actionRules`, `disabled`. Read-only fields
+  (`id`, `effectiveScheduling`) are ignored.
 - `enable`/`disable` are a boolean `disabled` patch under the hood —
-  use them instead of `update --disabled` for clarity.
+  use them instead of patching `disabled` via `--file` for clarity.
 - `--json` on mutation commands (`create`, `update`, `enable`, `disable`)
   fetches and returns the full monitor after the operation.
 
