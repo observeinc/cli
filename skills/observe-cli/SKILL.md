@@ -14,7 +14,7 @@ description: >-
   pod, status code, etc.; or pull any observability data out of the
   platform for analysis, dashboards, or scripting. Also covers the
   underlying primitives the CLI exposes (datasets, OPAL queries,
-  knowledge-graph tag search, alerts, AI agent skills, auth) when the
+  knowledge-graph tag search, alerts, monitors, AI agent skills, auth) when the
   user asks about them directly.
 ---
 
@@ -281,6 +281,41 @@ The `related` field on each result lists the metrics and datasets that
 emit that tag — use it to jump directly to the right resources without
 a separate `dataset list` / `metric list` call. Default search mode is
 semantic; switch to `--mode regex` when you need an exact pattern.
+
+### Monitors — `observe monitor ...`
+
+```bash
+observe monitor list --json                                  # all monitors
+observe monitor list --match "checkout" --json               # filter by name
+
+observe monitor view <id> --json                             # full monitor definition
+
+observe monitor create --file ./monitor.json --json          # create from JSON file; --json returns the created object
+
+# Edit flow (view → edit → update):
+observe monitor view <id> --json > monitor.json
+# edit monitor.json
+observe monitor update <id> --file monitor.json --json       # update from JSON file; --json returns the updated object
+
+observe monitor enable  <id>                                 # un-suppress a monitor
+observe monitor disable <id>                                 # suppress without deleting
+
+observe monitor delete  <id>                                 # permanent removal; prompts for confirmation
+observe monitor delete  <id> --yes                           # skip confirmation (non-interactive / scripting)
+```
+
+Notes:
+
+- `--file` on `create` expects a JSON file with `name`, `ruleKind`, and
+  `definition` fields. Optional: `actionRules`.
+- `--file` on `update` accepts the full monitor JSON (e.g. from
+  `monitor view --json`). Patchable fields: `name`, `description`,
+  `ruleKind`, `definition`, `actionRules`, `disabled`. Read-only fields
+  (`id`, `effectiveScheduling`) are ignored.
+- `enable`/`disable` are a boolean `disabled` patch under the hood —
+  use them instead of patching `disabled` via `--file` for clarity.
+- `--json` on mutation commands (`create`, `update`, `enable`, `disable`)
+  fetches and returns the full monitor after the operation.
 
 ### Skills — `observe skill ...`
 
