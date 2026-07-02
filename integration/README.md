@@ -92,7 +92,7 @@ const prefix = testPrefix();
 const name = `${prefix}-ingest-token`;
 ```
 
-Prefix pattern: `cli-<8 hex chars>`. A future sweeper can match `^cli-` to clean up orphans.
+Prefix pattern: `cli-<8 hex chars>`. The sweeper matches `^cli-` to clean up orphans (see below).
 
 ## Assertions
 
@@ -189,3 +189,21 @@ test(
 **Cleanup** (`integration/cleanup.ts`) — every resource created during a test must be cleaned up. Register teardown with `fixture.registerCleanup()` immediately after creation, before assertions. Cleanups run in LIFO order when the fixture is torn down; failures are logged but do not fail the test.
 
 **Setup** (`integration/setup.ts`) — when a test needs resources in the environment that aren't part of what it's testing, use setup helpers to create them via API instead of CLI. This includes resources the CLI can't create yet, but also resources the CLI _can_ create when the test simply doesn't care about exercising that path. Setup helpers register their own cleanup automatically.
+
+## Sweeper
+
+Per-test cleanup covers the happy path, but a crashed or killed run can still
+leak resources. The sweeper (`integration/sweep.ts`) deletes leftovers by
+matching the `cli-` name/label prefix, covering every resource type the tests
+create (ingest tokens, datastreams, datasets, skills).
+
+```bash
+bun run test:integration:sweep              # delete everything matching ^cli-
+bun run test:integration:sweep -- --dry-run # list matches without deleting
+bun run test:integration:sweep -- --pattern '^cli-a1b2'  # narrow the match
+```
+
+It uses the same `OBSERVE_INTEGRATION_*` credentials as the tests and exits
+non-zero if any deletion fails. Because it matches purely by prefix (no age
+filter), run it when no test suite is executing against the tenant — otherwise
+it may delete resources from an in-flight run.
