@@ -11,9 +11,6 @@ Command line interface for [Observe Inc](https://www.observeinc.com).
 - **AI Agent Skills** - List and view reusable AI-agent instruction documents stored in Observe.
 - **Alert Monitoring** - List and view alerts with severity filtering and active-only views.
 - **Monitor Mutes** - Full CRUD for monitor mute rules (snoozes), targeting all monitors or a specific set.
-- **Content Packs** - Install and view Host Explorer, Kubernetes Explorer, and Trace Explorer content.
-- **Ingest Token Management** - Full CRUD for ingest tokens with datastream association.
-- **Data Integrations** - Create data connections and datasources (AWS, Kubernetes, host) and generate CloudFormation quick-create URLs for AWS filedrop deployments.
 - **Datastream Management** - Create, list, view, and update datastreams.
 - **Multiple Output Formats** - All commands support `--format json` and `--format csv` for scripting and pipelines.
 - **Responsive Tables** - Terminal-aware column widths with automatic text wrapping.
