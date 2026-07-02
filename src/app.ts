@@ -1,7 +1,6 @@
 import { buildApplication } from "@stricli/core";
 import { name } from "../package.json";
 import { alertRoutes } from "./commands/alert/index.js";
-import { monitorRoutes } from "./commands/monitor/index.js";
 import { dataConnectionRoutes } from "./commands/data-connection/index.js";
 import { datasourceRoutes } from "./commands/datasource/index.js";
 import { datastreamTokenRoutes } from "./commands/datastream-token/index.js";
