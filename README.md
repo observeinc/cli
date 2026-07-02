@@ -59,22 +59,6 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe monitor mute create`           | Create a monitor mute rule                              |
 | `observe monitor mute update`           | Update a monitor mute rule                              |
 | `observe monitor mute delete`           | Delete a monitor mute rule                              |
-| `observe content host install`          | Install Host Explorer content                           |
-| `observe content host view`             | View Host Explorer content                              |
-| `observe content kubernetes install`    | Install Kubernetes Explorer content                     |
-| `observe content kubernetes view`       | View Kubernetes Explorer content                        |
-| `observe content tracing install`       | Install Trace Explorer content                          |
-| `observe content tracing view`          | View Trace Explorer content                             |
-| `observe ingest-token create`           | Create a new ingest token                               |
-| `observe ingest-token list`             | List and search ingest tokens                           |
-| `observe ingest-token view`             | View an ingest token by ID                              |
-| `observe ingest-token update`           | Update an ingest token                                  |
-| `observe datasource create`             | Create a datasource attached to a data connection       |
-| `observe datasource update`             | Update an existing datasource's config                  |
-| `observe datasource generate-stack-url` | Build a CloudFormation quick-create URL for a filedrop  |
-| `observe data-connection create`        | Create a data connection (AWS, kubernetes, host, etc.)  |
-| `observe data-connection list`          | List data connections                                   |
-| `observe data-connection view`          | View a data connection by ID (with its datasources)     |
 | `observe datastream create`             | Create a new datastream                                 |
 | `observe datastream list`               | List datastreams                                        |
 | `observe datastream view`               | View a datastream by ID                                 |
