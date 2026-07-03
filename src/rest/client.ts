@@ -1,6 +1,7 @@
 import {
   SkillsApi,
   AlertApi,
+  APMApi,
   DatasetApi,
   ExportApi,
   MonitorMuteApi,
@@ -14,6 +15,7 @@ export class ObserveRestSDK {
   public exportApi: ExportApi;
   public datasetApi: DatasetApi;
   public alertApi: AlertApi;
+  public apmApi: APMApi;
   public monitorMuteApi: MonitorMuteApi;
   public monitorApi: MonitorApi;
   public knowledgeGraphApi: V2KnowledgeGraphApi;
@@ -25,6 +27,7 @@ export class ObserveRestSDK {
     this.exportApi = new ExportApi(config);
     this.datasetApi = new DatasetApi(config);
     this.alertApi = new AlertApi(config);
+    this.apmApi = new APMApi(config);
     this.monitorMuteApi = new MonitorMuteApi(config);
     this.monitorApi = new MonitorApi(config);
     this.knowledgeGraphApi = new V2KnowledgeGraphApi(config);

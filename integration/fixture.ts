@@ -97,6 +97,8 @@ export class IntegrationFixture {
       OBSERVE_CLI_EXPERIMENTAL: "1",
       OBSERVE_NO_UPDATE_NOTIFIER: "1",
       NO_COLOR: "1",
+      // Allow smoke tests to exercise experimental command groups (e.g. apm).
+      OBSERVE_CLI_EXPERIMENTAL: "1",
     };
   }
 
