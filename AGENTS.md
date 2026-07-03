@@ -34,6 +34,7 @@ src/
 ├── context.ts          # CLI context (process, env)
 ├── commands/           # CLI commands organized by resource
 │   ├── alert/          # Alert commands (list, view)
+│   ├── apm/            # APM commands: services, environments, invocation-graph (experimental: gated + hidden)
 │   ├── monitor/        # Monitor commands
 │   │   └── mute/       # Monitor mute commands (list, view, create, update, delete)
 │   ├── auth/           # Auth commands (configure, login, logout, status)
