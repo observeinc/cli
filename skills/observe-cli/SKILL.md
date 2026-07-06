@@ -215,13 +215,13 @@ Notes:
 - **`--filter <cel>`** — raw [CEL](https://cel.dev) expression, evaluated
   server-side over the full catalog, results still truncated at `--limit`.
   Common patterns:
-  - Exact name (case-sensitive):  `label == "My Dataset"`
-  - Substring (case-sensitive):   `label.contains("logs")`
-  - Case-insensitive substring:   `label.lowerAscii().contains("kubernetes")`
+  - Exact name (case-sensitive): `label == "My Dataset"`
+  - Substring (case-sensitive): `label.contains("logs")`
+  - Case-insensitive substring: `label.lowerAscii().contains("kubernetes")`
     ⚠ When using `.lowerAscii()`, the string literal must **also** be
     lowercase — `.lowerAscii().contains("Kubernetes")` returns nothing.
-  - By kind:                      `kind == "Event"`
-  - Combined:                     `kind == "Resource" && label.contains("logs")`
+  - By kind: `kind == "Event"`
+  - Combined: `kind == "Resource" && label.contains("logs")`
 
 - **The dataset list API caps responses at 100 rows** regardless of the
   `--limit` value you pass. Passing `--limit 1000` does not return more datasets —
