@@ -191,8 +191,8 @@ itself (auth, skills, etc.).
 ### Datasets — `observe dataset ...`
 
 ```bash
-observe dataset list --json                                            # newest 100 datasets
-observe dataset list --label kubernetes --json                         # fuzzy substring on name
+observe dataset list --json                                            # first 100 rows (lowest IDs first) — not all datasets; use --filter or --label to find a specific one
+observe dataset list --label kubernetes --json                         # fuzzy token+substring match on name
 observe dataset list --filter 'kind == "Event"' --json                 # CEL expression
 observe dataset list --correlation-tag-key service \
                     --correlation-tag-value checkout --json            # KG-backed tag search
@@ -204,10 +204,43 @@ observe dataset view <dataset-id> --json                               # full sc
 
 Notes:
 
-- `--label` does fuzzy substring matching; `--filter` takes a raw CEL
-  expression (e.g. `kind == "Resource" && label.contains("logs")`).
+- **`--label <text>`** — fuzzy, case-insensitive match: matches if the full
+  phrase appears in the label, or if every space-separated token appears
+  independently. E.g. `--label "host logs"` matches `Host Explorer/Logs`
+  (both tokens present). Evaluated server-side, but results are still paginated
+  — a broad `--label` can match hundreds of datasets and the response is
+  truncated at `--limit` (default 100). Use `--label` for exploratory searches
+  when you know a keyword but not the full exact name.
+
+- **`--filter <cel>`** — raw [CEL](https://cel.dev) expression, evaluated
+  server-side over the full catalog, results still truncated at `--limit`.
+  Common patterns:
+  - Exact name (case-sensitive):  `label == "My Dataset"`
+  - Substring (case-sensitive):   `label.contains("logs")`
+  - Case-insensitive substring:   `label.lowerAscii().contains("kubernetes")`
+    ⚠ When using `.lowerAscii()`, the string literal must **also** be
+    lowercase — `.lowerAscii().contains("Kubernetes")` returns nothing.
+  - By kind:                      `kind == "Event"`
+  - Combined:                     `kind == "Resource" && label.contains("logs")`
+
+- **The dataset list API caps responses at 100 rows** regardless of the
+  `--limit` value you pass. Passing `--limit 1000` does not return more datasets —
+  you will still receive at most 100. Use a narrow `--filter` predicate rather
+  than raising the limit.
+
+- **In `--json` mode there is no `totalCount` in the output** — the response
+  is a plain JSON array. The only signal that more rows exist is receiving
+  exactly 100 items. If you get exactly 100, assume there are more and either
+  tighten your filter or paginate (see "Pagination" in Workflow tips).
+  To see the total upfront, run once without `--json`:
+  `observe dataset list` prints `Found 100 dataset(s) (2426 total):` and
+  `More results may be available. Use --offset 100 to see the next page.`
+  Use that to decide whether a filter is needed before committing to a
+  paginated crawl.
+
 - `--correlation-tag-key` and `--correlation-tag-value` must be supplied
   together and cannot be combined with `--filter` or `--sort`.
+
 - `view` requires a dataset ID (numeric string), not a label.
 
 ### Metrics — `observe metric ...`
@@ -444,6 +477,16 @@ Then explore datasets and metrics (do both **before** writing OPAL):
 - "What datasets do we have for X?" →
   `observe dataset list --correlation-tag-key <k> --correlation-tag-value <v> --json`
   (fall back to `--label X --json` only if there's no tag for it)
+- "I know the dataset name and need its ID" →
+  Use an exact-match filter — evaluated server-side, returns only the matching
+  row(s) regardless of how many datasets the tenant has:
+  `observe dataset list --filter 'label == "Exact Dataset Name"' --json`
+  Note: `==` is case-sensitive. If you get zero rows, try the fuzzy fallback:
+  `observe dataset list --label "partial name" --json`
+  (fuzzy results are still paginated — tighten the match if you get 100 rows.)
+  **Do not use** bare `observe dataset list --json` to locate a named dataset —
+  it returns only the first page (up to 100 rows, lowest IDs first) and silently
+  misses most datasets on large tenants.
 - "Show me the schema of dataset 12345" → `observe dataset view 12345 --json`
 - "What's the error rate for checkout?" →
   `observe metric list --correlation-tag-key service.name --correlation-tag-value checkout --json`
