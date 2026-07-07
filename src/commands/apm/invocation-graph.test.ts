@@ -183,7 +183,7 @@ describe("apm invocation-graph — request & output", () => {
         environment: "prod",
         endpointName: "GET /cart",
         directNeighborsOnly: true,
-        lookback: 4,
+        interval: "4h",
         json: true,
       },
       deps,

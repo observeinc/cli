@@ -16,6 +16,7 @@ import {
   type ColumnDef,
 } from "../../lib/formatters/table";
 import { renderAsCSV } from "../../lib/formatters/csv";
+import { resolveWindow, timeWindowFlags } from "../../lib/time-window";
 import {
   type OutputFormat,
   formatLatency,
@@ -23,39 +24,38 @@ import {
   formatWindow,
   paginationHint,
   parseApmLimit,
-  resolveTimeWindow,
-  timeWindowFlags,
 } from "./apm-utils";
 
+// Field selectors match the API/JSON field names (consistent with --sort).
 const AVAILABLE_FIELDS = [
-  "service",
+  "serviceName",
   "environment",
-  "namespace",
+  "serviceNamespace",
   "type",
   "language",
-  "invRate",
-  "errRate",
-  "p95",
+  "invocationRatePerSecond",
+  "errorRatePerSecond",
+  "durationP95Seconds",
 ] as const;
 
 type FieldName = (typeof AVAILABLE_FIELDS)[number];
 
 const DEFAULT_FIELDS: FieldName[] = [
-  "service",
+  "serviceName",
   "environment",
-  "namespace",
-  "invRate",
-  "errRate",
-  "p95",
+  "serviceNamespace",
+  "invocationRatePerSecond",
+  "errorRatePerSecond",
+  "durationP95Seconds",
 ];
 
 interface ListApmServicesFlags {
   serviceName?: string;
   environment?: string;
   serviceNamespace?: string;
-  lookback?: number;
-  startTime?: string;
-  endTime?: string;
+  start?: string;
+  end?: string;
+  interval?: string;
   expand?: boolean;
   limit?: number;
   offset?: number;
@@ -73,24 +73,27 @@ export interface ListApmServicesDeps {
 const col = createColumnHelper<ApmService>();
 
 const FIELD_COLUMNS = {
-  service: col.accessor((row) => row.serviceName, { header: "SERVICE" }),
+  serviceName: col.accessor((row) => row.serviceName, { header: "SERVICE" }),
   environment: col.accessor((row) => row.environment, {
     header: "ENVIRONMENT",
   }),
-  namespace: col.accessor((row) => row.serviceNamespace ?? "-", {
+  serviceNamespace: col.accessor((row) => row.serviceNamespace ?? "-", {
     header: "NAMESPACE",
   }),
   type: col.accessor((row) => row.type ?? "-", { header: "TYPE" }),
   language: col.accessor((row) => row.language ?? "-", { header: "LANGUAGE" }),
-  invRate: col.accessor((row) => row.redMetrics.invocationRatePerSecond, {
-    header: "INV/S",
-    format: formatRate,
-  }),
-  errRate: col.accessor((row) => row.redMetrics.errorRatePerSecond, {
+  invocationRatePerSecond: col.accessor(
+    (row) => row.redMetrics.invocationRatePerSecond,
+    {
+      header: "INV/S",
+      format: formatRate,
+    },
+  ),
+  errorRatePerSecond: col.accessor((row) => row.redMetrics.errorRatePerSecond, {
     header: "ERR/S",
     format: formatRate,
   }),
-  p95: col.accessor((row) => row.redMetrics.durationP95Seconds, {
+  durationP95Seconds: col.accessor((row) => row.redMetrics.durationP95Seconds, {
     header: "P95(S)",
     format: formatLatency,
   }),
@@ -117,7 +120,7 @@ export async function services(
 
     writer.info("Listing APM services...");
 
-    const { startTime, endTime } = resolveTimeWindow(flags);
+    const { startTime, endTime } = resolveWindow(flags);
 
     const response = await listApmServicesImpl({
       config,
@@ -261,8 +264,9 @@ export const servicesCommand = defineCommand({
       "rate, error rate, and p95 latency. Filters are exact-match on --service-name,",
       "--environment, and --service-namespace; an omitted filter matches all.",
       "",
-      "The query window defaults to the last hour. Use --lookback <hours> for a",
-      "relative window, or --start-time/--end-time (ISO 8601) for an absolute one.",
+      "The query window defaults to the last hour (filled server-side). Use",
+      "--interval <duration> (e.g. 4h, 7d) for a relative window, or --start/--end",
+      "(ISO 8601) for an absolute one.",
     ].join("\n"),
   },
 });

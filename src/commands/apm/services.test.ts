@@ -154,9 +154,9 @@ describe("apm services — request mapping", () => {
     });
   });
 
-  test("--lookback resolves to an ISO start/end window", async () => {
+  test("--interval resolves to an ISO start/end window", async () => {
     const { context } = createMockContext();
-    await services.call(context, { lookback: 4, json: true }, deps);
+    await services.call(context, { interval: "4h", json: true }, deps);
     const arg = listApmServicesFn.mock.calls[0]![0] as {
       startTime?: string;
       endTime?: string;
@@ -170,13 +170,13 @@ describe("apm services — request mapping", () => {
     expect(deltaHours).toBeCloseTo(4, 1);
   });
 
-  test("absolute --start-time/--end-time pass through", async () => {
+  test("absolute --start/--end pass through (normalized to ISO)", async () => {
     const { context } = createMockContext();
     await services.call(
       context,
       {
-        startTime: "2026-07-01T00:00:00Z",
-        endTime: "2026-07-01T06:00:00Z",
+        start: "2026-07-01T00:00:00Z",
+        end: "2026-07-01T06:00:00Z",
         json: true,
       },
       deps,
@@ -189,27 +189,27 @@ describe("apm services — request mapping", () => {
     expect(arg.endTime).toBe("2026-07-01T06:00:00.000Z");
   });
 
-  test("--lookback with absolute flags is rejected (exit 1)", async () => {
+  test("--interval with absolute flags is rejected (exit 1)", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     await runExpectingExit(() =>
       services.call(
         context,
-        { lookback: 4, startTime: "2026-07-01T00:00:00Z" },
+        { interval: "4h", start: "2026-07-01T00:00:00Z" },
         deps,
       ),
     );
     expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("Use either --lookback");
+    expect(stderr.join("")).toContain("Use either --interval or --start/--end");
     expect(listApmServicesFn).not.toHaveBeenCalled();
   });
 
-  test("an invalid --start-time exits 1", async () => {
+  test("an invalid --start exits 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     await runExpectingExit(() =>
-      services.call(context, { startTime: "garbage" }, deps),
+      services.call(context, { start: "garbage" }, deps),
     );
     expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("--start-time");
+    expect(stderr.join("")).toContain("--start");
     expect(listApmServicesFn).not.toHaveBeenCalled();
   });
 });
@@ -239,7 +239,7 @@ describe("apm services — output", () => {
 
   test("--fields selects columns, including a non-default field", async () => {
     const { context, stdout } = createMockContext();
-    await services.call(context, { fields: ["service", "type"] }, deps);
+    await services.call(context, { fields: ["serviceName", "type"] }, deps);
     const out = stdout.join("");
     expect(out).toContain("SERVICE");
     expect(out).toContain("TYPE");

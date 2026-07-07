@@ -12,21 +12,7 @@ import {
   formatWindow,
   paginationHint,
   parseApmLimit,
-  parseLookbackHours,
-  resolveTimeWindow,
 } from "./apm-utils";
-
-describe("parseLookbackHours", () => {
-  test("accepts positive numbers", () => {
-    expect(parseLookbackHours("4")).toBe(4);
-    expect(parseLookbackHours("1.5")).toBe(1.5);
-  });
-  test("rejects zero, negative, and non-numeric", () => {
-    expect(() => parseLookbackHours("0")).toThrow("positive");
-    expect(() => parseLookbackHours("-1")).toThrow("positive");
-    expect(() => parseLookbackHours("abc")).toThrow("positive");
-  });
-});
 
 describe("parseApmLimit", () => {
   test("accepts integers in range", () => {
@@ -38,54 +24,6 @@ describe("parseApmLimit", () => {
     expect(() => parseApmLimit("100001")).toThrow("between");
     expect(() => parseApmLimit("1.5")).toThrow("between");
     expect(() => parseApmLimit("x")).toThrow("between");
-  });
-});
-
-describe("resolveTimeWindow", () => {
-  test("--lookback resolves to an ISO window of the right span", () => {
-    const { startTime, endTime } = resolveTimeWindow({ lookback: 4 });
-    expect(typeof startTime).toBe("string");
-    expect(typeof endTime).toBe("string");
-    const span = (Date.parse(endTime!) - Date.parse(startTime!)) / 3_600_000;
-    expect(span).toBeCloseTo(4, 1);
-  });
-
-  test("absolute times are validated and normalized to ISO", () => {
-    expect(
-      resolveTimeWindow({
-        startTime: "2026-07-01T00:00:00Z",
-        endTime: "2026-07-01T06:00:00Z",
-      }),
-    ).toEqual({
-      startTime: "2026-07-01T00:00:00.000Z",
-      endTime: "2026-07-01T06:00:00.000Z",
-    });
-  });
-
-  test("only one absolute bound is allowed (the other stays undefined)", () => {
-    expect(resolveTimeWindow({ startTime: "2026-07-01T00:00:00Z" })).toEqual({
-      startTime: "2026-07-01T00:00:00.000Z",
-      endTime: undefined,
-    });
-  });
-
-  test("none → both undefined (server applies its default)", () => {
-    expect(resolveTimeWindow({})).toEqual({
-      startTime: undefined,
-      endTime: undefined,
-    });
-  });
-
-  test("--lookback + absolute is a conflict", () => {
-    expect(() =>
-      resolveTimeWindow({ lookback: 4, startTime: "2026-07-01T00:00:00Z" }),
-    ).toThrow("Use either --lookback");
-  });
-
-  test("an unparseable timestamp is rejected", () => {
-    expect(() => resolveTimeWindow({ startTime: "garbage" })).toThrow(
-      "--start-time",
-    );
   });
 });
 

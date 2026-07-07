@@ -12,6 +12,7 @@ import {
   type ColumnDef,
 } from "../../lib/formatters/table";
 import { renderAsCSV } from "../../lib/formatters/csv";
+import { resolveWindow, timeWindowFlags } from "../../lib/time-window";
 import {
   type OutputFormat,
   describeMode,
@@ -19,17 +20,17 @@ import {
   formatLatency,
   formatRate,
   formatWindow,
-  resolveTimeWindow,
-  timeWindowFlags,
 } from "./apm-utils";
 
+// source/target/targetType are derived node descriptors (no single API field);
+// the metric selectors match the API/JSON field names.
 const AVAILABLE_FIELDS = [
   "source",
   "target",
   "targetType",
-  "invRate",
-  "errRate",
-  "p95",
+  "invocationRatePerSecond",
+  "errorRatePerSecond",
+  "durationP95Seconds",
 ] as const;
 
 type FieldName = (typeof AVAILABLE_FIELDS)[number];
@@ -42,9 +43,9 @@ interface GetApmInvocationGraphFlags {
   serviceNamespace?: string;
   endpointName?: string;
   directNeighborsOnly?: boolean;
-  lookback?: number;
-  startTime?: string;
-  endTime?: string;
+  start?: string;
+  end?: string;
+  interval?: string;
   fields?: FieldName[];
   format?: OutputFormat;
   json?: boolean;
@@ -63,15 +64,18 @@ const FIELD_COLUMNS = {
   targetType: col.accessor((row) => row.target.type ?? "-", {
     header: "TARGET TYPE",
   }),
-  invRate: col.accessor((row) => row.metrics.invocationRatePerSecond, {
-    header: "INV/S",
-    format: formatRate,
-  }),
-  errRate: col.accessor((row) => row.metrics.errorRatePerSecond, {
+  invocationRatePerSecond: col.accessor(
+    (row) => row.metrics.invocationRatePerSecond,
+    {
+      header: "INV/S",
+      format: formatRate,
+    },
+  ),
+  errorRatePerSecond: col.accessor((row) => row.metrics.errorRatePerSecond, {
     header: "ERR/S",
     format: formatRate,
   }),
-  p95: col.accessor((row) => row.metrics.durationP95Seconds, {
+  durationP95Seconds: col.accessor((row) => row.metrics.durationP95Seconds, {
     header: "P95(S)",
     format: formatLatency,
   }),
@@ -118,7 +122,7 @@ export async function invocationGraph(
 
     writer.info("Fetching APM invocation graph...");
 
-    const { startTime, endTime } = resolveTimeWindow(flags);
+    const { startTime, endTime } = resolveWindow(flags);
 
     const response = await getApmInvocationGraphImpl({
       config,
@@ -247,7 +251,9 @@ export const invocationGraphCommand = defineCommand({
       "  focal-endpoint --service-name + --environment + --endpoint-name",
       "",
       "The graph is returned in a single response (not paginated). The query window",
-      "defaults to the last hour; use --lookback <hours> or --start-time/--end-time.",
+      "defaults to the last hour (filled server-side); use --interval <duration>",
+      "(e.g. 4h, 7d) for a relative window, or --start/--end (ISO 8601) for an",
+      "absolute one.",
     ].join("\n"),
   },
 });

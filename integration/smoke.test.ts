@@ -88,7 +88,7 @@ describe("CLI integration smoke", () => {
       const result = await fixture.runCli`
         observe apm environments \
           --json \
-          --lookback 1
+          --interval 1h
       `;
       if (result.exitCode === 0) {
         const response = parseJsonOutput(result) as { environments: unknown[] };
