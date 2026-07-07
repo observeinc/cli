@@ -7,11 +7,6 @@ export const tagKeyRoutes = defineRoutes({
   },
   docs: {
     brief: "Search and view tag keys",
-    fullDescription: [
-      "Search and view tag keys",
-      "",
-      "Commands:",
-      "  list    Search for tag keys",
-    ].join("\n"),
+    fullDescription: "Search and view tag keys",
   },
 });

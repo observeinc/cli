@@ -11,13 +11,6 @@ export const contentRoutes = defineRoutes({
   },
   docs: {
     brief: "Manage installed content",
-    fullDescription: [
-      "Install and view content packs in Observe.",
-      "",
-      "Commands:",
-      "  host         Manage Host Explorer content",
-      "  kubernetes   Manage Kubernetes Explorer content",
-      "  tracing      Manage Trace Explorer content",
-    ].join("\n"),
+    fullDescription: "Install and view content packs in Observe.",
   },
 });

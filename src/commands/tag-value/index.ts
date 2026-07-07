@@ -7,11 +7,6 @@ export const tagValueRoutes = defineRoutes({
   },
   docs: {
     brief: "Search and view tag values",
-    fullDescription: [
-      "Search and view tag values",
-      "",
-      "Commands:",
-      "  list    Search for tag values",
-    ].join("\n"),
+    fullDescription: "Search and view tag values",
   },
 });

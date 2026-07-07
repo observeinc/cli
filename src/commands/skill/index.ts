@@ -9,12 +9,6 @@ export const skillRoutes = defineRoutes({
   },
   docs: {
     brief: "View AI agent skills",
-    fullDescription: [
-      "View and manage AI agent skills in Observe",
-      "",
-      "Commands:",
-      "  list    Search and list AI agent skills",
-      "  view    View details of a specific skill",
-    ].join("\n"),
+    fullDescription: "View and manage AI agent skills in Observe",
   },
 });

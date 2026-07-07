@@ -21,18 +21,6 @@ export const monitorRoutes = defineRoutes({
   },
   docs: {
     brief: "Manage observe monitors",
-    fullDescription: [
-      "View and manage monitors in Observe",
-      "",
-      "Commands:",
-      "  list     Search and list monitors in Observe",
-      "  view     View details of a specific monitor",
-      "  create   Create a new monitor",
-      "  update   Update a monitor",
-      "  delete   Delete a monitor",
-      "  enable   Enable a monitor",
-      "  disable  Disable a monitor",
-      "  mute   Manage monitor mute rules (snoozes)",
-    ].join("\n"),
+    fullDescription: "View and manage monitors in Observe",
   },
 });

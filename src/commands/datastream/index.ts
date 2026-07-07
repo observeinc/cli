@@ -13,14 +13,6 @@ export const datastreamRoutes = defineRoutes({
   },
   docs: {
     brief: "Manage datastreams",
-    fullDescription: [
-      "Create, read, update, and list datastreams in Observe.",
-      "",
-      "Commands:",
-      "  create   Create a new datastream",
-      "  view     View a datastream by ID",
-      "  list     List datastreams",
-      "  update   Update a datastream",
-    ].join("\n"),
+    fullDescription: "Create, read, update, and list datastreams in Observe.",
   },
 });

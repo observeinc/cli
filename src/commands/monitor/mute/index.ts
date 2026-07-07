@@ -20,13 +20,6 @@ export const monitorMuteRoutes = buildRouteMap({
       "",
       "A mute rule suppresses alert notifications during a defined window,",
       "targeting either all monitors (Global) or a specific set (Monitors).",
-      "",
-      "Commands:",
-      "  list    Search and list monitor mute rules",
-      "  view    View details of a specific mute rule",
-      "  create  Create a mute rule",
-      "  update  Update a mute rule",
-      "  delete  Delete a mute rule",
     ].join("\n"),
   },
 });

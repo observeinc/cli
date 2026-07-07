@@ -13,14 +13,6 @@ export const ingestTokenRoutes = defineRoutes({
   },
   docs: {
     brief: "Manage ingest tokens",
-    fullDescription: [
-      "Create, read, update, and list ingest tokens in Observe.",
-      "",
-      "Commands:",
-      "  create   Create a new ingest token and associate with datastreams",
-      "  view     View an ingest token by ID",
-      "  list     List/search ingest tokens",
-      "  update   Update an ingest token",
-    ].join("\n"),
+    fullDescription: "Create, read, update, and list ingest tokens in Observe.",
   },
 });

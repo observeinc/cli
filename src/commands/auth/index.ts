@@ -13,14 +13,6 @@ export const authRoutes = defineRoutes({
   },
   docs: {
     brief: "Authenticate with Observe",
-    fullDescription: [
-      "Manage authentication for the Observe CLI",
-      "",
-      "Commands:",
-      "  login      Authenticate with Observe using browser or device code flow",
-      "  logout     Log out and revoke credentials",
-      "  status     Show current authentication status",
-      "  configure  Configure Observe CLI credentials",
-    ].join("\n"),
+    fullDescription: "Manage authentication for the Observe CLI",
   },
 });
