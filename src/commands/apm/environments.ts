@@ -16,26 +16,30 @@ import {
   type ColumnDef,
 } from "../../lib/formatters/table";
 import { renderAsCSV } from "../../lib/formatters/csv";
+import { resolveWindow, timeWindowFlags } from "../../lib/time-window";
 import {
   type OutputFormat,
   formatWindow,
   paginationHint,
   parseApmLimit,
-  resolveTimeWindow,
-  timeWindowFlags,
 } from "./apm-utils";
 
-const AVAILABLE_FIELDS = ["environment", "namespaces", "truncated"] as const;
+// Field selectors match the API/JSON field names.
+const AVAILABLE_FIELDS = [
+  "environment",
+  "serviceNamespaces",
+  "truncated",
+] as const;
 
 type FieldName = (typeof AVAILABLE_FIELDS)[number];
 
-const DEFAULT_FIELDS: FieldName[] = ["environment", "namespaces"];
+const DEFAULT_FIELDS: FieldName[] = ["environment", "serviceNamespaces"];
 
 interface ListApmEnvironmentsFlags {
   environment?: string;
-  lookback?: number;
-  startTime?: string;
-  endTime?: string;
+  start?: string;
+  end?: string;
+  interval?: string;
   limit?: number;
   offset?: number;
   sort?: ListApmEnvironmentsOrderByParameter;
@@ -55,7 +59,7 @@ const FIELD_COLUMNS = {
   environment: col.accessor((row) => row.environment, {
     header: "ENVIRONMENT",
   }),
-  namespaces: col.accessor(
+  serviceNamespaces: col.accessor(
     (row) => {
       const joined = row.serviceNamespaces.join(", ") || "-";
       return row.truncated ? `${joined} (truncated)` : joined;
@@ -88,7 +92,7 @@ export async function environments(
 
     writer.info("Listing APM environments...");
 
-    const { startTime, endTime } = resolveTimeWindow(flags);
+    const { startTime, endTime } = resolveWindow(flags);
 
     const response = await listApmEnvironmentsImpl({
       config,
@@ -211,8 +215,9 @@ export const environmentsCommand = defineCommand({
       "the set of service namespaces observed in it. Use this to discover valid",
       "--environment values for the other apm commands.",
       "",
-      "The query window defaults to the last hour. Use --lookback <hours> for a",
-      "relative window, or --start-time/--end-time (ISO 8601) for an absolute one.",
+      "The query window defaults to the last hour (filled server-side). Use",
+      "--interval <duration> (e.g. 4h, 7d) for a relative window, or --start/--end",
+      "(ISO 8601) for an absolute one.",
     ].join("\n"),
   },
 });

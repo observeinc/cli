@@ -297,7 +297,7 @@ describe("query command", () => {
     expect(end - start).toBe(4 * 60 * 60 * 1000);
   });
 
-  test("uses explicit start and end and ignores interval when both are set", async () => {
+  test("uses explicit start and end, normalized to ISO", async () => {
     const { context } = createMockContext();
 
     await query.call(
@@ -306,7 +306,6 @@ describe("query command", () => {
         input: ["30"],
         limit: 10,
         json: true,
-        interval: "4h",
         start: "2024-01-01T00:00:00Z",
         end: "2024-01-02T00:00:00Z",
       },
@@ -314,8 +313,54 @@ describe("query command", () => {
     );
 
     const args = getLastQueryArgsOrThrow();
-    expect(args.variables.params.startTime).toBe("2024-01-01T00:00:00Z");
-    expect(args.variables.params.endTime).toBe("2024-01-02T00:00:00Z");
+    expect(args.variables.params.startTime).toBe("2024-01-01T00:00:00.000Z");
+    expect(args.variables.params.endTime).toBe("2024-01-02T00:00:00.000Z");
+  });
+
+  test("honors a lone --start (fills end=now)", async () => {
+    const { context } = createMockContext();
+
+    await query.call(
+      context,
+      {
+        input: ["30"],
+        limit: 10,
+        json: true,
+        start: "2024-01-01T00:00:00Z",
+      },
+      deps,
+    );
+
+    const args = getLastQueryArgsOrThrow();
+    expect(args.variables.params.startTime).toBe("2024-01-01T00:00:00.000Z");
+    const start = new Date(args.variables.params.startTime as string).getTime();
+    const end = new Date(args.variables.params.endTime as string).getTime();
+    expect(end).toBeGreaterThan(start);
+  });
+
+  test("errors when --interval is combined with --start/--end", async () => {
+    const { context, stderr, getExitCode } = createMockContext();
+
+    try {
+      await query.call(
+        context,
+        {
+          input: ["30"],
+          limit: 10,
+          json: true,
+          interval: "4h",
+          start: "2024-01-01T00:00:00Z",
+          end: "2024-01-02T00:00:00Z",
+        },
+        deps,
+      );
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("Use either --interval or --start/--end");
   });
 
   test("writes column-major rows as JSON array when --json is set", async () => {
