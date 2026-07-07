@@ -41,6 +41,31 @@ testCiOnly("view pre-configured monitor", async () => {
 
 File names like `smoke.test.ts` are for human organization only.
 
+## CI-only tests
+
+Some commands only work against the CI integration tenant (e.g. tag search permissions). Mark these with `testCiOnly` from `fixture.ts` — they run when `CI=true` and are skipped locally.
+
+The CI integration tenant is expected to have:
+
+- **Kubernetes Explorer** and **Tracing Explorer** content packs installed (required by `content.test.ts`)
+- **Host Explorer** not installed — `content host view` returns `null` (also asserted in `content.test.ts`)
+
+You do not need to install content before CI runs unless those packs are removed from the tenant.
+
+The fixture sets `OBSERVE_CLI_EXPERIMENTAL=1` automatically so experimental commands (ingest-token, content, data-connection, etc.) are enabled in every integration test.
+
+## Known gaps
+
+| Commands                                     | Reason                                   |
+| -------------------------------------------- | ---------------------------------------- |
+| `auth login`, `auth logout`                  | Interactive / browser flows              |
+| `cli install`, `uninstall`, `upgrade`        | Mutates local machine                    |
+| `content * install`                          | Creates tenant content packs             |
+| `datasource create/update`                   | Requires data connection + datastream    |
+| `data-connection view`, `generate-stack-url` | Needs existing AWS connection            |
+| `datastream-token check-status`              | Polls for live ingest data               |
+| `metric view`, `alert view`                  | No metrics/alerts on CI tenant inventory |
+
 ## Resource ownership
 
 Mutating tests must follow the create → assert → delete lifecycle:
