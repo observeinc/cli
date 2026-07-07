@@ -20,7 +20,8 @@ const INTEGRATION_ENV = {
   API_TOKEN: "OBSERVE_INTEGRATION_API_TOKEN",
 } as const;
 
-const TEST_RESOURCE_PREFIX = "cli";
+/** Prefix applied to every test-created resource name; the sweeper matches on it. */
+export const TEST_RESOURCE_PREFIX = "cli";
 
 const integrationDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(integrationDir, "..");
