@@ -1,0 +1,6 @@
+mutation DeleteDatastream($id: ObjectId!) {
+  deleteDatastream(id: $id) {
+    success
+    errorMessage
+  }
+}

@@ -79,9 +79,9 @@ describe("CLI integration smoke", () => {
     });
   });
 
-  // Every tenant has at least a System dataset.
   test("query runs against a dataset from the tenant", async () => {
     await withIntegrationFixture(tenant, async (fixture) => {
+      // Pick any dataset from the tenant (all tenants are guaranteed to have at least the System dataset).
       const listResult = await fixture.runCli`
         observe dataset list \
           --format json \
@@ -95,6 +95,8 @@ describe("CLI integration smoke", () => {
         throw new Error("expected at least one dataset");
       }
       const datasetId = firstDataset.id;
+
+      // query: run a simple pipeline against that dataset.
       const queryResult = await fixture.runCli`
         observe query \
           --input ${datasetId} \

@@ -19,7 +19,7 @@ describe("runCli command validation", () => {
         expect(error).toBeInstanceOf(InvalidCliCommandError);
       }
     } finally {
-      fixture.cleanup();
+      await fixture.cleanup();
     }
   });
 
@@ -33,7 +33,7 @@ describe("runCli command validation", () => {
         expect(error).toBeInstanceOf(InvalidCliCommandError);
       }
     } finally {
-      fixture.cleanup();
+      await fixture.cleanup();
     }
   });
 
@@ -47,7 +47,7 @@ describe("runCli command validation", () => {
         expect(error).toBeInstanceOf(InvalidCliCommandError);
       }
     } finally {
-      fixture.cleanup();
+      await fixture.cleanup();
     }
   });
 
