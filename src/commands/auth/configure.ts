@@ -9,22 +9,37 @@ interface ConfigureCommandFlags {
   apiUrl?: string;
 }
 
-async function configure(
+export interface ConfigureDeps {
+  saveConfig?: typeof saveConfig;
+  configExists?: typeof configExists;
+  getConfigPath?: typeof getConfigPath;
+}
+
+export async function configure(
   this: LocalContext,
   flags: ConfigureCommandFlags,
+  deps: ConfigureDeps = {},
 ): Promise<void> {
+  const {
+    saveConfig: saveConfigImpl = saveConfig,
+    configExists: configExistsImpl = configExists,
+    getConfigPath: getConfigPathImpl = getConfigPath,
+  } = deps;
   const { process, writer } = this;
 
   try {
-    saveConfig({
+    // Whether a config already existed must be checked *before* saving,
+    // otherwise the freshly-written file always reports as pre-existing.
+    const wasExisting = configExistsImpl();
+
+    saveConfigImpl({
       customerId: flags.customerId,
       token: flags.token,
       domain: flags.domain,
       apiUrl: flags.apiUrl,
     });
 
-    const configPath = getConfigPath();
-    const wasExisting = configExists();
+    const configPath = getConfigPathImpl();
 
     writer.success(
       `Configuration ${wasExisting ? "updated" : "saved"} successfully!`,

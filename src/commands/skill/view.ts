@@ -17,11 +17,17 @@ interface ViewSkillFlags {
   content?: boolean;
 }
 
-async function view(
+export interface ViewSkillDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function view(
   this: LocalContext,
   flags: ViewSkillFlags,
   skillId: string,
+  deps: ViewSkillDeps = {},
 ): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
   const isStructuredOutput =
@@ -29,7 +35,7 @@ async function view(
   const writer = muteStatusWriter(_writer, { muted: isStructuredOutput });
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Fetching skill...");
 

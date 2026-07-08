@@ -7,23 +7,33 @@ interface UninstallFlags {
   quiet?: boolean;
 }
 
-async function uninstall(
+export interface UninstallDeps {
+  detectShell?: typeof detectShell;
+  removeObserveBlocks?: typeof removeObserveBlocks;
+}
+
+export async function uninstall(
   this: LocalContext,
   flags: UninstallFlags,
+  deps: UninstallDeps = {},
 ): Promise<void> {
+  const {
+    detectShell: detectShellImpl = detectShell,
+    removeObserveBlocks: removeObserveBlocksImpl = removeObserveBlocks,
+  } = deps;
   const { process } = this;
   const writer = flags.quiet
     ? createWriter({ process, quiet: true })
     : this.writer;
   const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? "";
-  const shell = detectShell(
+  const shell = detectShellImpl(
     process.env.SHELL,
     homeDir,
     process.env.XDG_CONFIG_HOME,
   );
 
   if (shell.configFile) {
-    const removed = removeObserveBlocks(shell.configFile);
+    const removed = removeObserveBlocksImpl(shell.configFile);
     if (removed > 0) {
       writer.success(
         `Removed ${removed} observe block(s) from ${shell.configFile}`,

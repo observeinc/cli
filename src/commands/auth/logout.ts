@@ -9,29 +9,46 @@ import type { LocalContext } from "../../context";
 import { configExists, deleteConfig, loadConfig } from "../../lib/config";
 import { deleteAuthtoken } from "../../gql/authtoken/delete-authtoken";
 
-async function run(this: LocalContext, _flags: Record<string, never>) {
+export interface LogoutDeps {
+  configExists?: typeof configExists;
+  loadConfig?: typeof loadConfig;
+  deleteConfig?: typeof deleteConfig;
+  deleteAuthtoken?: typeof deleteAuthtoken;
+}
+
+export async function run(
+  this: LocalContext,
+  _flags: Record<string, never>,
+  deps: LogoutDeps = {},
+) {
+  const {
+    configExists: configExistsImpl = configExists,
+    loadConfig: loadConfigImpl = loadConfig,
+    deleteConfig: deleteConfigImpl = deleteConfig,
+    deleteAuthtoken: deleteAuthtokenImpl = deleteAuthtoken,
+  } = deps;
   const { writer } = this;
 
   // Check if credentials exist
-  if (!configExists()) {
+  if (!configExistsImpl()) {
     writer.info("No credentials stored. Already logged out.");
     return;
   }
 
-  const config = loadConfig();
+  const config = loadConfigImpl();
 
   // Attempt to revoke token on server (best effort)
   if (config.tokenId) {
     writer.info("Revoking token...");
     try {
-      await deleteAuthtoken(config, { id: config.tokenId });
+      await deleteAuthtokenImpl(config, { id: config.tokenId });
     } catch {
       // Best effort - continue with local logout even if revocation fails
     }
   }
 
   // Delete local credentials
-  deleteConfig();
+  deleteConfigImpl();
 
   writer.success("Logged out successfully.");
 }

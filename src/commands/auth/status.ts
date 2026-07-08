@@ -10,13 +10,29 @@ import {
 import { getDefaultWorkspace } from "../../gql/workspace/get-default-workspace";
 import { GqlApiError } from "../../gql/gql-request";
 
-async function status(
+export interface StatusDeps {
+  configExists?: typeof configExists;
+  loadConfig?: typeof loadConfig;
+  getApiBaseUrl?: typeof getApiBaseUrl;
+  getConfigPath?: typeof getConfigPath;
+  getDefaultWorkspace?: typeof getDefaultWorkspace;
+}
+
+export async function status(
   this: LocalContext,
   flags: { json?: boolean },
+  deps: StatusDeps = {},
 ): Promise<void> {
+  const {
+    configExists: configExistsImpl = configExists,
+    loadConfig: loadConfigImpl = loadConfig,
+    getApiBaseUrl: getApiBaseUrlImpl = getApiBaseUrl,
+    getConfigPath: getConfigPathImpl = getConfigPath,
+    getDefaultWorkspace: getDefaultWorkspaceImpl = getDefaultWorkspace,
+  } = deps;
   const { process, writer } = this;
 
-  if (!configExists()) {
+  if (!configExistsImpl()) {
     if (flags.json) {
       writer.write(JSON.stringify({ authenticated: false }, null, 2));
     } else {
@@ -28,8 +44,8 @@ async function status(
     return;
   }
 
-  const config = loadConfig();
-  const baseUrl = getApiBaseUrl(config);
+  const config = loadConfigImpl();
+  const baseUrl = getApiBaseUrlImpl(config);
   const maskedToken =
     config.token.length > 8
       ? config.token.slice(0, 4) + "…" + config.token.slice(-4)
@@ -41,7 +57,7 @@ async function status(
   let errorMessage: string | null = null;
 
   try {
-    const { workspace } = await getDefaultWorkspace(config);
+    const { workspace } = await getDefaultWorkspaceImpl(config);
     valid = true;
     workspaceName = workspace?.label ?? null;
     workspaceId = workspace?.id ?? null;
@@ -60,7 +76,7 @@ async function status(
       customerId: config.customerId,
       domain: config.domain,
       apiUrl: baseUrl,
-      configPath: getConfigPath(),
+      configPath: getConfigPathImpl(),
       ...(config.tokenId && { tokenId: config.tokenId }),
       ...(workspaceName && { workspace: workspaceName }),
       ...(workspaceId && { workspaceId }),
@@ -101,7 +117,7 @@ async function status(
         chalk.yellow(" (deprecated)"),
     );
   }
-  writer.write(chalk.dim("  Config        ") + getConfigPath());
+  writer.write(chalk.dim("  Config        ") + getConfigPathImpl());
 
   if (errorMessage) {
     writer.write("\n" + chalk.red("  Error: ") + errorMessage);

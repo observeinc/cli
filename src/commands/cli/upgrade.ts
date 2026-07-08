@@ -47,13 +47,26 @@ function permissionDeniedError(targetPath: string) {
   );
 }
 
-async function upgrade(this: LocalContext, flags: UpgradeFlags) {
+export interface UpgradeDeps {
+  loadState?: typeof loadState;
+  fetchLatestRelease?: typeof fetchLatestRelease;
+}
+
+export async function upgrade(
+  this: LocalContext,
+  flags: UpgradeFlags,
+  deps: UpgradeDeps = {},
+) {
+  const {
+    loadState: loadStateImpl = loadState,
+    fetchLatestRelease: fetchLatestReleaseImpl = fetchLatestRelease,
+  } = deps;
   const { process: proc, writer } = this;
-  const state = loadState();
+  const state = loadStateImpl();
 
   writer.info("Checking for updates...");
 
-  const latest = await fetchLatestRelease();
+  const latest = await fetchLatestReleaseImpl();
 
   if (latest.version === CURRENT_CLI_VERSION && !flags.force) {
     writer.success(`Already up to date (v${CURRENT_CLI_VERSION})`);

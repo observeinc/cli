@@ -109,7 +109,16 @@ const FIELD_COLUMNS = {
   }),
 } satisfies Record<FieldName, ColumnDef<AlertResource>>;
 
-async function list(this: LocalContext, flags: ListAlertsFlags): Promise<void> {
+export interface ListAlertsDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function list(
+  this: LocalContext,
+  flags: ListAlertsFlags,
+  deps: ListAlertsDeps = {},
+): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const { process, writer: _writer } = this;
 
   const format = flags.json ? ("json" as const) : flags.format;
@@ -118,7 +127,7 @@ async function list(this: LocalContext, flags: ListAlertsFlags): Promise<void> {
   });
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Searching alerts...");
 

@@ -7,14 +7,13 @@ import {
   mock,
   test,
 } from "bun:test";
-import type { LocalContext } from "../context";
+import { createMockContext, suppressAnsiColor } from "../test-helpers";
 import type { Config } from "../lib/config";
 import type { DatasetResource } from "../rest/generated";
 import type {
   DatasetQueryOutputQueryVariables,
   StageInput,
 } from "../gql/generated/graphql";
-import { createWriter } from "../lib/writer";
 
 const loadConfigFn = mock(() => ({
   customerId: "test-customer",
@@ -108,8 +107,6 @@ const datasetQueryOutputFn = mock(
 
 let query: (typeof import("./query"))["query"];
 
-let previousNoColor: string | undefined;
-let previousForceColor: string | undefined;
 let previousHome: string | undefined;
 
 /** Strip CSI SGR sequences so stdout parsing is stable when chalk adds color. */
@@ -126,12 +123,10 @@ const deps = {
   datasetQueryOutput: datasetQueryOutputFn,
 } as unknown as Parameters<(typeof import("./query"))["query"]>[1];
 
+suppressAnsiColor();
+
 beforeAll(async () => {
-  previousNoColor = process.env.NO_COLOR;
-  previousForceColor = process.env.FORCE_COLOR;
   previousHome = process.env.HOME;
-  process.env.NO_COLOR = "1";
-  process.env.FORCE_COLOR = "0";
   process.env.HOME = `/tmp/observe-query-test-no-config-${Date.now()}`;
 
   const mod = await import("./query.ts");
@@ -140,59 +135,12 @@ beforeAll(async () => {
 
 afterAll(() => {
   mock.restore();
-  if (previousNoColor === undefined) {
-    delete process.env.NO_COLOR;
-  } else {
-    process.env.NO_COLOR = previousNoColor;
-  }
-  if (previousForceColor === undefined) {
-    delete process.env.FORCE_COLOR;
-  } else {
-    process.env.FORCE_COLOR = previousForceColor;
-  }
   if (previousHome === undefined) {
     delete process.env.HOME;
   } else {
     process.env.HOME = previousHome;
   }
 });
-
-function createMockContext() {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  let exitCode: number | undefined;
-
-  const processMock = {
-    stdout: {
-      write: (msg: string) => {
-        stdout.push(msg);
-        return true;
-      },
-    },
-    stderr: {
-      write: (msg: string) => {
-        stderr.push(msg);
-        return true;
-      },
-    },
-    exit: (code?: number) => {
-      exitCode = code ?? 0;
-      throw new Error("process.exit");
-    },
-  };
-
-  const context = {
-    process: processMock,
-    writer: createWriter({ process: processMock }),
-  } as unknown as LocalContext;
-
-  return {
-    context,
-    stdout,
-    stderr,
-    getExitCode: () => exitCode,
-  };
-}
 
 describe("query command", () => {
   beforeEach(() => {

@@ -16,11 +16,17 @@ interface ViewMetricFlags {
   dataset?: string;
 }
 
-async function view(
+export interface ViewMetricDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function view(
   this: LocalContext,
   flags: ViewMetricFlags,
   name: string,
+  deps: ViewMetricDeps = {},
 ): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, {
@@ -28,7 +34,7 @@ async function view(
   });
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Fetching metric...");
 
