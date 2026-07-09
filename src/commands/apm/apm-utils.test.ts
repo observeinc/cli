@@ -72,6 +72,10 @@ describe("describeMode", () => {
       "focal-endpoint",
     );
   });
+  test("global sub-modes reflect the scope", () => {
+    expect(describeMode({ crossEnvironment: true })).toBe("global (cross-env)");
+    expect(describeMode({ environment: "eng" })).toBe("global (eng)");
+  });
 });
 
 describe("paginationHint", () => {

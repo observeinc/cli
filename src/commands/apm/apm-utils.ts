@@ -47,6 +47,8 @@ export function describeMode(flags: {
   serviceName?: string;
   endpointName?: string;
   directNeighborsOnly?: boolean;
+  environment?: string;
+  crossEnvironment?: boolean;
 }): string {
   if (flags.endpointName) return "focal-endpoint";
   if (flags.serviceName) {
@@ -54,6 +56,8 @@ export function describeMode(flags: {
       ? "focal-service (1-hop)"
       : "focal-service";
   }
+  if (flags.crossEnvironment) return "global (cross-env)";
+  if (flags.environment) return `global (${flags.environment})`;
   return "global";
 }
 
