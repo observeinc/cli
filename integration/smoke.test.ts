@@ -79,6 +79,26 @@ describe("CLI integration smoke", () => {
     });
   });
 
+  // apm is experimental (the fixture sets OBSERVE_CLI_EXPERIMENTAL=1) and
+  // private-preview: on a tenant without the endpoint enabled the command
+  // exits non-zero with a clean error rather than crashing, which we tolerate.
+  // When available, --json emits the response envelope { interval, environments, meta }.
+  test("apm environments returns the response envelope when available", async () => {
+    await withIntegrationFixture(tenant, async (fixture) => {
+      const result = await fixture.runCli`
+        observe apm environments \
+          --json \
+          --interval 1h
+      `;
+      if (result.exitCode === 0) {
+        const response = parseJsonOutput(result) as { environments: unknown[] };
+        expect(Array.isArray(response.environments)).toBe(true);
+      } else {
+        expect(result.stderr.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
   test("query runs against a dataset from the tenant", async () => {
     await withIntegrationFixture(tenant, async (fixture) => {
       // Pick any dataset from the tenant (all tenants are guaranteed to have at least the System dataset).

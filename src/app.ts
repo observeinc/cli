@@ -1,6 +1,7 @@
 import { buildApplication } from "@stricli/core";
 import { name } from "../package.json";
 import { alertRoutes } from "./commands/alert/index.js";
+import { apmRoutes } from "./commands/apm/index.js";
 import { dataConnectionRoutes } from "./commands/data-connection/index.js";
 import { datasourceRoutes } from "./commands/datasource/index.js";
 import { datastreamTokenRoutes } from "./commands/datastream-token/index.js";
@@ -33,6 +34,7 @@ export const routes = defineRoutes({
     skill: skillRoutes,
     alert: alertRoutes,
     monitor: monitorRoutes,
+    apm: apmRoutes,
     content: contentRoutes,
     "ingest-token": ingestTokenRoutes,
     datasource: datasourceRoutes,
