@@ -64,7 +64,7 @@ async function status(
       ...(config.tokenId && { tokenId: config.tokenId }),
       ...(workspaceName && { workspace: workspaceName }),
       ...(workspaceId && { workspaceId }),
-      ...((workspaceName || workspaceId) && {
+      ...((workspaceName ?? workspaceId) && {
         _workspaceDeprecationNotice:
           "workspace and workspaceId fields are deprecated and will be removed in a future release",
       }),
