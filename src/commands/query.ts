@@ -5,6 +5,11 @@ import { loadConfig } from "../lib/config";
 import { formatApiError } from "../lib/format-error";
 import { muteStatusWriter } from "../lib/writer";
 import {
+  timeWindowFlags,
+  resolveWindow,
+  concretizeWindow,
+} from "../lib/time-window";
+import {
   datasetQueryOutput,
   type GqlDatasetQueryField,
   type PaginatedResults,
@@ -109,7 +114,7 @@ export async function query(
       config,
       variables: {
         query: [stage],
-        params: getTimeRange(flags),
+        params: concretizeWindow(resolveWindow(flags), DEFAULT_INTERVAL),
       },
     });
 
@@ -205,56 +210,6 @@ export async function query(
 }
 
 /**
- * Resolve the query time window from CLI flags. Explicit start/end take
- * precedence; otherwise the interval (or DEFAULT_INTERVAL) is anchored at now.
- */
-function getTimeRange(flags: {
-  start?: string;
-  end?: string;
-  interval?: string;
-}): { startTime: string; endTime: string } {
-  if (flags.start && flags.end) {
-    return { startTime: flags.start, endTime: flags.end };
-  }
-  if (flags.interval) {
-    const startTime = new Date(
-      Date.now() - intervalToMs(flags.interval),
-    ).toISOString();
-    const endTime = new Date().toISOString();
-    return { startTime, endTime };
-  }
-  const startTime = new Date(
-    Date.now() - intervalToMs(DEFAULT_INTERVAL),
-  ).toISOString();
-  return { startTime, endTime: new Date().toISOString() };
-}
-
-const INTERVAL_UNIT_MS: Record<string, number> = {
-  ms: 1,
-  s: 1_000,
-  m: 60_000,
-  h: 3_600_000,
-  d: 86_400_000,
-  w: 604_800_000,
-};
-
-function intervalToMs(value: string): number {
-  const match = /^(\d+)(ms|s|m|h|d|w)$/i.exec(value.trim());
-  if (!match) {
-    throw new Error(
-      `Invalid interval: "${value}". Expected format like "1h", "5m", or "30s".`,
-    );
-  }
-  const amount = parseInt(match[1] ?? "0", 10);
-  const unit = (match[2] ?? "").toLowerCase();
-  const factor = INTERVAL_UNIT_MS[unit];
-  if (factor === undefined) {
-    throw new Error(`Invalid interval unit: "${unit}"`);
-  }
-  return amount * factor;
-}
-
-/**
  * Get a formatter function based on field type. The format function receives
  * the raw value (already non-null; the table formatter handles nulls) and
  * returns a styled string.
@@ -317,25 +272,7 @@ export const queryCommand = defineCommand({
         brief: "OPAL pipeline to execute",
         optional: true,
       },
-      start: {
-        kind: "parsed",
-        parse: String,
-        brief: "Start time (ISO 8601 format)",
-        optional: true,
-      },
-      end: {
-        kind: "parsed",
-        parse: String,
-        brief: "End time (ISO 8601 format)",
-        optional: true,
-      },
-      interval: {
-        kind: "parsed",
-        parse: String,
-        brief:
-          "Time interval relative to now (e.g., 1h, 24h, 7d) if start and end are not specified",
-        optional: true,
-      },
+      ...timeWindowFlags,
       limit: {
         kind: "parsed",
         parse: parseLimit,
