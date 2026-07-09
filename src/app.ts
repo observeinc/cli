@@ -18,7 +18,6 @@ import { queryCommand } from "./commands/query.js";
 import { skillRoutes } from "./commands/skill/index.js";
 import { tagKeyRoutes } from "./commands/tag-key/index.js";
 import { tagValueRoutes } from "./commands/tag-value/index.js";
-import { workspaceRoutes } from "./commands/workspace/index.js";
 import { CURRENT_CLI_VERSION } from "./lib/constants.js";
 import { defineRoutes } from "./lib/stricli-wrappers.js";
 
@@ -42,7 +41,6 @@ export const routes = defineRoutes({
     "data-connection": dataConnectionRoutes,
     datastream: datastreamRoutes,
     "datastream-token": datastreamTokenRoutes,
-    workspace: workspaceRoutes,
     cli: cliRoutes,
   },
   defaultCommand: "help",

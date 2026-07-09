@@ -64,6 +64,10 @@ async function status(
       ...(config.tokenId && { tokenId: config.tokenId }),
       ...(workspaceName && { workspace: workspaceName }),
       ...(workspaceId && { workspaceId }),
+      ...((workspaceName || workspaceId) && {
+        _workspaceDeprecationNotice:
+          "workspace and workspaceId fields are deprecated and will be removed in a future release",
+      }),
       ...(errorMessage && { error: errorMessage }),
     };
     writer.write(JSON.stringify(result, null, 2));
@@ -84,10 +88,18 @@ async function status(
     writer.write(chalk.dim("  Token ID      ") + config.tokenId);
   }
   if (workspaceName) {
-    writer.write(chalk.dim("  Workspace     ") + workspaceName);
+    writer.write(
+      chalk.dim("  Workspace     ") +
+        workspaceName +
+        chalk.yellow(" (deprecated)"),
+    );
   }
   if (workspaceId) {
-    writer.write(chalk.dim("  Workspace ID  ") + workspaceId);
+    writer.write(
+      chalk.dim("  Workspace ID  ") +
+        workspaceId +
+        chalk.yellow(" (deprecated)"),
+    );
   }
   writer.write(chalk.dim("  Config        ") + getConfigPath());
 
