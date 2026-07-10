@@ -42,13 +42,16 @@ export function describeNode(node: ApmInvocationParticipant): string {
   return `${prefix}${node.serviceName}@${node.environment}${suffix}`;
 }
 
-/** Describe which invocation-graph mode a set of flags selects. */
+/**
+ * Describe which invocation-graph mode a set of flags selects. The graph is
+ * always scoped to a single environment, so a request with no `serviceName` is
+ * the environment-wide map (there is no cross-environment mode).
+ */
 export function describeMode(flags: {
   serviceName?: string;
   endpointName?: string;
   directNeighborsOnly?: boolean;
   environment?: string;
-  crossEnvironment?: boolean;
 }): string {
   if (flags.endpointName) return "focal-endpoint";
   if (flags.serviceName) {
@@ -56,9 +59,7 @@ export function describeMode(flags: {
       ? "focal-service (1-hop)"
       : "focal-service";
   }
-  if (flags.crossEnvironment) return "global (cross-env)";
-  if (flags.environment) return `global (${flags.environment})`;
-  return "global";
+  return `environment-wide (${flags.environment})`;
 }
 
 /**

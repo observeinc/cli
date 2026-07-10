@@ -43,7 +43,6 @@ interface GetApmInvocationGraphFlags {
   serviceNamespace?: string;
   endpointName?: string;
   directNeighborsOnly?: boolean;
-  crossEnvironment?: boolean;
   start?: string;
   end?: string;
   interval?: string;
@@ -98,45 +97,26 @@ export async function invocationGraph(
     muted: format === "json" || format === "csv",
   });
 
-  // Mode guards (mirror the server's cross-field rules in apm/handler.go),
-  // plus a CLI-only guard: a graph spanning every environment must be opted
-  // into explicitly with --cross-environment (an unscoped global graph is
-  // large and floods the terminal), so outside focal mode either --environment
-  // or --cross-environment is required. Validated up front so we never reach
-  // the catch block for pure input errors.
-  if (flags.endpointName && !flags.serviceName) {
+  // Mode guards mirror the server's cross-field rules in apm/handler.go, in the
+  // same order: the graph is always scoped to a single environment
+  // (--environment is required in every mode; there is no cross-environment
+  // graph), and --endpoint-name / --direct-neighbors-only each need a focal
+  // --service-name. Validated up front so we never reach the catch block for
+  // pure input errors.
+  if (!flags.environment) {
     writer.error(
-      "--endpoint-name requires --service-name (and --environment).",
+      "--environment is required: the invocation graph is always scoped to a single environment.",
     );
+    process.exit(1);
+    return;
+  }
+  if (flags.endpointName && !flags.serviceName) {
+    writer.error("--endpoint-name requires --service-name.");
     process.exit(1);
     return;
   }
   if (flags.directNeighborsOnly && !flags.serviceName) {
     writer.error("--direct-neighbors-only requires --service-name.");
-    process.exit(1);
-    return;
-  }
-  if (flags.crossEnvironment && flags.serviceName) {
-    writer.error(
-      "--cross-environment cannot be combined with --service-name (focal mode is scoped to one --environment).",
-    );
-    process.exit(1);
-    return;
-  }
-  if (flags.crossEnvironment && flags.environment) {
-    writer.error("Use either --environment or --cross-environment, not both.");
-    process.exit(1);
-    return;
-  }
-  if (flags.serviceName && !flags.environment) {
-    writer.error("--environment is required when --service-name is set.");
-    process.exit(1);
-    return;
-  }
-  if (!flags.serviceName && !flags.environment && !flags.crossEnvironment) {
-    writer.error(
-      "Specify --environment <env> to scope the graph, or --cross-environment for a global graph across all environments.",
-    );
     process.exit(1);
     return;
   }
@@ -216,14 +196,14 @@ export const invocationGraphCommand = defineCommand({
       serviceName: {
         kind: "parsed",
         parse: String,
-        brief: "Center the graph on this service (requires --environment)",
+        brief: "Center the graph on one service (focal mode)",
         optional: true,
       },
       environment: {
         kind: "parsed",
         parse: String,
         brief:
-          "deployment.environment.name; required with --service-name, or scopes global mode to one env (alt to --cross-environment)",
+          "deployment.environment.name (required); the graph is always scoped to one environment",
         optional: true,
       },
       serviceNamespace: {
@@ -243,12 +223,6 @@ export const invocationGraphCommand = defineCommand({
         kind: "boolean",
         brief:
           "Return only the focal service and its direct neighbours (requires --service-name)",
-        optional: true,
-      },
-      crossEnvironment: {
-        kind: "boolean",
-        brief:
-          "Span every environment in global mode (required when neither --service-name nor --environment is given)",
         optional: true,
       },
       ...timeWindowFlags,
@@ -275,12 +249,13 @@ export const invocationGraphCommand = defineCommand({
     brief: "Get the APM service-to-service invocation graph",
     fullDescription: [
       "Return the service dependency graph for a window: services and the calls",
-      "between them, each edge carrying request/error/latency metrics. Three modes:",
+      "between them, each edge carrying request/error/latency metrics. The graph",
+      "is always scoped to a single environment — --environment is required in",
+      "every mode; there is no cross-environment graph. Three modes:",
       "",
-      "  global         no --service-name; requires --environment (one env) or",
-      "                 --cross-environment (every environment)",
-      "  focal-service  --service-name + --environment (+ --direct-neighbors-only)",
-      "  focal-endpoint --service-name + --environment + --endpoint-name",
+      "  environment-wide  --environment only (optionally --service-namespace)",
+      "  focal-service     --environment + --service-name (+ --direct-neighbors-only)",
+      "  focal-endpoint    --environment + --service-name + --endpoint-name",
       "",
       "The graph is returned in a single response (not paginated). The query window",
       "defaults to the last hour (filled server-side); use --interval <duration>",
