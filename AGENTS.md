@@ -45,6 +45,7 @@ src/
 │   │   └── tracing/    # Trace Explorer (install, view)
 │   ├── dataset/        # Dataset commands (list, view)
 │   ├── datastream/     # Datastream commands (create, list, view, update)
+│   ├── docs/           # Documentation commands (search)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view)
@@ -344,6 +345,7 @@ bun run src/bin.ts content host install
 bun run src/bin.ts content kubernetes install
 bun run src/bin.ts tag-key list --match "host"
 bun run src/bin.ts tag-value list --key "host"
+bun run src/bin.ts docs search "how do I create a monitor"
 bun run src/bin.ts query --input <dataset-id> --pipeline "limit 10"
 ```
 
