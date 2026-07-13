@@ -3,6 +3,7 @@ import {
   AlertApi,
   APMApi,
   DatasetApi,
+  DocumentationApi,
   ExportApi,
   MonitorMuteApi,
   MonitorApi,
@@ -20,6 +21,7 @@ export class ObserveRestSDK {
   public monitorApi: MonitorApi;
   public knowledgeGraphApi: V2KnowledgeGraphApi;
   public skillsApi: SkillsApi;
+  public documentationApi: DocumentationApi;
 
   constructor(_config: Config) {
     const config = createApiConfiguration(_config);
@@ -32,5 +34,6 @@ export class ObserveRestSDK {
     this.monitorApi = new MonitorApi(config);
     this.knowledgeGraphApi = new V2KnowledgeGraphApi(config);
     this.skillsApi = new SkillsApi(config);
+    this.documentationApi = new DocumentationApi(config);
   }
 }

@@ -12,6 +12,7 @@ Command line interface for [Observe Inc](https://www.observeinc.com).
 - **Alert Monitoring** - List and view alerts with severity filtering and active-only views.
 - **Monitor Mutes** - Full CRUD for monitor mute rules (snoozes), targeting all monitors or a specific set.
 - **Datastream Management** - Create, list, view, and update datastreams.
+- **Documentation Search** - Semantic search across Observe's built-in documentation from your terminal.
 - **Multiple Output Formats** - All commands support `--format json` and `--format csv` for scripting and pipelines.
 - **Responsive Tables** - Terminal-aware column widths with automatic text wrapping.
 
@@ -61,6 +62,7 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe datastream view`               | View a datastream by ID                                 |
 | `observe datastream update`             | Update a datastream                                     |
 | `observe datastream-token check-status` | Poll a datastream token until ingest data arrives       |
+| `observe docs search`                   | Search Observe's documentation                          |
 | `observe cli install`                   | Configure shell integration (PATH, completions)         |
 | `observe cli uninstall`                 | Remove shell integration                                |
 | `observe cli upgrade`                   | Upgrade to the latest version                           |
