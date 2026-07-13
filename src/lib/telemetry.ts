@@ -1,4 +1,4 @@
-import type { Span } from "@opentelemetry/api";
+import { trace, type Span } from "@opentelemetry/api";
 import { CURRENT_CLI_VERSION, TELEMETRY_TOKEN, COLLECT_URL } from "./constants";
 import { configExists, loadConfig } from "./config";
 import { getInstallId } from "./state";
@@ -194,4 +194,15 @@ export function setCommandSpanName(span: Span | undefined, command: string) {
     span.updateName(command);
     span.setAttribute("cli.command", command);
   }
+}
+
+/**
+ * Stamp the skill name onto the active span (the `cli.skill` attribute).
+ *
+ * Used by `skill log-use` to turn its command span into a skill-usage event.
+ * Reads the OTel active span rather than a passed-in one, and no-ops when there
+ * is none (e.g. a dev build with telemetry disabled).
+ */
+export function setSkillName(name: string) {
+  trace.getActiveSpan()?.setAttribute("cli.skill", name);
 }
