@@ -16,6 +16,8 @@ async function main(): Promise<void> {
   try {
     await withTelemetry(args, async (span) => {
       await run(app, args, buildContext(process, span));
+      // `run` sets process.exitCode; surface it as the span's cli.exit_code.
+      return typeof process.exitCode === "number" ? process.exitCode : 0;
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

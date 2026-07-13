@@ -69,6 +69,41 @@ describe("identityAttributes", () => {
   });
 });
 
+describe("commandNameFromArgv", () => {
+  test("joins the resolved command path with dots", async () => {
+    const { commandNameFromArgv } = await import("./telemetry");
+    expect(commandNameFromArgv(["dataset", "list"])).toBe("dataset.list");
+  });
+
+  test("stops at the first flag (the --help case)", async () => {
+    const { commandNameFromArgv } = await import("./telemetry");
+    expect(commandNameFromArgv(["tag-value", "list", "--help"])).toBe(
+      "tag-value.list",
+    );
+  });
+
+  test("stops before positional values so they never enter the span name", async () => {
+    const { commandNameFromArgv } = await import("./telemetry");
+    expect(commandNameFromArgv(["dataset", "view", "41007655"])).toBe(
+      "dataset.view",
+    );
+    expect(
+      commandNameFromArgv(["dataset", "view", "o:41007655", "--help"]),
+    ).toBe("dataset.view");
+  });
+
+  test("returns the single leading token for a top-level command", async () => {
+    const { commandNameFromArgv } = await import("./telemetry");
+    expect(commandNameFromArgv(["query", "--input", "x"])).toBe("query");
+  });
+
+  test("falls back to 'cli' when argv is empty or flags-first", async () => {
+    const { commandNameFromArgv } = await import("./telemetry");
+    expect(commandNameFromArgv([])).toBe("cli");
+    expect(commandNameFromArgv(["--help"])).toBe("cli");
+  });
+});
+
 describe("redactArgv", () => {
   test("redacts --token value (space-separated)", async () => {
     const { redactArgv } = await import("./telemetry");

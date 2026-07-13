@@ -1,7 +1,8 @@
 import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
-import { print } from "graphql";
+import { print, Kind, type DocumentNode } from "graphql";
 import { getApiBaseUrl, type Config } from "../lib/config";
 import { observeApiHeaders } from "../lib/user-agent";
+import { tracedFetch } from "../lib/traced-fetch";
 
 /**
  * GraphQL response wrapper
@@ -26,6 +27,18 @@ export class GqlApiError extends Error {
 }
 
 /**
+ * Extract the operation name from a GraphQL document, for span naming.
+ */
+function operationName(document: DocumentNode) {
+  for (const def of document.definitions) {
+    if (def.kind === Kind.OPERATION_DEFINITION && def.name) {
+      return def.name.value;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Execute a typed GraphQL query against the Observe API
  */
 export async function executeGraphQL<TResult, TVariables>(
@@ -35,19 +48,24 @@ export async function executeGraphQL<TResult, TVariables>(
 ): Promise<GraphQLResponse<TResult>> {
   const baseUrl = getApiBaseUrl(config);
   const url = `${baseUrl}/v1/meta`;
+  const name = operationName(document);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: observeApiHeaders({
-      Authorization: `Bearer ${config.customerId} ${config.token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    }),
-    body: JSON.stringify({
-      query: print(document),
-      variables,
-    }),
-  });
+  const response = await tracedFetch(
+    url,
+    {
+      method: "POST",
+      headers: observeApiHeaders({
+        Authorization: `Bearer ${config.customerId} ${config.token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      }),
+      body: JSON.stringify({
+        query: print(document),
+        variables,
+      }),
+    },
+    { spanName: name ? `GQL ${name}` : "GQL" },
+  );
 
   if (!response.ok) {
     throw new GqlApiError(

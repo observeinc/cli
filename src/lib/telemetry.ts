@@ -26,6 +26,28 @@ const SENSITIVE_FLAGS = new Set([
   "--gql-token",
 ]);
 
+/**
+ * Derive a command-path span name from raw argv (e.g. "tag-value.list").
+ *
+ * Stricli only tells us the resolved route via the `forCommand` context
+ * builder, which it skips when it short-circuits to print help or a route
+ * group's usage. In those cases the span would otherwise keep a generic name,
+ * so we approximate the command path from the leading route-shaped tokens. On
+ * a normal run `setCommandSpanName` overrides this with the exact route prefix.
+ *
+ * We stop at the first token that isn't a route segment (a flag, or a
+ * positional value like an id) so values never leak into the span name and
+ * inflate its cardinality — every route/command in this CLI is lowercase-kebab.
+ */
+export function commandNameFromArgv(argv: string[]): string {
+  const path: string[] = [];
+  for (const token of argv) {
+    if (!/^[a-z][a-z0-9-]*$/.test(token)) break;
+    path.push(token);
+  }
+  return path.length > 0 ? path.join(".") : "cli";
+}
+
 export function redactArgv(argv: string[]): string[] {
   const result: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -136,11 +158,17 @@ export function identityAttributes(
 /**
  * Wrap the entire CLI execution in a single root span.
  *
- * Initialises OTel on first call, creates one "cli.command" span for
- * the full invocation, and attaches argv plus environment metadata as
- * attributes. The span is passed into the callback so that the Stricli
- * context can rename it to the resolved command path (e.g.
- * "dataset.list") once routing completes.
+ * Initialises OTel on first call, creates one root span for the full
+ * invocation, and attaches argv plus environment metadata as attributes. The
+ * span is kind SERVER so Observe treats it as the trace's service entry point,
+ * and is named from argv up front (see `commandNameFromArgv`) so it still
+ * carries a meaningful name when Stricli short-circuits to help. The span is
+ * passed into the callback so the Stricli context can rename it to the exact
+ * resolved command path once routing completes.
+ *
+ * If the callback returns a number it is recorded as `cli.exit_code` and drives
+ * the span status (non-zero => error); command failures surface this way rather
+ * than by throwing.
  *
  * After the callback finishes (or throws), the provider is shut down
  * so all buffered spans are flushed before the process exits.
@@ -155,16 +183,20 @@ export async function withTelemetry<T>(
 
   await initTracing();
 
-  const { trace, SpanStatusCode } = await import("@opentelemetry/api");
+  const { trace, SpanStatusCode, SpanKind } =
+    await import("@opentelemetry/api");
   const tracer = trace.getTracer(SERVICE_NAME, CURRENT_CLI_VERSION);
   const attrs = resourceAttributes();
+  const commandName = commandNameFromArgv(argv);
 
   return tracer.startActiveSpan(
-    "cli.command",
+    commandName,
     {
+      kind: SpanKind.SERVER,
       attributes: {
         ...attrs,
         ...identityAttributes(OBSERVE_CALLER, detectSessionId()),
+        "cli.command": commandName,
         "cli.argv": redactArgv(argv).join(" "),
         "cli.version": CURRENT_CLI_VERSION,
       },
@@ -172,7 +204,14 @@ export async function withTelemetry<T>(
     async (span) => {
       try {
         const result = await callback(span);
-        span.setStatus({ code: SpanStatusCode.OK });
+        if (typeof result === "number") {
+          span.setAttribute("cli.exit_code", result);
+          span.setStatus({
+            code: result === 0 ? SpanStatusCode.OK : SpanStatusCode.ERROR,
+          });
+        } else {
+          span.setStatus({ code: SpanStatusCode.OK });
+        }
         return result;
       } catch (err) {
         span.setStatus({
@@ -208,10 +247,11 @@ async function shutdownTracing() {
  *
  * Called from the Stricli forCommand context builder once routing is
  * complete so the span carries the actual command path (e.g. "dataset.list")
- * instead of the generic "cli.command".
+ * instead of the argv-derived approximation. A blank prefix (the top-level
+ * default command) is left as-is so we keep the up-front name.
  */
 export function setCommandSpanName(span: Span | undefined, command: string) {
-  if (span) {
+  if (span && command) {
     span.updateName(command);
     span.setAttribute("cli.command", command);
   }
