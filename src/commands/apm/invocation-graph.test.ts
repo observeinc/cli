@@ -137,7 +137,11 @@ describe("apm invocation-graph — mode guards", () => {
   test("--endpoint-name without --service-name is rejected", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     await runExpectingExit(() =>
-      invocationGraph.call(context, { endpointName: "GET /x" }, deps),
+      invocationGraph.call(
+        context,
+        { endpointName: "GET /x", environment: "prod" },
+        deps,
+      ),
     );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain(
@@ -149,7 +153,11 @@ describe("apm invocation-graph — mode guards", () => {
   test("--direct-neighbors-only without --service-name is rejected", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     await runExpectingExit(() =>
-      invocationGraph.call(context, { directNeighborsOnly: true }, deps),
+      invocationGraph.call(
+        context,
+        { directNeighborsOnly: true, environment: "prod" },
+        deps,
+      ),
     );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain(
@@ -168,43 +176,11 @@ describe("apm invocation-graph — mode guards", () => {
     expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
   });
 
-  test("global mode without --environment or --cross-environment is rejected", async () => {
+  test("no --environment is rejected (required in every mode)", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     await runExpectingExit(() => invocationGraph.call(context, {}, deps));
     expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("--cross-environment");
-    expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
-  });
-
-  test("--cross-environment with --environment is rejected", async () => {
-    const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() =>
-      invocationGraph.call(
-        context,
-        { crossEnvironment: true, environment: "prod" },
-        deps,
-      ),
-    );
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain(
-      "Use either --environment or --cross-environment",
-    );
-    expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
-  });
-
-  test("--cross-environment with --service-name is rejected", async () => {
-    const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() =>
-      invocationGraph.call(
-        context,
-        { crossEnvironment: true, serviceName: "checkout" },
-        deps,
-      ),
-    );
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain(
-      "--cross-environment cannot be combined with --service-name",
-    );
+    expect(stderr.join("")).toContain("--environment is required");
     expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
   });
 });
@@ -247,7 +223,7 @@ describe("apm invocation-graph — request & output", () => {
     const { context, stdout } = createMockContext();
     await invocationGraph.call(
       context,
-      { crossEnvironment: true, json: true },
+      { environment: "prod", json: true },
       deps,
     );
     const parsed = JSON.parse(stdout.join(""));
@@ -257,7 +233,7 @@ describe("apm invocation-graph — request & output", () => {
     expect(parsed.invocations[0].source.serviceName).toBe("web");
   });
 
-  test("--environment alone scopes a global graph (no --service-name needed)", async () => {
+  test("--environment alone scopes the environment-wide graph (no --service-name needed)", async () => {
     const { context } = createMockContext();
     await invocationGraph.call(
       context,
@@ -271,22 +247,6 @@ describe("apm invocation-graph — request & output", () => {
     >;
     expect(arg.environment).toBe("prod");
     expect(arg.serviceName).toBeUndefined();
-  });
-
-  test("--cross-environment omits environment in the API call", async () => {
-    const { context } = createMockContext();
-    await invocationGraph.call(
-      context,
-      { crossEnvironment: true, json: true },
-      deps,
-    );
-    const arg = getApmInvocationGraphFn.mock.calls[0]![0] as Record<
-      string,
-      unknown
-    >;
-    expect(arg.environment).toBeUndefined();
-    expect(arg.serviceName).toBeUndefined();
-    expect(arg.crossEnvironment).toBeUndefined();
   });
 
   test("table renders nodes and the mode line", async () => {
@@ -305,12 +265,12 @@ describe("apm invocation-graph — request & output", () => {
     expect(out).toContain("mode: focal-service");
   });
 
-  test("global mode with no edges warns", async () => {
+  test("environment-wide mode with no edges warns", async () => {
     getApmInvocationGraphFn.mockResolvedValueOnce(responseStub([]));
     const { context, stdout } = createMockContext();
-    await invocationGraph.call(context, { crossEnvironment: true }, deps);
+    await invocationGraph.call(context, { environment: "prod" }, deps);
     const out = stdout.join("");
-    expect(out).toContain("mode: global");
+    expect(out).toContain("mode: environment-wide (prod)");
     expect(out).toContain("No invocations found");
   });
 
@@ -318,7 +278,7 @@ describe("apm invocation-graph — request & output", () => {
     const { context, stdout } = createMockContext();
     await invocationGraph.call(
       context,
-      { crossEnvironment: true, format: "csv" },
+      { environment: "prod", format: "csv" },
       deps,
     );
     const out = stdout.join("");
@@ -330,7 +290,7 @@ describe("apm invocation-graph — request & output", () => {
     const { context, stdout } = createMockContext();
     await invocationGraph.call(
       context,
-      { crossEnvironment: true, fields: ["source", "target"] },
+      { environment: "prod", fields: ["source", "target"] },
       deps,
     );
     const out = stdout.join("");

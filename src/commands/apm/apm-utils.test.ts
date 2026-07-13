@@ -62,19 +62,27 @@ describe("describeNode", () => {
 });
 
 describe("describeMode", () => {
-  test("all four modes", () => {
-    expect(describeMode({})).toBe("global");
-    expect(describeMode({ serviceName: "s" })).toBe("focal-service");
-    expect(describeMode({ serviceName: "s", directNeighborsOnly: true })).toBe(
-      "focal-service (1-hop)",
+  test("focal modes", () => {
+    expect(describeMode({ serviceName: "s", environment: "eng" })).toBe(
+      "focal-service",
     );
-    expect(describeMode({ serviceName: "s", endpointName: "GET /x" })).toBe(
-      "focal-endpoint",
-    );
+    expect(
+      describeMode({
+        serviceName: "s",
+        environment: "eng",
+        directNeighborsOnly: true,
+      }),
+    ).toBe("focal-service (1-hop)");
+    expect(
+      describeMode({
+        serviceName: "s",
+        environment: "eng",
+        endpointName: "GET /x",
+      }),
+    ).toBe("focal-endpoint");
   });
-  test("global sub-modes reflect the scope", () => {
-    expect(describeMode({ crossEnvironment: true })).toBe("global (cross-env)");
-    expect(describeMode({ environment: "eng" })).toBe("global (eng)");
+  test("environment-wide mode reflects the scope", () => {
+    expect(describeMode({ environment: "eng" })).toBe("environment-wide (eng)");
   });
 });
 
