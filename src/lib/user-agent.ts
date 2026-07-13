@@ -14,6 +14,34 @@ export function mapAgentNameToCallerSlug(name: string) {
   return sanitized.length > 0 ? sanitized : name;
 }
 
+/**
+ * Host-agent session env vars, in precedence order. The first one present
+ * supplies the session id. Extend by appending new agents.
+ */
+const SESSION_ENV_VARS = [
+  "CLAUDE_CODE_SESSION_ID",
+  "CURSOR_CONVERSATION_ID",
+  "CODEX_THREAD_ID",
+  "CORTEX_SESSION_ID",
+];
+
+/**
+ * Read the host agent's session id from the environment, if present.
+ * Returns the id of the first known session env var that is set, or undefined
+ * when none is.
+ */
+export function detectSessionId(
+  env: Record<string, string | undefined> = process.env,
+): string | undefined {
+  for (const name of SESSION_ENV_VARS) {
+    const id = env[name];
+    if (id !== undefined && id !== "") {
+      return id;
+    }
+  }
+  return undefined;
+}
+
 export async function detectCaller({
   determineAgent: determineAgentFn,
 }: {
@@ -35,12 +63,20 @@ export function buildObserveCliUserAgent(caller?: string) {
 
 export let OBSERVE_CLI_USER_AGENT = buildObserveCliUserAgent();
 
+/**
+ * Resolved caller slug (e.g. "claude-code", "cursor"), populated by
+ * initUserAgent(). Exposed so telemetry can stamp it on the span without
+ * re-running agent detection. Undefined when no host agent is detected.
+ */
+export let OBSERVE_CALLER: string | undefined;
+
 export async function initUserAgent({
   determineAgent,
 }: {
   determineAgent?: typeof import("@vercel/detect-agent").determineAgent;
 } = {}) {
   const caller = await detectCaller({ determineAgent });
+  OBSERVE_CALLER = caller;
   OBSERVE_CLI_USER_AGENT = buildObserveCliUserAgent(caller);
 }
 

@@ -2,6 +2,7 @@ import type { Span } from "@opentelemetry/api";
 import { CURRENT_CLI_VERSION, TELEMETRY_TOKEN, COLLECT_URL } from "./constants";
 import { configExists, loadConfig } from "./config";
 import { getInstallId } from "./state";
+import { OBSERVE_CALLER, detectSessionId } from "./user-agent";
 import {
   ATTR_OS_TYPE,
   ATTR_HOST_ARCH,
@@ -114,6 +115,25 @@ function resourceAttributes() {
 }
 
 /**
+ * Build the host-agent span attributes: `cli.caller` and, when present,
+ * `cli.caller_session_id`. Missing values are omitted; never throws. Pure in
+ * its inputs so it stays deterministic and testable (see withTelemetry).
+ */
+export function identityAttributes(
+  caller: string | undefined,
+  sessionId: string | undefined,
+): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  if (caller) {
+    attrs["cli.caller"] = caller;
+  }
+  if (sessionId) {
+    attrs["cli.caller_session_id"] = sessionId;
+  }
+  return attrs;
+}
+
+/**
  * Wrap the entire CLI execution in a single root span.
  *
  * Initialises OTel on first call, creates one "cli.command" span for
@@ -144,6 +164,7 @@ export async function withTelemetry<T>(
     {
       attributes: {
         ...attrs,
+        ...identityAttributes(OBSERVE_CALLER, detectSessionId()),
         "cli.argv": redactArgv(argv).join(" "),
         "cli.version": CURRENT_CLI_VERSION,
       },

@@ -72,4 +72,63 @@ describe("initUserAgent", () => {
       `observe-cli-ts/${CURRENT_CLI_VERSION} caller/cursor`,
     );
   });
+
+  test("populates OBSERVE_CALLER with the resolved slug", async () => {
+    const userAgent = await import("./user-agent");
+
+    await userAgent.initUserAgent({
+      determineAgent: async () => ({
+        isAgent: true,
+        agent: { name: "claude" },
+      }),
+    });
+
+    expect(userAgent.OBSERVE_CALLER).toBe("claude-code");
+  });
+
+  test("leaves OBSERVE_CALLER undefined when no agent is detected", async () => {
+    const userAgent = await import("./user-agent");
+
+    await userAgent.initUserAgent({
+      determineAgent: async () => ({ isAgent: false, agent: undefined }),
+    });
+
+    expect(userAgent.OBSERVE_CALLER).toBeUndefined();
+  });
+});
+
+describe("detectSessionId", () => {
+  test("returns the id for a present session env var", async () => {
+    const { detectSessionId } = await import("./user-agent");
+    expect(detectSessionId({ CLAUDE_CODE_SESSION_ID: "abc123" })).toBe(
+      "abc123",
+    );
+  });
+
+  test("reads each known agent env var", async () => {
+    const { detectSessionId } = await import("./user-agent");
+    expect(detectSessionId({ CURSOR_CONVERSATION_ID: "c1" })).toBe("c1");
+    expect(detectSessionId({ CODEX_THREAD_ID: "t1" })).toBe("t1");
+    expect(detectSessionId({ CORTEX_SESSION_ID: "s1" })).toBe("s1");
+  });
+
+  test("returns undefined when no session env var is set", async () => {
+    const { detectSessionId } = await import("./user-agent");
+    expect(detectSessionId({})).toBeUndefined();
+  });
+
+  test("ignores an empty-string session env var", async () => {
+    const { detectSessionId } = await import("./user-agent");
+    expect(detectSessionId({ CLAUDE_CODE_SESSION_ID: "" })).toBeUndefined();
+  });
+
+  test("respects precedence when multiple env vars are set", async () => {
+    const { detectSessionId } = await import("./user-agent");
+    expect(
+      detectSessionId({
+        CURSOR_CONVERSATION_ID: "cursor-id",
+        CLAUDE_CODE_SESSION_ID: "claude-id",
+      }),
+    ).toBe("claude-id");
+  });
 });
