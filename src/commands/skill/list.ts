@@ -81,7 +81,16 @@ const FIELD_COLUMNS = {
   }),
 } satisfies Record<FieldName, ColumnDef<SkillResource>>;
 
-async function list(this: LocalContext, flags: ListSkillsFlags): Promise<void> {
+export interface ListSkillsDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function list(
+  this: LocalContext,
+  flags: ListSkillsFlags,
+  deps: ListSkillsDeps = {},
+): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const { process, writer: _writer } = this;
 
   const format = flags.json ? ("json" as const) : flags.format;
@@ -90,7 +99,7 @@ async function list(this: LocalContext, flags: ListSkillsFlags): Promise<void> {
   });
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Fetching skills...");
 

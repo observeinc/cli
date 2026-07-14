@@ -41,10 +41,16 @@ const columns: ColumnDef<TagValuePair>[] = [
   }),
 ];
 
-async function list(
+export interface ListTagValuesDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function list(
   this: LocalContext,
   flags: ListTagValuesFlags,
+  deps: ListTagValuesDeps = {},
 ): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, {
@@ -52,7 +58,7 @@ async function list(
   });
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Searching for tag values...");
 

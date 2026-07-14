@@ -82,11 +82,17 @@ function buildViewData(alert: AlertResource) {
   };
 }
 
-async function view(
+export interface ViewAlertDeps {
+  loadConfig?: typeof loadConfig;
+}
+
+export async function view(
   this: LocalContext,
   flags: ViewAlertFlags,
   alertId: string,
+  deps: ViewAlertDeps = {},
 ): Promise<void> {
+  const { loadConfig: loadConfigImpl = loadConfig } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, {
@@ -94,7 +100,7 @@ async function view(
   });
 
   try {
-    const config = loadConfig();
+    const config = loadConfigImpl();
 
     writer.info("Fetching alert...");
 

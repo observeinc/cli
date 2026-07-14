@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { LocalContext } from "../../context";
-import { createWriter } from "../../lib/writer";
+import { createMockContext as sharedCreateMockContext } from "../../test-helpers";
 import { install } from "./install";
 
 function makeTempDir(): string {
@@ -14,35 +13,9 @@ function makeTempDir(): string {
   return dir;
 }
 
+// install reads process.execPath (to locate the binary dir), so pin it here.
 function createMockContext(env: Record<string, string | undefined> = {}) {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-
-  const mockProcess = {
-    stdout: {
-      write: (msg: string) => {
-        stdout.push(msg);
-        return true;
-      },
-    },
-    stderr: {
-      write: (msg: string) => {
-        stderr.push(msg);
-        return true;
-      },
-    },
-    env,
-    execPath: "/usr/local/bin/observe",
-  };
-
-  return {
-    context: {
-      process: mockProcess,
-      writer: createWriter({ process: mockProcess }),
-    } as unknown as LocalContext,
-    stdout,
-    stderr,
-  };
+  return sharedCreateMockContext({ env, execPath: "/usr/local/bin/observe" });
 }
 
 describe("install command", () => {
