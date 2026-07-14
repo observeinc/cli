@@ -33,6 +33,42 @@ describe("withTelemetry", () => {
   });
 });
 
+describe("identityAttributes", () => {
+  test("includes cli.caller when a caller is set", async () => {
+    const { identityAttributes } = await import("./telemetry");
+    expect(identityAttributes("claude-code", undefined)).toEqual({
+      "cli.caller": "claude-code",
+    });
+  });
+
+  test("includes cli.caller_session_id when a session id is present", async () => {
+    const { identityAttributes } = await import("./telemetry");
+    expect(identityAttributes("cursor", "sess-1")).toEqual({
+      "cli.caller": "cursor",
+      "cli.caller_session_id": "sess-1",
+    });
+  });
+
+  test("omits all attributes when caller and session id are absent", async () => {
+    const { identityAttributes } = await import("./telemetry");
+    expect(identityAttributes(undefined, undefined)).toEqual({});
+  });
+
+  test("includes only cli.caller when a session id is absent", async () => {
+    const { identityAttributes } = await import("./telemetry");
+    expect(identityAttributes("codex", undefined)).toEqual({
+      "cli.caller": "codex",
+    });
+  });
+
+  test("includes only the session id when caller is absent", async () => {
+    const { identityAttributes } = await import("./telemetry");
+    expect(identityAttributes(undefined, "sess-2")).toEqual({
+      "cli.caller_session_id": "sess-2",
+    });
+  });
+});
+
 describe("redactArgv", () => {
   test("redacts --token value (space-separated)", async () => {
     const { redactArgv } = await import("./telemetry");
