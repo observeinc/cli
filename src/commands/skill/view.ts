@@ -2,10 +2,10 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { getSkill } from "../../rest/skill/get-skill";
-import { SkillVisibility } from "../../rest/generated";
+import { fetchBundledSkill } from "../../lib/skills/bundled";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
-import { muteStatusWriter } from "../../lib/writer";
+import { muteStatusWriter, type Writer } from "../../lib/writer";
 import { renderObject } from "../../lib/formatters/object";
 import { renderAsCSV } from "../../lib/formatters/csv";
 
@@ -15,19 +15,42 @@ interface ViewSkillFlags {
   format?: OutputFormat;
   json?: boolean;
   content?: boolean;
+  userDefined?: boolean;
 }
 
 export interface ViewSkillDeps {
   loadConfig?: typeof loadConfig;
+  fetchBundledSkill?: typeof fetchBundledSkill;
+}
+
+/**
+ * A skill normalized for rendering, so the output modes below work the same
+ * whether the skill came from the REST API (user-defined) or the public repo
+ * (bundled). Only the data differs between sources; the dispatch does not.
+ */
+interface SkillView {
+  /** Heading shown after "Skill ". */
+  heading: string;
+  /** Fields rendered as the Details table. */
+  details: object;
+  /** Body shown in the Content section; omitted when empty. */
+  body?: string;
+  /** Raw content emitted by `--content`. */
+  content: string;
+  /** Payload serialized by `--json` / `--csv`. */
+  record: object;
 }
 
 export async function view(
   this: LocalContext,
   flags: ViewSkillFlags,
-  skillId: string,
+  skill: string,
   deps: ViewSkillDeps = {},
 ): Promise<void> {
-  const { loadConfig: loadConfigImpl = loadConfig } = deps;
+  const {
+    loadConfig: loadConfigImpl = loadConfig,
+    fetchBundledSkill: fetchBundledSkillImpl = fetchBundledSkill,
+  } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
   const isStructuredOutput =
@@ -35,42 +58,37 @@ export async function view(
   const writer = muteStatusWriter(_writer, { muted: isStructuredOutput });
 
   try {
-    const config = loadConfigImpl();
-
     writer.info("Fetching skill...");
 
-    const skill = await getSkill({ config, skillId });
+    // Skills are bundled (fetched by name from the public repo) by default;
+    // --user-defined looks up a user-defined skill by id via the REST API.
+    const skillView = flags.userDefined
+      ? await loadUserDefinedSkillView(skill, loadConfigImpl)
+      : await loadBundledSkillView(skill, fetchBundledSkillImpl);
 
-    if (!skill) {
-      writer.error(`Skill not found: ${skillId}`);
+    if (!skillView) {
+      writer.error(`Skill not found: ${skill}`);
       process.exit(1);
       return;
     }
 
-    if (format === "json") {
-      writer.write(JSON.stringify(skill, null, 2));
-      return;
-    }
+    renderSkill(writer, { format, content: flags.content === true }, skillView);
+  } catch (error) {
+    writer.error(`Error: ${await formatApiError(error)}`);
+    process.exit(1);
+  }
+}
 
-    if (format === "csv") {
-      writer.write(renderAsCSV(skill));
-      return;
-    }
+async function loadUserDefinedSkillView(
+  skillId: string,
+  loadConfigImpl: typeof loadConfig,
+): Promise<SkillView | null> {
+  const skill = await getSkill({ config: loadConfigImpl(), skillId });
+  if (!skill) return null;
 
-    if (flags.content) {
-      writer.write(skill.content ?? "");
-      return;
-    }
-
-    writer.write("");
-    writer.write(chalk.bold.white(`Skill ${skill.label}`));
-    writer.write(
-      skill.visibility === SkillVisibility.Listed
-        ? chalk.green(skill.visibility)
-        : chalk.dim(skill.visibility),
-    );
-
-    const data = {
+  return {
+    heading: skill.label,
+    details: {
       id: skill.id,
       label: skill.label,
       description: skill.description,
@@ -79,19 +97,65 @@ export async function view(
       createdAt: skill.createdAt,
       updatedBy: skill.updatedBy.label ?? skill.updatedBy.id,
       updatedAt: skill.updatedAt,
-    };
+    },
+    body: skill.content,
+    content: skill.content ?? "",
+    record: skill,
+  };
+}
 
-    renderObject(data, (text) => writer.write(text));
+async function loadBundledSkillView(
+  name: string,
+  fetchBundledSkillImpl: typeof fetchBundledSkill,
+): Promise<SkillView | null> {
+  const skill = await fetchBundledSkillImpl(name);
+  if (!skill) return null;
 
-    if (skill.content) {
-      writer.write(chalk.bold("Content"));
-      writer.write(chalk.dim("-".repeat(60)));
-      writer.write(skill.content);
-      writer.write("");
-    }
-  } catch (error) {
-    writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+  // `--content` and `record.content` expose the body (the instructions to
+  // follow), matching user-defined skills whose content is likewise just the
+  // body. The frontmatter is invocation metadata, surfaced as separate fields.
+  // The full SKILL.md (`skill.raw`) is kept for a future install command.
+  const record = {
+    name: skill.name,
+    description: skill.description,
+    content: skill.body,
+  };
+  return {
+    heading: skill.name,
+    details: { name: skill.name, description: skill.description },
+    body: skill.body || undefined,
+    content: skill.body,
+    record,
+  };
+}
+
+function renderSkill(
+  writer: Writer,
+  { format, content }: { format?: OutputFormat; content: boolean },
+  view: SkillView,
+): void {
+  if (format === "json") {
+    writer.write(JSON.stringify(view.record, null, 2));
+    return;
+  }
+  if (format === "csv") {
+    writer.write(renderAsCSV(view.record));
+    return;
+  }
+  if (content) {
+    writer.write(view.content);
+    return;
+  }
+
+  writer.write("");
+  writer.write(chalk.bold.white(`Skill ${view.heading}`));
+  writer.write("");
+  renderObject(view.details, (text) => writer.write(text));
+  if (view.body) {
+    writer.write(chalk.bold("Content"));
+    writer.write(chalk.dim("-".repeat(60)));
+    writer.write(view.body);
+    writer.write("");
   }
 }
 
@@ -102,12 +166,20 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
-          brief: "Skill ID",
+          placeholder: "skill",
+          brief:
+            "Bundled skill name, or user-defined skill id (with --user-defined)",
           parse: String,
         },
       ],
     },
     flags: {
+      userDefined: {
+        kind: "boolean",
+        brief:
+          "Fetch a user-defined skill by id from the platform, instead of a bundled skill by name",
+        optional: true,
+      },
       format: {
         kind: "enum",
         values: ["json", "csv"],
@@ -128,6 +200,7 @@ export const viewCommand = defineCommand({
     aliases: {},
   },
   docs: {
-    brief: "View details of an AI agent skill",
+    brief:
+      "View an AI agent skill (bundled by default, or user-defined with --user-defined)",
   },
 });

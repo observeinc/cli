@@ -47,6 +47,7 @@ describe("skill CLI integration", () => {
       // skill view: metadata reflects the saved skill.
       const viewResult = await fixture.runCli`
         observe skill view ${created.id} \
+          --user-defined \
           --format json
       `;
       const viewed = parseJsonOutput(viewResult) as SkillViewJson;
@@ -58,6 +59,7 @@ describe("skill CLI integration", () => {
       // skill view --content: body matches what was saved.
       const contentResult = await fixture.runCli`
         observe skill view ${created.id} \
+          --user-defined \
           --content
       `;
 

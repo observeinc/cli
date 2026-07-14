@@ -39,6 +39,11 @@ export const GITHUB_REPO = "observeinc/cli";
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 export const INSTALL_SCRIPT_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/install.sh`;
 
+// Public repo of Observe-curated ("bundled") skills. Skills live under
+// skills/<name>/SKILL.md on the main branch.
+export const GITHUB_SKILLS_REPO = "observeinc/skills";
+export const GITHUB_SKILLS_RAW_BASE = `https://raw.githubusercontent.com/${GITHUB_SKILLS_REPO}/main/skills`;
+
 export const TELEMETRY_TOKEN =
   typeof OBSERVE_INGEST_TOKEN !== "undefined"
     ? OBSERVE_INGEST_TOKEN

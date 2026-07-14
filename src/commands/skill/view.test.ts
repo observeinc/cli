@@ -10,6 +10,7 @@ import {
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import { resolve } from "node:path";
 import { SkillVisibility, type SkillResource } from "../../rest/generated";
+import type { ParsedSkill } from "../../lib/skills/parse";
 
 const repoRoot = resolve(import.meta.dir, "../../..");
 const getSkillModulePath = resolve(repoRoot, "src/rest/skill/get-skill.ts");
@@ -34,15 +35,31 @@ function skillStub(): SkillResource {
   };
 }
 
+function bundledStub(): ParsedSkill {
+  return {
+    name: "generate-opal",
+    description: "Core OPAL guidance",
+    userInvocable: false,
+    body: "# Core OPAL\nSteps here.",
+    raw: "---\nname: generate-opal\n---\n# Core OPAL\nSteps here.",
+  };
+}
+
 let skillToReturn: SkillResource | null;
 const getSkillFn = mock((_args: { config: unknown; skillId: string }) =>
   Promise.resolve(skillToReturn),
+);
+
+let bundledToReturn: ParsedSkill | null;
+const fetchBundledSkillFn = mock((_name: string) =>
+  Promise.resolve(bundledToReturn),
 );
 
 let view: (typeof import("./view"))["view"];
 
 const deps = {
   loadConfig: loadConfigFn,
+  fetchBundledSkill: fetchBundledSkillFn,
 } as Parameters<(typeof import("./view"))["view"]>[2];
 
 suppressAnsiColor();
@@ -60,7 +77,7 @@ afterAll(() => {
   mock.restore();
 });
 
-describe("skill view", () => {
+describe("skill view — user-defined (--user-defined)", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     getSkillFn.mockClear();
@@ -69,25 +86,30 @@ describe("skill view", () => {
 
   test("passes the skill id and emits JSON with --json", async () => {
     const { context, stdout } = createMockContext();
-    await view.call(context, { json: true }, "skill-1", deps);
+    await view.call(context, { json: true, userDefined: true }, "7291", deps);
 
     expect(getSkillFn).toHaveBeenCalledTimes(1);
     const [firstArgs] = getSkillFn.mock.calls[0]!;
-    expect(firstArgs).toMatchObject({ skillId: "skill-1" });
+    expect(firstArgs).toMatchObject({ skillId: "7291" });
     const payload = JSON.parse(stdout.join("")) as SkillResource;
     expect(payload.id).toBe("skill-1");
   });
 
   test("prints only the raw content with --content", async () => {
     const { context, stdout } = createMockContext();
-    await view.call(context, { content: true }, "skill-1", deps);
+    await view.call(
+      context,
+      { content: true, userDefined: true },
+      "7291",
+      deps,
+    );
     // --content mutes status chatter and prints nothing but the body.
     expect(stdout.join("")).toBe("# Skill body\nSteps here.\n");
   });
 
   test("renders label, metadata, and content by default", async () => {
     const { context, stdout } = createMockContext();
-    await view.call(context, {}, "skill-1", deps);
+    await view.call(context, { userDefined: true }, "7291", deps);
     const out = stdout.join("");
     expect(out).toContain("Skill Investigate Alerts");
     expect(out).toContain("Content");
@@ -98,13 +120,13 @@ describe("skill view", () => {
     skillToReturn = null;
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await view.call(context, {}, "missing", deps);
+      await view.call(context, { userDefined: true }, "7291", deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
     }
     expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("Skill not found: missing");
+    expect(stderr.join("")).toContain("Skill not found: 7291");
   });
 
   test("exits with code 1 on API error", async () => {
@@ -113,12 +135,54 @@ describe("skill view", () => {
     });
     const { context, stderr, getExitCode } = createMockContext();
     try {
-      await view.call(context, {}, "skill-1", deps);
+      await view.call(context, { userDefined: true }, "7291", deps);
       throw new Error("expected process.exit");
     } catch (error) {
       expect((error as Error).message).toBe("process.exit");
     }
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
+  });
+});
+
+describe("skill view — bundled (name)", () => {
+  beforeEach(() => {
+    getSkillFn.mockClear();
+    fetchBundledSkillFn.mockClear();
+    bundledToReturn = bundledStub();
+  });
+
+  test("fetches the bundled skill by name, not the REST path", async () => {
+    const { context } = createMockContext();
+    await view.call(context, {}, "generate-opal", deps);
+    expect(fetchBundledSkillFn).toHaveBeenCalledTimes(1);
+    expect(fetchBundledSkillFn.mock.calls[0]![0]).toBe("generate-opal");
+    expect(getSkillFn).not.toHaveBeenCalled();
+  });
+
+  test("emits JSON with the name and the skill body as content", async () => {
+    const { context, stdout } = createMockContext();
+    await view.call(context, { json: true }, "generate-opal", deps);
+    const payload = JSON.parse(stdout.join("")) as {
+      name: string;
+      content: string;
+    };
+    expect(payload.name).toBe("generate-opal");
+    expect(payload.content).toBe(bundledStub().body);
+  });
+
+  test("prints the skill body with --content", async () => {
+    const { context, stdout } = createMockContext();
+    await view.call(context, { content: true }, "generate-opal", deps);
+    expect(stdout.join("")).toBe(bundledStub().body + "\n");
+  });
+
+  test("renders the name, details, and body by default", async () => {
+    const { context, stdout } = createMockContext();
+    await view.call(context, {}, "generate-opal", deps);
+    const out = stdout.join("");
+    expect(out).toContain("Skill generate-opal");
+    expect(out).toContain("Content");
+    expect(out).toContain("# Core OPAL");
   });
 });
