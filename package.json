@@ -41,6 +41,7 @@
     "@stricli/core": "^1.2.7",
     "@vercel/detect-agent": "^1.2.3",
     "gray-matter": "^4.0.3",
+    "nanotar": "^0.3.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
