@@ -107,17 +107,17 @@ export async function invocationGraph(
     writer.error(
       "--environment is required: the invocation graph is always scoped to a single environment.",
     );
-    process.exit(1);
+    process.exitCode = 1;
     return;
   }
   if (flags.endpointName && !flags.serviceName) {
     writer.error("--endpoint-name requires --service-name.");
-    process.exit(1);
+    process.exitCode = 1;
     return;
   }
   if (flags.directNeighborsOnly && !flags.serviceName) {
     writer.error("--direct-neighbors-only requires --service-name.");
-    process.exit(1);
+    process.exitCode = 1;
     return;
   }
 
@@ -171,7 +171,7 @@ export async function invocationGraph(
     writer.write(formatTable(invocations, columns));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

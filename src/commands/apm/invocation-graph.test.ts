@@ -103,30 +103,16 @@ afterAll(() => {
 function createMockContext() {
   const stdout: string[] = [];
   const stderr: string[] = [];
-  let exitCode: number | undefined;
   const processMock = {
+    exitCode: undefined as number | undefined,
     stdout: { write: (m: string) => (stdout.push(m), true) },
     stderr: { write: (m: string) => (stderr.push(m), true) },
-    exit: (code?: number) => {
-      exitCode = code ?? 0;
-      throw new Error("process.exit");
-    },
   };
   const context = {
     process: processMock,
     writer: createWriter({ process: processMock }),
   } as unknown as LocalContext;
-  return { context, stdout, stderr, getExitCode: () => exitCode };
-}
-
-async function runExpectingExit(fn: () => Promise<void>): Promise<void> {
-  let message: string | undefined;
-  try {
-    await fn();
-  } catch (err) {
-    message = err instanceof Error ? err.message : String(err);
-  }
-  expect(message).toBe("process.exit");
+  return { context, stdout, stderr, getExitCode: () => processMock.exitCode };
 }
 
 describe("apm invocation-graph — mode guards", () => {
@@ -136,12 +122,10 @@ describe("apm invocation-graph — mode guards", () => {
 
   test("--endpoint-name without --service-name is rejected", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() =>
-      invocationGraph.call(
-        context,
-        { endpointName: "GET /x", environment: "prod" },
-        deps,
-      ),
+    await invocationGraph.call(
+      context,
+      { endpointName: "GET /x", environment: "prod" },
+      deps,
     );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain(
@@ -152,12 +136,10 @@ describe("apm invocation-graph — mode guards", () => {
 
   test("--direct-neighbors-only without --service-name is rejected", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() =>
-      invocationGraph.call(
-        context,
-        { directNeighborsOnly: true, environment: "prod" },
-        deps,
-      ),
+    await invocationGraph.call(
+      context,
+      { directNeighborsOnly: true, environment: "prod" },
+      deps,
     );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain(
@@ -168,9 +150,7 @@ describe("apm invocation-graph — mode guards", () => {
 
   test("--service-name without --environment is rejected", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() =>
-      invocationGraph.call(context, { serviceName: "checkout" }, deps),
-    );
+    await invocationGraph.call(context, { serviceName: "checkout" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--environment is required");
     expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
@@ -178,7 +158,7 @@ describe("apm invocation-graph — mode guards", () => {
 
   test("no --environment is rejected (required in every mode)", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() => invocationGraph.call(context, {}, deps));
+    await invocationGraph.call(context, {}, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--environment is required");
     expect(getApmInvocationGraphFn).not.toHaveBeenCalled();

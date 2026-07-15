@@ -74,7 +74,7 @@ export async function view(
     } else {
       writer.error(`Error: ${await formatApiError(error)}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

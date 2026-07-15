@@ -98,12 +98,7 @@ describe("ingest-token list", () => {
     });
 
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await list.call(context, {}, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await list.call(context, {}, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

@@ -113,16 +113,11 @@ describe("datasource create", () => {
 
   test("requires --name for non-AWS connections", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await createDatasourceCmd.call(
-        context,
-        { connectionId: "conn-1", datastreamId: "dsm-1" },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await createDatasourceCmd.call(
+      context,
+      { connectionId: "conn-1", datastreamId: "dsm-1" },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--name is required");
     expect(createDatasourceFn).not.toHaveBeenCalled();
@@ -145,21 +140,16 @@ describe("datasource create", () => {
   test("rejects a mismatched --name for AWS datasources", async () => {
     connectionModuleId = AWS_MODULE_ID;
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await createDatasourceCmd.call(
-        context,
-        {
-          name: "wrong-name",
-          connectionId: "conn-1",
-          datastreamId: "dsm-1",
-          type: "filedrop",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await createDatasourceCmd.call(
+      context,
+      {
+        name: "wrong-name",
+        connectionId: "conn-1",
+        datastreamId: "dsm-1",
+        type: "filedrop",
+      },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("aws-prod-filedrop");
     expect(createDatasourceFn).not.toHaveBeenCalled();
@@ -167,21 +157,16 @@ describe("datasource create", () => {
 
   test("rejects malformed --variables before calling the API", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await createDatasourceCmd.call(
-        context,
-        {
-          name: "my-ds",
-          connectionId: "conn-1",
-          datastreamId: "dsm-1",
-          variables: "not-a-pair",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await createDatasourceCmd.call(
+      context,
+      {
+        name: "my-ds",
+        connectionId: "conn-1",
+        datastreamId: "dsm-1",
+        variables: "not-a-pair",
+      },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--variables");
     expect(createDatasourceFn).not.toHaveBeenCalled();
@@ -192,16 +177,11 @@ describe("datasource create", () => {
       throw new GqlApiError("bad request", 400);
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await createDatasourceCmd.call(
-        context,
-        { name: "my-ds", connectionId: "conn-1", datastreamId: "dsm-1" },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await createDatasourceCmd.call(
+      context,
+      { name: "my-ds", connectionId: "conn-1", datastreamId: "dsm-1" },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("API Error (400)");
   });

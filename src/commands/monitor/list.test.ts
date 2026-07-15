@@ -247,12 +247,7 @@ describe("monitor list — error handling", () => {
       throw new Error("no config file found");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await list.call(context, { json: true }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await list.call(context, { json: true }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -262,12 +257,7 @@ describe("monitor list — error handling", () => {
       Promise.reject(new Error("network failure")),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await list.call(context, { json: true }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await list.call(context, { json: true }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

@@ -58,7 +58,7 @@ export async function create(
       const message = error instanceof Error ? error.message : String(error);
       writer.error(`Error: ${message}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

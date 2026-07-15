@@ -68,7 +68,7 @@ export async function updateDatasourceCmd(
       writer.error(
         `--variables: ${e instanceof Error ? e.message : String(e)}`,
       );
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -95,7 +95,7 @@ export async function updateDatasourceCmd(
       userConfig = loadDatasourceConfig(flags.config, flags.configFile);
     } catch (e) {
       writer.error(e instanceof Error ? e.message : String(e));
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -120,7 +120,7 @@ export async function updateDatasourceCmd(
       existingInputConfig = mapExistingConfigToInput(existing.config);
     } catch (e) {
       writer.error(e instanceof Error ? e.message : String(e));
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -140,7 +140,7 @@ export async function updateDatasourceCmd(
         writer.error(
           `For AWS ${resolvedType ?? "<unknown>"} datasources, the name must be '${expected}'. The CloudFormation stack creates the IAM role with this exact name; using a different name would mean the deployed stack can't authenticate.`,
         );
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
     }
@@ -166,7 +166,7 @@ export async function updateDatasourceCmd(
       const message = error instanceof Error ? error.message : String(error);
       writer.error(`Error: ${message}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

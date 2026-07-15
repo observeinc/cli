@@ -147,17 +147,7 @@ describe("datasource update", () => {
   test("rejects an AWS rename that breaks the naming convention", async () => {
     connectionModuleId = AWS_MODULE_ID;
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await updateDatasourceCmd.call(
-        context,
-        { name: "renamed" },
-        "ds-1",
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await updateDatasourceCmd.call(context, { name: "renamed" }, "ds-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("aws-prod-filedrop");
     expect(updateDatasourceFn).not.toHaveBeenCalled();
@@ -175,12 +165,7 @@ describe("datasource update", () => {
       },
     };
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await updateDatasourceCmd.call(context, {}, "ds-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await updateDatasourceCmd.call(context, {}, "ds-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Contact Observe support");
     expect(updateDatasourceFn).not.toHaveBeenCalled();
@@ -191,12 +176,7 @@ describe("datasource update", () => {
       throw new GqlApiError("conflict", 409);
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await updateDatasourceCmd.call(context, {}, "ds-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await updateDatasourceCmd.call(context, {}, "ds-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("API Error (409)");
   });

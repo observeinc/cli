@@ -113,12 +113,7 @@ describe("ingest-token update", () => {
 
   test("exits with code 1 when no editable field is provided", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await update.call(context, {}, "token-123", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await update.call(context, {}, "token-123", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Nothing to update");
     expect(viewIngestTokenFn).not.toHaveBeenCalled();
@@ -134,12 +129,7 @@ describe("ingest-token update", () => {
     });
 
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await update.call(context, { name: "fail" }, "token-123", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await update.call(context, { name: "fail" }, "token-123", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

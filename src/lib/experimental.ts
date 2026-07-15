@@ -92,7 +92,7 @@ export function processExperimentalCommandArgs<
       return function (this: CONTEXT, flags: FLAGS, ...rest: ARGS) {
         if (!isExperimentalEnabled()) {
           this.writer.error(disabledMessage());
-          this.process.exit(1);
+          this.process.exitCode = 1;
           return;
         }
         return fn.call(this, flags, ...rest);

@@ -53,7 +53,7 @@ export async function configure(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     writer.error(`Failed to save configuration: ${message}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

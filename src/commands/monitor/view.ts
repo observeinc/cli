@@ -45,7 +45,7 @@ export async function view(
     writer.error(
       `Invalid monitor ID: "${monitorId}". Must be a positive integer.`,
     );
-    process.exit(1);
+    process.exitCode = 1;
     return;
   }
 
@@ -58,7 +58,7 @@ export async function view(
 
     if (!monitor) {
       writer.error(`Monitor not found: ${monitorId}`);
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -107,7 +107,7 @@ export async function view(
     writer.write(JSON.stringify(stripLayout(monitor.definition), null, 2));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

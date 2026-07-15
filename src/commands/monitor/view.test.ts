@@ -60,12 +60,7 @@ describe("monitor view — ID validation", () => {
 
   test("ID exceeding MAX_SAFE_INTEGER exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, String(Number.MAX_SAFE_INTEGER + 1), deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, String(Number.MAX_SAFE_INTEGER + 1), deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
     expect(getMonitorFn).not.toHaveBeenCalled();
@@ -73,12 +68,7 @@ describe("monitor view — ID validation", () => {
 
   test("non-integer ID exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, "abc", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, "abc", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
     expect(getMonitorFn).not.toHaveBeenCalled();
@@ -86,12 +76,7 @@ describe("monitor view — ID validation", () => {
 
   test("float ID exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, "1.5", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, "1.5", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
   });
@@ -103,12 +88,7 @@ describe("monitor view — not found", () => {
   test("exits with code 1 and includes ID in error when monitor not found", async () => {
     getMonitorFn.mockImplementationOnce(() => Promise.resolve(null));
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, "99999", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, "99999", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("99999");
   });
@@ -159,12 +139,7 @@ describe("monitor view — error handling", () => {
       throw new Error("no config file found");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, "42", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, "42", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -174,12 +149,7 @@ describe("monitor view — error handling", () => {
       Promise.reject(new Error("network failure")),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, { json: true }, "42", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, { json: true }, "42", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

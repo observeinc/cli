@@ -79,12 +79,7 @@ describe("monitor-mute delete", () => {
 
   test("without --yes on a non-TTY, aborts (exit 1) and does not delete", async () => {
     const { context, getExitCode } = createMockContext();
-    try {
-      await remove.call(context, {}, "mute-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await remove.call(context, {}, "mute-1", deps);
     expect(getMonitorMuteFn).toHaveBeenCalledTimes(1);
     expect(deleteMonitorMuteFn).not.toHaveBeenCalled();
     expect(getExitCode()).toBe(1);
@@ -95,12 +90,7 @@ describe("monitor-mute delete", () => {
       throw new Error("not found");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await remove.call(context, { yes: true }, "missing", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await remove.call(context, { yes: true }, "missing", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

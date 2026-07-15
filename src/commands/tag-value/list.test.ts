@@ -107,12 +107,7 @@ describe("tag-value list", () => {
       throw new Error("boom");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await list.call(context, { limit: 25 }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await list.call(context, { limit: 25 }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

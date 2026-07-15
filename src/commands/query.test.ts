@@ -153,20 +153,14 @@ describe("query command", () => {
   test("exits when no --input values are provided", async () => {
     const { context, stderr, getExitCode } = createMockContext();
 
-    try {
-      await query.call(
-        context,
-        {
-          input: [],
-          limit: 10,
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await query.call(
+      context,
+      {
+        input: [],
+        limit: 10,
+      },
+      deps,
+    );
 
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("At least one --input");
@@ -289,23 +283,18 @@ describe("query command", () => {
   test("errors when --interval is combined with --start/--end", async () => {
     const { context, stderr, getExitCode } = createMockContext();
 
-    try {
-      await query.call(
-        context,
-        {
-          input: ["30"],
-          limit: 10,
-          json: true,
-          interval: "4h",
-          start: "2024-01-01T00:00:00Z",
-          end: "2024-01-02T00:00:00Z",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await query.call(
+      context,
+      {
+        input: ["30"],
+        limit: 10,
+        json: true,
+        interval: "4h",
+        start: "2024-01-01T00:00:00Z",
+        end: "2024-01-02T00:00:00Z",
+      },
+      deps,
+    );
 
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Use either --interval or --start/--end");
@@ -355,20 +344,15 @@ describe("query command", () => {
 
     const { context, stderr, getExitCode } = createMockContext();
 
-    try {
-      await query.call(
-        context,
-        {
-          input: ["30"],
-          limit: 10,
-          json: true,
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await query.call(
+      context,
+      {
+        input: ["30"],
+        limit: 10,
+        json: true,
+      },
+      deps,
+    );
 
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Query failed: invalid OPAL pipeline");
@@ -396,20 +380,15 @@ describe("query command", () => {
 
     const { context, stderr, getExitCode } = createMockContext();
 
-    try {
-      await query.call(
-        context,
-        {
-          input: ["30"],
-          limit: 10,
-          json: true,
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await query.call(
+      context,
+      {
+        input: ["30"],
+        limit: 10,
+        json: true,
+      },
+      deps,
+    );
 
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Query failed: No schema returned");
@@ -435,20 +414,15 @@ describe("query command", () => {
 
     const { context, stderr, getExitCode } = createMockContext();
 
-    try {
-      await query.call(
-        context,
-        {
-          input: ["30"],
-          limit: 10,
-          json: true,
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await query.call(
+      context,
+      {
+        input: ["30"],
+        limit: 10,
+        json: true,
+      },
+      deps,
+    );
 
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Query failed: No results");

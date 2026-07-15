@@ -60,7 +60,7 @@ export async function deleteMonitorCommand(
     writer.error(
       `Invalid monitor ID: "${monitorId}". Must be a positive integer.`,
     );
-    process.exit(1);
+    process.exitCode = 1;
     return;
   }
 
@@ -76,14 +76,14 @@ export async function deleteMonitorCommand(
         writer.error(
           "Deleting a monitor is irreversible. Use --yes to confirm deletion in non-interactive mode.",
         );
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
 
       const monitor = await getMonitorImpl({ config, id });
       if (!monitor) {
         writer.error(`Monitor not found: ${monitorId}`);
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
 
@@ -91,7 +91,7 @@ export async function deleteMonitorCommand(
       const confirmed = await confirm(monitor.name);
       if (!confirmed) {
         writer.error("Deletion cancelled.");
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
     }
@@ -103,7 +103,7 @@ export async function deleteMonitorCommand(
     writer.success(`Monitor ${monitorId} deleted.`);
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

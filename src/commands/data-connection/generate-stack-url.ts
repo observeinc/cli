@@ -52,7 +52,7 @@ export async function generateStackUrlCmd(
       writer.error(
         `--stack-name must match the connection name '${connection.name}' (or omit --stack-name to default to it). The CloudFormation stack creates IAM roles using the stack name; using a different name would mean the deployed stack can't authenticate against the datasources.`,
       );
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -62,7 +62,7 @@ export async function generateStackUrlCmd(
       writer.error(
         `Connection ${id} has no '${VAR_ACCOUNT_REGION}' variable; pass --region explicitly`,
       );
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -80,7 +80,7 @@ export async function generateStackUrlCmd(
       writer.error(
         `Connection ${id} has no Filedrop or Poller datasource; create one with 'observe datasource create' first`,
       );
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -93,7 +93,7 @@ export async function generateStackUrlCmd(
       writer.error(
         `Filedrop datasource ${filedropDs.id} is missing datasourceFiledropConfig; cannot build stack URL`,
       );
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -106,7 +106,7 @@ export async function generateStackUrlCmd(
         writer.error(
           "Could not determine Observe AWS account ID from currentCustomer.cloudInfo; cannot build poller stack URL",
         );
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
       observeAwsAccountId = cloudInfo.accountId;
@@ -168,7 +168,7 @@ export async function generateStackUrlCmd(
       const message = error instanceof Error ? error.message : String(error);
       writer.error(`Error: ${message}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

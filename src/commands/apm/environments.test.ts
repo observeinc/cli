@@ -81,30 +81,16 @@ afterAll(() => {
 function createMockContext() {
   const stdout: string[] = [];
   const stderr: string[] = [];
-  let exitCode: number | undefined;
   const processMock = {
+    exitCode: undefined as number | undefined,
     stdout: { write: (m: string) => (stdout.push(m), true) },
     stderr: { write: (m: string) => (stderr.push(m), true) },
-    exit: (code?: number) => {
-      exitCode = code ?? 0;
-      throw new Error("process.exit");
-    },
   };
   const context = {
     process: processMock,
     writer: createWriter({ process: processMock }),
   } as unknown as LocalContext;
-  return { context, stdout, stderr, getExitCode: () => exitCode };
-}
-
-async function runExpectingExit(fn: () => Promise<void>): Promise<void> {
-  let message: string | undefined;
-  try {
-    await fn();
-  } catch (err) {
-    message = err instanceof Error ? err.message : String(err);
-  }
-  expect(message).toBe("process.exit");
+  return { context, stdout, stderr, getExitCode: () => processMock.exitCode };
 }
 
 describe("apm environments", () => {
@@ -185,7 +171,7 @@ describe("apm environments", () => {
   test("API error exits 1", async () => {
     listApmEnvironmentsFn.mockRejectedValueOnce(new Error("nope"));
     const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() => environments.call(context, {}, deps));
+    await environments.call(context, {}, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("nope");
   });

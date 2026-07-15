@@ -75,7 +75,7 @@ export async function query(
     const datasetIds = [...new Set(rawDatasetIds)];
     if (datasetIds.length === 0) {
       writer.error("At least one --input dataset ID is required");
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -205,7 +205,7 @@ export async function query(
   } catch (error) {
     const message = await formatApiError(error);
     writer.error(`Query failed: ${message}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

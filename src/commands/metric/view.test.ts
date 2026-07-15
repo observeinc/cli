@@ -112,12 +112,7 @@ describe("metric view", () => {
   test("errors and exits 1 when the metric is not found", async () => {
     resultToReturn = { match: null, dataset: null };
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, "does.not.exist", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, "does.not.exist", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Metric not found: does.not.exist");
   });
@@ -127,12 +122,7 @@ describe("metric view", () => {
       throw new GqlApiError("nope", 403);
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, "http.server.duration", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, "http.server.duration", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("API Error (403)");
   });

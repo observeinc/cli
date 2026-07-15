@@ -108,7 +108,7 @@ export async function view(
 
     if (!alert) {
       writer.error(`Alert not found: ${alertId}`);
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -137,7 +137,7 @@ export async function view(
     renderObject(viewData, (text) => writer.write(text));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

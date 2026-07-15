@@ -93,12 +93,7 @@ describe("content tracing view", () => {
     });
 
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

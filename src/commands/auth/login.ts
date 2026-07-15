@@ -348,7 +348,7 @@ async function login(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     writer.error(`Authentication failed: ${message}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

@@ -177,12 +177,7 @@ describe("monitor create — file validation", () => {
       }),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("name");
     expect(createMonitorFn).not.toHaveBeenCalled();
@@ -193,12 +188,7 @@ describe("monitor create — file validation", () => {
       JSON.stringify({ name: "My Monitor", definition: STUB_DEFINITION }),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("ruleKind");
     expect(createMonitorFn).not.toHaveBeenCalled();
@@ -209,12 +199,7 @@ describe("monitor create — file validation", () => {
       JSON.stringify({ name: "My Monitor", ruleKind: MonitorV2RuleKind.Count }),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("definition");
     expect(createMonitorFn).not.toHaveBeenCalled();
@@ -223,12 +208,7 @@ describe("monitor create — file validation", () => {
   test("invalid JSON in --file exits with code 1 and mentions the flag", async () => {
     readFileFn.mockImplementationOnce(() => "{ invalid json {{");
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--file");
   });
@@ -247,12 +227,7 @@ describe("monitor create — error handling", () => {
       Promise.reject(new Error("network failure")),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -262,12 +237,7 @@ describe("monitor create — error handling", () => {
       throw new Error("no config file found");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -279,12 +249,7 @@ describe("monitor create — error handling", () => {
       );
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -294,12 +259,7 @@ describe("monitor create — error handling", () => {
       Promise.resolve({ id: undefined } as unknown as MonitorV2),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -310,12 +270,7 @@ describe("monitor create — error handling", () => {
     );
     getMonitorFn.mockImplementationOnce(() => Promise.resolve(null));
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { file: "/monitor.json", json: true }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { file: "/monitor.json", json: true }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

@@ -170,21 +170,16 @@ describe("metric list routing", () => {
 
   test("rejects --correlation-tag-value without --correlation-tag-key at runtime", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await list.call(
-        context,
-        {
-          limit: 10,
-          match: "",
-          json: true,
-          correlationTagValue: "checkout",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await list.call(
+      context,
+      {
+        limit: 10,
+        match: "",
+        json: true,
+        correlationTagValue: "checkout",
+      },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--correlation-tag-value");
     expect(listMetricsFn).not.toHaveBeenCalled();

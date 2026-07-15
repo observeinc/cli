@@ -68,14 +68,14 @@ export async function view(
 
     if (!skillView) {
       writer.error(`Skill not found: ${skill}`);
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
     renderSkill(writer, { format, content: flags.content === true }, skillView);
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

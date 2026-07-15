@@ -62,7 +62,7 @@ export async function remove(
       const confirmed = await confirm.call(this, "Delete this mute rule?");
       if (!confirmed) {
         writer.info("Aborted. Re-run with --yes to skip this prompt.");
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
     }
@@ -77,7 +77,7 @@ export async function remove(
     writer.write(chalk.green(`Deleted monitor mute ${chalk.bold(id)}.`));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

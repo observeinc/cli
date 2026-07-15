@@ -93,16 +93,11 @@ describe("auth configure", () => {
       throw new Error("disk full");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await configure.call(
-        context,
-        { customerId: "c1", token: "t1234", domain: "observeinc.com" },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await configure.call(
+      context,
+      { customerId: "c1", token: "t1234", domain: "observeinc.com" },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Failed to save configuration");
     expect(stderr.join("")).toContain("disk full");

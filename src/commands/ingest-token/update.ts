@@ -37,7 +37,8 @@ export async function update(
       writer.error(
         "Nothing to update: pass at least one of --name, --description, --disabled",
       );
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
 
     const config = loadConfigImpl();
@@ -69,7 +70,7 @@ export async function update(
       const message = error instanceof Error ? error.message : String(error);
       writer.error(`Error: ${message}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

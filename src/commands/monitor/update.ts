@@ -49,7 +49,7 @@ export async function update(
     writer.error(
       `Invalid monitor ID: "${monitorId}". Must be a positive integer.`,
     );
-    process.exit(1);
+    process.exitCode = 1;
     return;
   }
 
@@ -96,7 +96,7 @@ export async function update(
     writer.success(`Monitor ${monitorId} updated.`);
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

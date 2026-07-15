@@ -136,20 +136,15 @@ describe("data-connection create aws", () => {
   test("errors when no stable version can be resolved", async () => {
     pickedVersion = undefined;
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await createAwsConnectionCmd.call(
-        context,
-        {
-          name: "my-aws",
-          accountRegion: "us-west-2",
-          accountId: "123456789012",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await createAwsConnectionCmd.call(
+      context,
+      {
+        name: "my-aws",
+        accountRegion: "us-west-2",
+        accountId: "123456789012",
+      },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("No published versions");
     expect(createConnectionFn).not.toHaveBeenCalled();
@@ -160,21 +155,16 @@ describe("data-connection create aws", () => {
       throw new GqlApiError("forbidden", 403);
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await createAwsConnectionCmd.call(
-        context,
-        {
-          name: "my-aws",
-          version: "0.5.0",
-          accountRegion: "us-west-2",
-          accountId: "123456789012",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await createAwsConnectionCmd.call(
+      context,
+      {
+        name: "my-aws",
+        version: "0.5.0",
+        accountRegion: "us-west-2",
+        accountId: "123456789012",
+      },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("API Error (403)");
   });

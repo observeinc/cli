@@ -119,12 +119,9 @@ describe("skill view — user-defined (--user-defined)", () => {
   test("errors and exits 1 when the skill is not found", async () => {
     skillToReturn = null;
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, { userDefined: true }, "7291", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    // Returns normally (no process.exit) after setting exitCode, so the span
+    // still flushes; assert the failure signal, not a thrown bail-out.
+    await view.call(context, { userDefined: true }, "7291", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Skill not found: 7291");
   });
@@ -134,12 +131,7 @@ describe("skill view — user-defined (--user-defined)", () => {
       throw new Error("boom");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, { userDefined: true }, "7291", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, { userDefined: true }, "7291", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

@@ -115,12 +115,7 @@ describe("monitor mute update", () => {
 
   test("exits 1 when no fields are provided", async () => {
     const { context, getExitCode, stderr } = createMockContext();
-    try {
-      await update.call(context, { json: true }, "mute-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await update.call(context, { json: true }, "mute-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Nothing to update");
     expect(updateMonitorMuteFn).not.toHaveBeenCalled();
@@ -131,12 +126,7 @@ describe("monitor mute update", () => {
       throw new Error("bad schedule");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await update.call(context, { label: "x" }, "mute-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await update.call(context, { label: "x" }, "mute-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

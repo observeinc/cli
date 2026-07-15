@@ -120,17 +120,12 @@ describe("data-connection generate-stack-url", () => {
   // Guard: stack name must equal the connection name (IAM role naming).
   test("rejects a --stack-name that does not match the connection name", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await generateStackUrlCmd.call(
-        context,
-        { stackName: "different" },
-        "conn-1",
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await generateStackUrlCmd.call(
+      context,
+      { stackName: "different" },
+      "conn-1",
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--stack-name must match");
   });
@@ -141,12 +136,7 @@ describe("data-connection generate-stack-url", () => {
       variables: [],
     };
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await generateStackUrlCmd.call(context, {}, "conn-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await generateStackUrlCmd.call(context, {}, "conn-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("account_region");
   });
@@ -154,12 +144,7 @@ describe("data-connection generate-stack-url", () => {
   test("errors when the connection has no filedrop or poller datasource", async () => {
     connectionToReturn = { ...filedropConnection(), datasources: [] };
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await generateStackUrlCmd.call(context, {}, "conn-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await generateStackUrlCmd.call(context, {}, "conn-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("no Filedrop or Poller datasource");
   });
@@ -202,12 +187,7 @@ describe("data-connection generate-stack-url", () => {
     };
     cloudInfoToReturn = null;
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await generateStackUrlCmd.call(context, {}, "conn-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await generateStackUrlCmd.call(context, {}, "conn-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Observe AWS account ID");
   });
@@ -217,12 +197,7 @@ describe("data-connection generate-stack-url", () => {
       throw new GqlApiError("boom", 500);
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await generateStackUrlCmd.call(context, {}, "conn-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await generateStackUrlCmd.call(context, {}, "conn-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("API Error (500)");
   });
