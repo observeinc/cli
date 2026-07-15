@@ -1,6 +1,11 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
-import { configExists, getConfigPath, saveConfig } from "../../lib/config";
+import {
+  configExists,
+  getActiveProfileName,
+  getConfigPath,
+  saveConfig,
+} from "../../lib/config";
 
 interface ConfigureCommandFlags {
   customerId: string;
@@ -13,6 +18,7 @@ export interface ConfigureDeps {
   saveConfig?: typeof saveConfig;
   configExists?: typeof configExists;
   getConfigPath?: typeof getConfigPath;
+  getActiveProfileName?: typeof getActiveProfileName;
 }
 
 export async function configure(
@@ -24,6 +30,7 @@ export async function configure(
     saveConfig: saveConfigImpl = saveConfig,
     configExists: configExistsImpl = configExists,
     getConfigPath: getConfigPathImpl = getConfigPath,
+    getActiveProfileName: getActiveProfileNameImpl = getActiveProfileName,
   } = deps;
   const { process, writer } = this;
 
@@ -44,6 +51,7 @@ export async function configure(
     writer.success(
       `Configuration ${wasExisting ? "updated" : "saved"} successfully!`,
     );
+    writer.info(`  Profile: ${getActiveProfileNameImpl()}`);
     writer.info(`  Config file: ${configPath}`);
     writer.info(`  Customer ID: ${flags.customerId}`);
     if (flags.apiUrl) {

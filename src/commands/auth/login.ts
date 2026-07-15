@@ -8,7 +8,12 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
-import { configExists, getConfigPath, saveConfig } from "../../lib/config";
+import {
+  configExists,
+  getActiveProfileName,
+  getConfigPath,
+  saveConfig,
+} from "../../lib/config";
 import type { Writer } from "../../lib/writer";
 import { performPKCEBrowserLogin } from "../../lib/auth/pkce-browser-login";
 import { performDeviceCodeLogin } from "../../lib/auth/device-code-login";
@@ -342,6 +347,7 @@ async function login(
     writer.success(
       `Authentication ${wasExisting ? "updated" : "completed"} successfully!`,
     );
+    writer.info(`  Profile: ${getActiveProfileName()}`);
     writer.info(`  Config file: ${configPath}`);
     writer.info(`  Customer ID: ${authResult.customerId}`);
     writer.info(`  API URL: ${authResult.apiUrl}`);

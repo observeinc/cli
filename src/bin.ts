@@ -3,11 +3,15 @@ import { app } from "./app.js";
 import { buildContext } from "./context.js";
 import { error } from "./lib/formatters/colors.js";
 import { initUserAgent } from "./lib/user-agent.js";
+import { extractProfileFlag } from "./lib/profile.js";
 import { withTelemetry } from "./lib/telemetry.js";
 import { startBackgroundUpdateCheck } from "./lib/update-check.js";
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+  const { args, profile } = extractProfileFlag(process.argv.slice(2));
+  if (profile !== undefined) {
+    process.env.OBSERVE_PROFILE = profile;
+  }
 
   await initUserAgent();
 
