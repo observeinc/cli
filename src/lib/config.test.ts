@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -13,19 +13,16 @@ import {
 } from "./config";
 
 let tmpDir: string;
-let originalHome: string | undefined;
 let originalProfile: string | undefined;
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "observe-config-test-"));
-  originalHome = process.env.HOME;
   originalProfile = process.env.OBSERVE_PROFILE;
-  process.env.HOME = tmpDir;
   delete process.env.OBSERVE_PROFILE;
+  spyOn(os, "homedir").mockReturnValue(tmpDir);
 });
 
 afterEach(() => {
-  process.env.HOME = originalHome;
   if (originalProfile !== undefined) {
     process.env.OBSERVE_PROFILE = originalProfile;
   } else {

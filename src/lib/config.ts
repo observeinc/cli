@@ -29,7 +29,7 @@ type ProfileConfigFile = z.infer<typeof ProfileConfigFileSchema>;
  * Get the configuration directory path
  */
 export function getConfigDir(): string {
-  const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? os.homedir();
+  const homeDir = os.homedir();
   return path.join(homeDir, CONFIG_DIR_NAME);
 }
 
