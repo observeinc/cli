@@ -143,9 +143,7 @@ export function loadConfig(): Config {
 export function saveConfig(config: Config): void {
   const result = ConfigSchema.safeParse(config);
   if (!result.success) {
-    throw new Error(
-      `Invalid configuration: ${result.error.issues.map((i) => i.message).join(", ")}`,
-    );
+    throw new Error(`Invalid configuration:\n${z.prettifyError(result.error)}`);
   }
 
   let file: ProfileConfigFile;
