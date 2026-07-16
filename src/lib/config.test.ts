@@ -1,10 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-} from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -12,7 +6,6 @@ import {
   configExists,
   deleteConfig,
   getActiveProfileName,
-  getCurrentProfileName,
   listProfiles,
   loadConfig,
   saveConfig,
@@ -381,26 +374,5 @@ describe("getActiveProfileName", () => {
 
   test("falls back to 'default' when nothing is configured", () => {
     expect(getActiveProfileName()).toBe("default");
-  });
-});
-
-describe("getCurrentProfileName", () => {
-  test("returns currentProfile from config file", () => {
-    writeConfigFile({
-      currentProfile: "staging",
-      profiles: {
-        staging: {
-          customerId: "222",
-          domain: "staging.com",
-          token: "tok-2",
-        },
-      },
-    });
-
-    expect(getCurrentProfileName()).toBe("staging");
-  });
-
-  test("falls back to 'default' when no config file", () => {
-    expect(getCurrentProfileName()).toBe("default");
   });
 });

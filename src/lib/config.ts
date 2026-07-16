@@ -212,15 +212,6 @@ export function setCurrentProfile(name: string): void {
   saveConfigFile(file);
 }
 
-export function getCurrentProfileName(): string {
-  try {
-    const file = loadConfigFile();
-    return file.currentProfile;
-  } catch {
-    return DEFAULT_PROFILE_NAME;
-  }
-}
-
 /**
  * Get the base URL for the Observe API
  */
