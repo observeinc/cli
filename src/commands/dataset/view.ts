@@ -85,6 +85,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "datasetId",
           brief: "Dataset ID",
           parse: String,
         },

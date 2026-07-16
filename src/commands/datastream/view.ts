@@ -39,6 +39,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "datastreamId",
           brief: "Datastream ID",
           parse: String,
         },

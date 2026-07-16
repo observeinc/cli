@@ -106,7 +106,9 @@ export const updateCommand = defineCommand({
   parameters: {
     positional: {
       kind: "tuple",
-      parameters: [{ brief: "Monitor ID", parse: String }],
+      parameters: [
+        { placeholder: "monitorId", brief: "Monitor ID", parse: String },
+      ],
     },
     flags: {
       file: {

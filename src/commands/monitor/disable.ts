@@ -73,6 +73,7 @@ export const disableCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "monitorId",
           brief: "Monitor ID",
           parse: String,
         },

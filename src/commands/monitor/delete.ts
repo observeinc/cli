@@ -113,7 +113,9 @@ export const deleteCommand = defineCommand({
   parameters: {
     positional: {
       kind: "tuple",
-      parameters: [{ brief: "Monitor ID", parse: String }],
+      parameters: [
+        { placeholder: "monitorId", brief: "Monitor ID", parse: String },
+      ],
     },
     flags: {
       yes: {

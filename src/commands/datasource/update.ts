@@ -238,6 +238,7 @@ export const updateDatasourceCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "datasourceId",
           brief: "Datasource ID to update",
           parse: String,
         },

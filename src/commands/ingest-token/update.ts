@@ -82,6 +82,7 @@ export const updateCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "tokenId",
           brief: "Ingest token ID to update",
           parse: String,
         },

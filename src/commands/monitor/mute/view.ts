@@ -101,6 +101,7 @@ export const viewCommand = buildCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "muteId",
           brief: "Monitor mute rule ID",
           parse: String,
         },

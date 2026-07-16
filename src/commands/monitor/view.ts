@@ -131,6 +131,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "monitorId",
           brief: "Monitor ID",
           parse: String,
         },
