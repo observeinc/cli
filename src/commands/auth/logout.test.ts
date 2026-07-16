@@ -57,7 +57,9 @@ describe("auth logout", () => {
     const [, vars] = deleteAuthtokenFn.mock.calls[0]!;
     expect(vars).toMatchObject({ id: "tok-abc" });
     expect(deleteConfigFn).toHaveBeenCalledTimes(1);
-    expect(stdout.join("")).toContain("Logged out successfully");
+    expect(stdout.join("")).toContain(
+      'Logged out from profile "default" successfully',
+    );
   });
 
   test("skips revocation when there is no token id", async () => {
@@ -67,7 +69,9 @@ describe("auth logout", () => {
 
     expect(deleteAuthtokenFn).not.toHaveBeenCalled();
     expect(deleteConfigFn).toHaveBeenCalledTimes(1);
-    expect(stdout.join("")).toContain("Logged out successfully");
+    expect(stdout.join("")).toContain(
+      'Logged out from profile "default" successfully',
+    );
   });
 
   test("still logs out locally when server revocation fails", async () => {
@@ -76,6 +80,8 @@ describe("auth logout", () => {
     await run.call(context, {}, deps);
 
     expect(deleteConfigFn).toHaveBeenCalledTimes(1);
-    expect(stdout.join("")).toContain("Logged out successfully");
+    expect(stdout.join("")).toContain(
+      'Logged out from profile "default" successfully',
+    );
   });
 });

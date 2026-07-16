@@ -6,7 +6,7 @@ suppressAnsiColor();
 
 describe("auth profile use", () => {
   test("switches to the specified profile", async () => {
-    const setCurrentProfile = mock((_name: string) => {});
+    const setCurrentProfile = mock((_name: string) => undefined);
     const deps: ProfileUseDeps = { setCurrentProfile };
     const { context, stdout } = createMockContext();
 

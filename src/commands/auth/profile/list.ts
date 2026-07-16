@@ -1,10 +1,7 @@
 import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
-import {
-  getActiveProfileName,
-  listProfiles,
-} from "../../../lib/config";
+import { getActiveProfileName, listProfiles } from "../../../lib/config";
 
 export interface ProfileListDeps {
   listProfiles?: typeof listProfiles;

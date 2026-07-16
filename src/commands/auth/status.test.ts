@@ -58,7 +58,10 @@ describe("auth status", () => {
     configPresent = false;
     const { context, stdout, getExitCode } = createMockContext();
     await status.call(context, { json: true }, deps);
-    expect(JSON.parse(stdout.join(""))).toEqual({ authenticated: false });
+    expect(JSON.parse(stdout.join(""))).toEqual({
+      authenticated: false,
+      profile: "default",
+    });
     expect(getExitCode()).toBe(1);
   });
 

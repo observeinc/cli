@@ -178,13 +178,16 @@ export function deleteConfig(): boolean {
   const profileName = getActiveProfileName();
   if (!file.profiles[profileName]) return false;
 
-  delete file.profiles[profileName];
+  file.profiles = Object.fromEntries(
+    Object.entries(file.profiles).filter(([k]) => k !== profileName),
+  );
 
   if (Object.keys(file.profiles).length === 0) {
     fs.unlinkSync(getConfigPath());
   } else {
     if (file.currentProfile === profileName) {
-      file.currentProfile = Object.keys(file.profiles)[0]!;
+      const first = Object.keys(file.profiles)[0];
+      if (first) file.currentProfile = first;
     }
     saveConfigFile(file);
   }
