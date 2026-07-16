@@ -32,9 +32,11 @@ describe("skill CLI integration", () => {
       // Seed a skill via API (not under test).
       const created = await createTestSkill(fixture, label, content);
 
-      // skill list: client-side match filter finds the fixture.
+      // --user-defined: the API-created skill lives in the platform list, not
+      // the bundled catalog that `skill list` now defaults to.
       const listResult = await fixture.runCli`
         observe skill list \
+          --user-defined \
           --format json \
           --match ${prefix}
       `;
