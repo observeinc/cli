@@ -4,19 +4,31 @@ import { profileList, type ProfileListDeps } from "./list";
 
 suppressAnsiColor();
 
+const allProfiles = {
+  default: { customerId: "111", domain: "observeinc", token: "tok-1" },
+  staging: { customerId: "222", domain: "staging.observeinc", token: "tok-2" },
+  production: {
+    customerId: "333",
+    domain: "prod.observeinc",
+    token: "tok-3",
+  },
+};
+
 describe("auth profile list", () => {
-  test("lists profiles with active marker", async () => {
+  test("lists profiles with active marker, customer ID, and domain", async () => {
     const deps: ProfileListDeps = {
       listProfiles: () => ["default", "staging", "production"],
+      loadAllProfiles: () => allProfiles,
       getActiveProfileName: () => "staging",
     };
     const { context, stdout } = createMockContext();
     await profileList.call(context, {}, deps);
 
     const out = stdout.join("");
-    expect(out).toContain("* staging (active)");
+    expect(out).toContain("* staging");
+    expect(out).toContain("222.staging.observeinc");
     expect(out).toContain("default");
-    expect(out).toContain("production");
+    expect(out).toContain("111.observeinc");
     expect(out).not.toContain("* default");
     expect(out).not.toContain("* production");
   });
@@ -24,6 +36,7 @@ describe("auth profile list", () => {
   test("shows message when no profiles exist", async () => {
     const deps: ProfileListDeps = {
       listProfiles: () => [],
+      loadAllProfiles: () => ({}),
       getActiveProfileName: () => "default",
     };
     const { context, stdout } = createMockContext();
@@ -35,13 +48,20 @@ describe("auth profile list", () => {
   test("outputs JSON when --json flag is set", async () => {
     const deps: ProfileListDeps = {
       listProfiles: () => ["default", "staging"],
+      loadAllProfiles: () => allProfiles,
       getActiveProfileName: () => "default",
     };
     const { context, stdout } = createMockContext();
     await profileList.call(context, { json: true }, deps);
 
-    const parsed = JSON.parse(stdout.join(""));
-    expect(parsed.profiles).toEqual(["default", "staging"]);
-    expect(parsed.active).toBe("default");
+    const parsed = JSON.parse(stdout.join("")) as Record<string, unknown>;
+    expect(parsed).toMatchObject({
+      default: { active: true, customerId: "111", domain: "observeinc" },
+      staging: {
+        active: false,
+        customerId: "222",
+        domain: "staging.observeinc",
+      },
+    });
   });
 });

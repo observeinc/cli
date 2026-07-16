@@ -1,10 +1,15 @@
 import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
-import { getActiveProfileName, listProfiles } from "../../../lib/config";
+import {
+  getActiveProfileName,
+  listProfiles,
+  loadAllProfiles,
+} from "../../../lib/config";
 
 export interface ProfileListDeps {
   listProfiles?: typeof listProfiles;
+  loadAllProfiles?: typeof loadAllProfiles;
   getActiveProfileName?: typeof getActiveProfileName;
 }
 
@@ -15,15 +20,27 @@ export async function profileList(
 ): Promise<void> {
   const {
     listProfiles: listProfilesImpl = listProfiles,
+    loadAllProfiles: loadAllProfilesImpl = loadAllProfiles,
     getActiveProfileName: getActiveProfileNameImpl = getActiveProfileName,
   } = deps;
   const { writer } = this;
 
   const profiles = listProfilesImpl();
+  const allProfiles = loadAllProfilesImpl();
   const active = getActiveProfileNameImpl();
 
   if (flags.json) {
-    writer.write(JSON.stringify({ profiles, active }, null, 2));
+    const result = Object.fromEntries(
+      profiles.map((name) => [
+        name,
+        {
+          active: name === active,
+          customerId: allProfiles[name]?.customerId,
+          domain: allProfiles[name]?.domain,
+        },
+      ]),
+    );
+    writer.write(JSON.stringify(result, null, 2));
     return;
   }
 
@@ -35,10 +52,12 @@ export async function profileList(
   }
 
   for (const name of profiles) {
+    const cfg = allProfiles[name];
+    const details = cfg ? chalk.dim(` (${cfg.customerId}.${cfg.domain})`) : "";
     if (name === active) {
-      writer.write(chalk.green(`  * ${name} (active)`));
+      writer.write(chalk.green(`  * ${name}`) + details);
     } else {
-      writer.write(`    ${name}`);
+      writer.write(`    ${name}` + details);
     }
   }
 }

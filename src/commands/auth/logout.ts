@@ -42,6 +42,7 @@ export async function run(
     return;
   }
 
+  const profileName = getActiveProfileNameImpl();
   const config = loadConfigImpl();
 
   // Attempt to revoke token on server (best effort)
@@ -57,9 +58,7 @@ export async function run(
   // Delete local credentials
   deleteConfigImpl();
 
-  writer.success(
-    `Logged out from profile "${getActiveProfileNameImpl()}" successfully.`,
-  );
+  writer.success(`Logged out from profile "${profileName}" successfully.`);
 }
 
 export const logoutCommand = defineCommand({

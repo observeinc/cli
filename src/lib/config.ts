@@ -203,6 +203,15 @@ export function listProfiles(): string[] {
   }
 }
 
+export function loadAllProfiles(): Record<string, Config> {
+  try {
+    const file = loadConfigFile();
+    return file.profiles;
+  } catch {
+    return {};
+  }
+}
+
 export function setCurrentProfile(name: string): void {
   const file = loadConfigFile();
   if (!file.profiles[name]) {
