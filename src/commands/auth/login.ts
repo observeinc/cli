@@ -288,6 +288,10 @@ async function login(
 ): Promise<void> {
   const { process, writer } = this;
 
+  // Capture the currently active profile before the --profile flag overrides it,
+  // so we can detect when credentials are saved to a non-active profile.
+  const previousActiveProfile = getActiveProfileName();
+
   if (flags.profile !== undefined) {
     process.env.OBSERVE_PROFILE = flags.profile;
   }
@@ -348,14 +352,24 @@ async function login(
 
     const configPath = getConfigPath();
     const wasExisting = configExists();
+    const savedProfileName = getActiveProfileName();
 
     writer.success(
       `Authentication ${wasExisting ? "updated" : "completed"} successfully!`,
     );
-    writer.info(`  Profile: ${getActiveProfileName()}`);
+    writer.info(`  Profile: ${savedProfileName}`);
     writer.info(`  Config file: ${configPath}`);
     writer.info(`  Customer ID: ${authResult.customerId}`);
     writer.info(`  API URL: ${authResult.apiUrl}`);
+
+    if (savedProfileName !== previousActiveProfile) {
+      writer.info(
+        `\nTo switch to this profile, run: observe auth profile use ${savedProfileName}`,
+      );
+      writer.info(
+        `Or prefix commands with: OBSERVE_PROFILE=${savedProfileName}`,
+      );
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     writer.error(`Authentication failed: ${message}`);
