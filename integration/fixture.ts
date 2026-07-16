@@ -12,7 +12,12 @@ import { fileURLToPath } from "node:url";
 import { config } from "@dotenvx/dotenvx";
 import { $ } from "bun";
 import { test } from "bun:test";
-import { type Config, ConfigSchema } from "../src/lib/config.ts";
+import {
+  type Config,
+  ConfigSchema,
+  ProfileConfigFileSchema,
+} from "../src/lib/config.ts";
+import { DEFAULT_PROFILE_NAME } from "../src/lib/profile.ts";
 
 const INTEGRATION_ENV = {
   CUSTOMER: "OBSERVE_INTEGRATION_CUSTOMER",
@@ -256,9 +261,16 @@ function writeTenantConfig(homeDir: string, tenant: Config): void {
   const configDir = join(homeDir, ".observe");
   mkdirSync(configDir, { recursive: true, mode: 0o700 });
 
+  const configFile = ProfileConfigFileSchema.parse({
+    currentProfile: DEFAULT_PROFILE_NAME,
+    profiles: {
+      [DEFAULT_PROFILE_NAME]: tenant,
+    },
+  });
+
   writeFileSync(
     join(configDir, "config.json"),
-    JSON.stringify(ConfigSchema.parse(tenant), null, 2),
+    JSON.stringify(configFile, null, 2),
     { mode: 0o600 },
   );
 }
