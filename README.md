@@ -41,6 +41,8 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe auth logout`                   | Clear stored credentials                                |
 | `observe auth status`                   | Show current authentication status                      |
 | `observe auth configure`                | Manually configure CLI credentials                      |
+| `observe auth profile list`             | List all saved profiles                                 |
+| `observe auth profile use`              | Switch the default profile                              |
 | `observe tag-value list`                | Search tag values in the knowledge graph                |
 | `observe tag-key list`                  | Search tag keys in the knowledge graph                  |
 | `observe dataset list`                  | List datasets with optional filtering                   |
@@ -99,6 +101,26 @@ observe auth status
 # Manual configuration
 observe auth configure --domain observeinc --customerId 123456 --token YOUR_API_KEY
 ```
+
+### Profiles
+
+Profiles let you store credentials for multiple Observe environments (e.g. production and staging) and switch between them easily.
+
+```bash
+# Login and save credentials under a named profile
+observe auth login --profile staging --url 123456.observeinc.com
+
+# List all saved profiles
+observe auth profile list
+
+# Permanently switch the default profile
+observe auth profile use staging
+
+# Use a profile for a single command without switching the default
+OBSERVE_PROFILE=staging observe auth status
+```
+
+Profile selection priority: `OBSERVE_PROFILE` env var → `currentProfile` in the config file → `"default"`.
 
 ## Agent Skills
 
