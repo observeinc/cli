@@ -128,3 +128,41 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
+
+      - name: Notify Slack
+        run: |
+          RELEASE_URL=$(gh release view "$TAG" --repo "${{ github.repository }}" --json url --jq '.url')
+          RELEASE_NOTES=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body --jq '.body')
+          # Truncate notes to 2900 chars to stay within Slack block limits
+          RELEASE_NOTES="${RELEASE_NOTES:0:2900}"
+          # Escape for JSON
+          RELEASE_NOTES=$(printf '%s' "$RELEASE_NOTES" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+          curl -s -o /dev/null -w "%{http_code}" -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"blocks\": [
+                {
+                  \"type\": \"header\",
+                  \"text\": { \"type\": \"plain_text\", \"text\": \":rocket: observe CLI $TAG released\" }
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": { \"type\": \"mrkdwn\", \"text\": $RELEASE_NOTES }
+                },
+                {
+                  \"type\": \"actions\",
+                  \"elements\": [
+                    {
+                      \"type\": \"button\",
+                      \"text\": { \"type\": \"plain_text\", \"text\": \"View Release\" },
+                      \"url\": \"$RELEASE_URL\",
+                      \"style\": \"primary\"
+                    }
+                  ]
+                }
+              ]
+            }"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
