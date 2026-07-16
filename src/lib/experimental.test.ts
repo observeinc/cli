@@ -23,10 +23,10 @@ function withFlag<T>(value: string | undefined, fn: () => T): T {
 
 function fakeContext() {
   const errors: string[] = [];
-  const exits: number[] = [];
   const noop = () => {
     return;
   };
+  const process = { exitCode: undefined as number | undefined };
   const ctx = {
     writer: {
       write: noop,
@@ -35,13 +35,9 @@ function fakeContext() {
       warn: noop,
       error: (msg: string) => errors.push(msg),
     },
-    process: {
-      exit: (code?: number) => {
-        exits.push(code ?? 0);
-      },
-    },
+    process,
   } as unknown as LocalContext;
-  return { ctx, errors, exits };
+  return { ctx, errors, process };
 }
 
 /** A dummy leaf command that records when its action runs. */
@@ -89,13 +85,13 @@ describe("experimental commands", () => {
     const off = fakeContext();
     withFlag(undefined, () => void action.call(off.ctx, {}));
     expect(ran).toBe(false);
-    expect(off.exits).toEqual([1]);
+    expect(off.process.exitCode).toBe(1);
     expect(off.errors[0]).toContain(EXPERIMENTAL_ENV_VAR);
 
     const on = fakeContext();
     withFlag("1", () => void action.call(on.ctx, {}));
     expect(ran).toBe(true);
-    expect(on.exits).toEqual([]);
+    expect(on.process.exitCode).toBeUndefined();
   });
 });
 

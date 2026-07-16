@@ -47,17 +47,12 @@ describe("monitor delete — ID validation", () => {
 
   test("ID exceeding MAX_SAFE_INTEGER exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await deleteMonitorCommand.call(
-        context,
-        {},
-        String(Number.MAX_SAFE_INTEGER + 1),
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await deleteMonitorCommand.call(
+      context,
+      {},
+      String(Number.MAX_SAFE_INTEGER + 1),
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
     expect(deleteMonitorFn).not.toHaveBeenCalled();
@@ -65,12 +60,7 @@ describe("monitor delete — ID validation", () => {
 
   test("non-integer ID exits with code 1 and does not call deleteMonitor", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await deleteMonitorCommand.call(context, {}, "abc", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await deleteMonitorCommand.call(context, {}, "abc", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
     expect(deleteMonitorFn).not.toHaveBeenCalled();
@@ -78,12 +68,7 @@ describe("monitor delete — ID validation", () => {
 
   test("float ID exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await deleteMonitorCommand.call(context, {}, "1.5", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await deleteMonitorCommand.call(context, {}, "1.5", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
   });
@@ -94,12 +79,7 @@ describe("monitor delete — yes guard", () => {
 
   test("without --yes exits 1 with irreversible message and does not call deleteMonitor", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("irreversible");
     expect(deleteMonitorFn).not.toHaveBeenCalled();
@@ -136,16 +116,11 @@ describe("monitor delete — yes guard", () => {
       Promise.resolve({ id: Number(TEST_MONITOR_ID), name: "Test Monitor" }),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, {
-        ...deps,
-        getMonitor: getMonitorFn as never,
-        confirmFn: async () => false,
-      });
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await deleteMonitorCommand.call(context, {}, TEST_MONITOR_ID, {
+      ...deps,
+      getMonitor: getMonitorFn as never,
+      confirmFn: async () => false,
+    });
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("cancelled");
     expect(deleteMonitorFn).not.toHaveBeenCalled();
@@ -197,17 +172,12 @@ describe("monitor delete — error handling", () => {
       throw new Error("no config file found");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await deleteMonitorCommand.call(
-        context,
-        { yes: true },
-        TEST_MONITOR_ID,
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await deleteMonitorCommand.call(
+      context,
+      { yes: true },
+      TEST_MONITOR_ID,
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -217,17 +187,12 @@ describe("monitor delete — error handling", () => {
       Promise.reject(new Error("not found")),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await deleteMonitorCommand.call(
-        context,
-        { yes: true },
-        TEST_MONITOR_ID,
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await deleteMonitorCommand.call(
+      context,
+      { yes: true },
+      TEST_MONITOR_ID,
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

@@ -102,12 +102,7 @@ describe("content host install", () => {
     });
 
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await install.call(context, {}, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await install.call(context, {}, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

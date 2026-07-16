@@ -119,16 +119,11 @@ describe("monitor mute create", () => {
 
   test("exits 1 when no target is given", async () => {
     const { context, getExitCode, stderr } = createMockContext();
-    try {
-      await create.call(
-        context,
-        { label: "x", start: "2026-06-23T18:00:00Z", json: true },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(
+      context,
+      { label: "x", start: "2026-06-23T18:00:00Z", json: true },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("target");
     expect(createMonitorMuteFn).not.toHaveBeenCalled();
@@ -136,12 +131,7 @@ describe("monitor mute create", () => {
 
   test("exits 1 when no schedule is given", async () => {
     const { context, getExitCode, stderr } = createMockContext();
-    try {
-      await create.call(context, { label: "x", monitors: ["42"] }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { label: "x", monitors: ["42"] }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("schedule");
     expect(createMonitorMuteFn).not.toHaveBeenCalled();
@@ -149,16 +139,11 @@ describe("monitor mute create", () => {
 
   test("exits 1 when --global is used without --filter", async () => {
     const { context, getExitCode, stderr } = createMockContext();
-    try {
-      await create.call(
-        context,
-        { label: "x", global: true, start: "2026-06-23T18:00:00Z" },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(
+      context,
+      { label: "x", global: true, start: "2026-06-23T18:00:00Z" },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--filter");
     expect(createMonitorMuteFn).not.toHaveBeenCalled();
@@ -169,16 +154,11 @@ describe("monitor mute create", () => {
       throw new Error("bad target");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(
-        context,
-        { label: "x", monitors: ["42"], start: "2026-06-23T18:00:00Z" },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(
+      context,
+      { label: "x", monitors: ["42"], start: "2026-06-23T18:00:00Z" },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

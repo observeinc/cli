@@ -50,19 +50,19 @@ export async function create(
 
     if (!parsed.name || typeof parsed.name !== "string") {
       writer.error('--file must contain a "name" field (string).');
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
     if (!parsed.ruleKind) {
       writer.error(
         `--file must contain a "ruleKind" field (${Object.values(MonitorV2RuleKind).join(", ")}).`,
       );
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
     if (!parsed.definition) {
       writer.error('--file must contain a "definition" field.');
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -99,7 +99,7 @@ export async function create(
     writer.success(`Monitor ${created.id} created.`);
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

@@ -89,7 +89,7 @@ export async function list(
     writer.write(formatTable(tagValuePairs, columns));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

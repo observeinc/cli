@@ -3,6 +3,7 @@ import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import {
   configExists,
+  getActiveProfileName,
   getApiBaseUrl,
   getConfigPath,
   loadConfig,
@@ -16,6 +17,7 @@ export interface StatusDeps {
   getApiBaseUrl?: typeof getApiBaseUrl;
   getConfigPath?: typeof getConfigPath;
   getDefaultWorkspace?: typeof getDefaultWorkspace;
+  getActiveProfileName?: typeof getActiveProfileName;
 }
 
 export async function status(
@@ -29,12 +31,16 @@ export async function status(
     getApiBaseUrl: getApiBaseUrlImpl = getApiBaseUrl,
     getConfigPath: getConfigPathImpl = getConfigPath,
     getDefaultWorkspace: getDefaultWorkspaceImpl = getDefaultWorkspace,
+    getActiveProfileName: getActiveProfileNameImpl = getActiveProfileName,
   } = deps;
   const { process, writer } = this;
+  const profileName = getActiveProfileNameImpl();
 
   if (!configExistsImpl()) {
     if (flags.json) {
-      writer.write(JSON.stringify({ authenticated: false }, null, 2));
+      writer.write(
+        JSON.stringify({ authenticated: false, profile: profileName }, null, 2),
+      );
     } else {
       writer.error(
         "Not authenticated. Run 'observe auth login' to authenticate.",
@@ -73,6 +79,7 @@ export async function status(
     const result = {
       authenticated: true,
       valid,
+      profile: profileName,
       customerId: config.customerId,
       domain: config.domain,
       apiUrl: baseUrl,
@@ -96,6 +103,7 @@ export async function status(
     writer.error("Authentication invalid\n");
   }
 
+  writer.write(chalk.dim("  Profile       ") + profileName);
   writer.write(chalk.dim("  Customer ID   ") + config.customerId);
   writer.write(chalk.dim("  Domain        ") + config.domain);
   writer.write(chalk.dim("  API URL       ") + baseUrl);

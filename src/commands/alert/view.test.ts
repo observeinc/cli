@@ -100,12 +100,7 @@ describe("alert view", () => {
   test("errors and exits 1 when the alert is not found", async () => {
     alertToReturn = null;
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, "missing", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, "missing", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Alert not found: missing");
   });
@@ -115,12 +110,7 @@ describe("alert view", () => {
       throw new Error("boom");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await view.call(context, {}, "alert-1", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await view.call(context, {}, "alert-1", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

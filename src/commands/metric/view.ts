@@ -42,7 +42,7 @@ export async function view(
 
     if (!match) {
       writer.error(`Metric not found: ${name}`);
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -86,7 +86,7 @@ export async function view(
       const message = error instanceof Error ? error.message : String(error);
       writer.error(`Error: ${message}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -97,6 +97,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "metricName",
           brief: "Metric name (exact match)",
           parse: String,
         },

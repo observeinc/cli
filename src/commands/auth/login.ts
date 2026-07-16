@@ -8,7 +8,12 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
-import { configExists, getConfigPath, saveConfig } from "../../lib/config";
+import {
+  configExists,
+  getActiveProfileName,
+  getConfigPath,
+  saveConfig,
+} from "../../lib/config";
 import type { Writer } from "../../lib/writer";
 import { performPKCEBrowserLogin } from "../../lib/auth/pkce-browser-login";
 import { performDeviceCodeLogin } from "../../lib/auth/device-code-login";
@@ -19,6 +24,7 @@ import {
 } from "../../lib/auth/server-discovery";
 
 interface LoginCommandFlags {
+  profile?: string;
   url?: string;
   useDeviceCode?: boolean;
   port?: number;
@@ -282,6 +288,14 @@ async function login(
 ): Promise<void> {
   const { process, writer } = this;
 
+  // Capture the currently active profile before the --profile flag overrides it,
+  // so we can detect when credentials are saved to a non-active profile.
+  const previousActiveProfile = getActiveProfileName();
+
+  if (flags.profile !== undefined) {
+    process.env.OBSERVE_PROFILE = flags.profile;
+  }
+
   try {
     const port = flags.port ?? DEFAULT_PORT;
     let baseUrl: string;
@@ -338,17 +352,28 @@ async function login(
 
     const configPath = getConfigPath();
     const wasExisting = configExists();
+    const savedProfileName = getActiveProfileName();
 
     writer.success(
       `Authentication ${wasExisting ? "updated" : "completed"} successfully!`,
     );
+    writer.info(`  Profile: ${savedProfileName}`);
     writer.info(`  Config file: ${configPath}`);
     writer.info(`  Customer ID: ${authResult.customerId}`);
     writer.info(`  API URL: ${authResult.apiUrl}`);
+
+    if (savedProfileName !== previousActiveProfile) {
+      writer.info(
+        `\nTo switch to this profile, run: observe auth profile use ${savedProfileName}`,
+      );
+      writer.info(
+        `Or prefix commands with: OBSERVE_PROFILE=${savedProfileName}`,
+      );
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     writer.error(`Authentication failed: ${message}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -360,6 +385,13 @@ export const loginCommand = defineCommand({
       parameters: [],
     },
     flags: {
+      profile: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "Profile name to save credentials under (default: active profile)",
+        optional: true,
+      },
       url: {
         kind: "parsed",
         parse: String,
@@ -379,6 +411,7 @@ export const loginCommand = defineCommand({
       },
     },
     aliases: {
+      P: "profile",
       u: "url",
       D: "useDeviceCode",
       p: "port",
@@ -391,9 +424,12 @@ export const loginCommand = defineCommand({
 Browser flow opens your default browser for authentication.
 Device code flow (--useDeviceCode) is useful for headless/remote environments.
 
+To switch between profiles after login, use OBSERVE_PROFILE env var or 'observe auth profile use <name>'.
+
 Examples:
-  observe auth login                                # Discover accounts via browser
-  observe auth login --url https://123456.observeinc.com    # Login to specific customer
+  observe auth login                                              # Discover accounts via browser
+  observe auth login --url https://123456.observeinc.com         # Login to specific customer
+  observe auth login --profile staging -u 123456.observeinc.com  # Login to a named profile
   observe auth login --useDeviceCode -u https://123456.observeinc.com  # Device code flow`,
   },
 });

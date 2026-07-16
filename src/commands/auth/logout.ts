@@ -6,7 +6,12 @@
 
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
-import { configExists, deleteConfig, loadConfig } from "../../lib/config";
+import {
+  configExists,
+  deleteConfig,
+  getActiveProfileName,
+  loadConfig,
+} from "../../lib/config";
 import { deleteAuthtoken } from "../../gql/authtoken/delete-authtoken";
 
 export interface LogoutDeps {
@@ -14,6 +19,7 @@ export interface LogoutDeps {
   loadConfig?: typeof loadConfig;
   deleteConfig?: typeof deleteConfig;
   deleteAuthtoken?: typeof deleteAuthtoken;
+  getActiveProfileName?: typeof getActiveProfileName;
 }
 
 export async function run(
@@ -26,6 +32,7 @@ export async function run(
     loadConfig: loadConfigImpl = loadConfig,
     deleteConfig: deleteConfigImpl = deleteConfig,
     deleteAuthtoken: deleteAuthtokenImpl = deleteAuthtoken,
+    getActiveProfileName: getActiveProfileNameImpl = getActiveProfileName,
   } = deps;
   const { writer } = this;
 
@@ -35,6 +42,7 @@ export async function run(
     return;
   }
 
+  const profileName = getActiveProfileNameImpl();
   const config = loadConfigImpl();
 
   // Attempt to revoke token on server (best effort)
@@ -50,7 +58,7 @@ export async function run(
   // Delete local credentials
   deleteConfigImpl();
 
-  writer.success("Logged out successfully.");
+  writer.success(`Logged out from profile "${profileName}" successfully.`);
 }
 
 export const logoutCommand = defineCommand({

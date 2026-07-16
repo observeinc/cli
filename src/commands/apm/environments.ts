@@ -135,7 +135,7 @@ export async function environments(
     if (hint) writer.info(`\n${hint}`);
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

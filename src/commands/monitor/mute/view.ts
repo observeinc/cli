@@ -90,7 +90,7 @@ export async function view(
     renderObject(buildViewData(mute), (text) => writer.write(text));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -101,6 +101,7 @@ export const viewCommand = buildCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "muteId",
           brief: "Monitor mute rule ID",
           parse: String,
         },

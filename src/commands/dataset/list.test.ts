@@ -220,20 +220,15 @@ describe("dataset list routing", () => {
 
   test("rejects --correlation-tag-value without --correlation-tag-key at runtime", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await list.call(
-        context,
-        {
-          limit: 10,
-          json: true,
-          correlationTagValue: "checkout",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await list.call(
+      context,
+      {
+        limit: 10,
+        json: true,
+        correlationTagValue: "checkout",
+      },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--correlation-tag-value");
     expect(listDatasetsFn).not.toHaveBeenCalled();
@@ -242,22 +237,17 @@ describe("dataset list routing", () => {
 
   test("rejects incompatible flags before calling any backend", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await list.call(
-        context,
-        {
-          limit: 10,
-          json: true,
-          filter: "a = 'b'",
-          correlationTagKey: "k",
-          correlationTagValue: "v",
-        },
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await list.call(
+      context,
+      {
+        limit: 10,
+        json: true,
+        filter: "a = 'b'",
+        correlationTagKey: "k",
+        correlationTagValue: "v",
+      },
+      deps,
+    );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--filter");
     expect(listDatasetsFn).not.toHaveBeenCalled();

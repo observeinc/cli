@@ -92,30 +92,16 @@ afterAll(() => {
 function createMockContext() {
   const stdout: string[] = [];
   const stderr: string[] = [];
-  let exitCode: number | undefined;
   const processMock = {
+    exitCode: undefined as number | undefined,
     stdout: { write: (m: string) => (stdout.push(m), true) },
     stderr: { write: (m: string) => (stderr.push(m), true) },
-    exit: (code?: number) => {
-      exitCode = code ?? 0;
-      throw new Error("process.exit");
-    },
   };
   const context = {
     process: processMock,
     writer: createWriter({ process: processMock }),
   } as unknown as LocalContext;
-  return { context, stdout, stderr, getExitCode: () => exitCode };
-}
-
-async function runExpectingExit(fn: () => Promise<void>): Promise<void> {
-  let message: string | undefined;
-  try {
-    await fn();
-  } catch (err) {
-    message = err instanceof Error ? err.message : String(err);
-  }
-  expect(message).toBe("process.exit");
+  return { context, stdout, stderr, getExitCode: () => processMock.exitCode };
 }
 
 describe("apm services — request mapping", () => {
@@ -191,12 +177,10 @@ describe("apm services — request mapping", () => {
 
   test("--interval with absolute flags is rejected (exit 1)", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() =>
-      services.call(
-        context,
-        { interval: "4h", start: "2026-07-01T00:00:00Z" },
-        deps,
-      ),
+    await services.call(
+      context,
+      { interval: "4h", start: "2026-07-01T00:00:00Z" },
+      deps,
     );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Use either --interval or --start/--end");
@@ -205,9 +189,7 @@ describe("apm services — request mapping", () => {
 
   test("an invalid --start exits 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() =>
-      services.call(context, { start: "garbage" }, deps),
-    );
+    await services.call(context, { start: "garbage" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--start");
     expect(listApmServicesFn).not.toHaveBeenCalled();
@@ -293,7 +275,7 @@ describe("apm services — output", () => {
   test("API error is surfaced and exits 1", async () => {
     listApmServicesFn.mockRejectedValueOnce(new Error("boom"));
     const { context, stderr, getExitCode } = createMockContext();
-    await runExpectingExit(() => services.call(context, {}, deps));
+    await services.call(context, {}, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("boom");
   });

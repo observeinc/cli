@@ -28,7 +28,7 @@ export async function view(
       const message = error instanceof Error ? error.message : String(error);
       writer.error(`Error: ${message}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -40,6 +40,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "tokenId",
           brief: "Ingest token ID",
           parse: String,
         },

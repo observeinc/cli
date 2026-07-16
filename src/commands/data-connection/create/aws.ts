@@ -42,7 +42,7 @@ export async function createAwsConnectionCmd(
         writer.error(
           `No published versions of module '${AWS_MODULE_ID}' found; pass --version explicitly`,
         );
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
     }
@@ -71,7 +71,7 @@ export async function createAwsConnectionCmd(
       const message = error instanceof Error ? error.message : String(error);
       writer.error(`Error: ${message}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

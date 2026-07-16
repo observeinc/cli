@@ -69,17 +69,7 @@ describe("monitor disable — ID validation", () => {
 
   test("ID exceeding MAX_SAFE_INTEGER exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await disable.call(
-        context,
-        {},
-        String(Number.MAX_SAFE_INTEGER + 1),
-        deps,
-      );
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await disable.call(context, {}, String(Number.MAX_SAFE_INTEGER + 1), deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
     expect(updateMonitorFn).not.toHaveBeenCalled();
@@ -87,12 +77,7 @@ describe("monitor disable — ID validation", () => {
 
   test("non-integer ID exits with code 1 and does not call updateMonitor", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await disable.call(context, {}, "abc", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await disable.call(context, {}, "abc", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
     expect(updateMonitorFn).not.toHaveBeenCalled();
@@ -100,12 +85,7 @@ describe("monitor disable — ID validation", () => {
 
   test("float ID exits with code 1", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await disable.call(context, {}, "1.5", deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await disable.call(context, {}, "1.5", deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Invalid monitor ID");
   });
@@ -183,12 +163,7 @@ describe("monitor disable — error handling", () => {
       throw new Error("no config file found");
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await disable.call(context, {}, TEST_MONITOR_ID, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await disable.call(context, {}, TEST_MONITOR_ID, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -198,12 +173,7 @@ describe("monitor disable — error handling", () => {
       Promise.reject(new Error("network failure")),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await disable.call(context, {}, TEST_MONITOR_ID, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await disable.call(context, {}, TEST_MONITOR_ID, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });
@@ -211,12 +181,7 @@ describe("monitor disable — error handling", () => {
   test("getMonitor returning null after disable exits with code 1", async () => {
     getMonitorFn.mockImplementationOnce(() => Promise.resolve(null));
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await disable.call(context, { json: true }, TEST_MONITOR_ID, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await disable.call(context, { json: true }, TEST_MONITOR_ID, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

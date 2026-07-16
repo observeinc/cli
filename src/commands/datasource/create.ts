@@ -49,7 +49,7 @@ export async function createDatasourceCmd(
       writer.error(
         `--variables: ${e instanceof Error ? e.message : String(e)}`,
       );
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -66,7 +66,7 @@ export async function createDatasourceCmd(
       datasourceConfig = loadDatasourceConfig(flags.config, flags.configFile);
     } catch (e) {
       writer.error(e instanceof Error ? e.message : String(e));
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -91,14 +91,14 @@ export async function createDatasourceCmd(
         writer.error(
           `For AWS ${dsType ?? "<unknown>"} datasources, --name must be '${expectedName}' (or omit --name to auto-derive). The CloudFormation stack creates the IAM role with this exact name; using a different name would mean the deployed stack can't authenticate.`,
         );
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
     } else if (name === undefined) {
       writer.error(
         "--name is required (auto-derivation only applies to AWS filedrop/poller datasources)",
       );
-      process.exit(1);
+      process.exitCode = 1;
       return;
     }
 
@@ -123,7 +123,7 @@ export async function createDatasourceCmd(
       const message = error instanceof Error ? error.message : String(error);
       writer.error(`Error: ${message}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

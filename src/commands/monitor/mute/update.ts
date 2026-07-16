@@ -65,7 +65,7 @@ export async function update(
     }
   } catch (e) {
     writer.error(e instanceof Error ? e.message : String(e));
-    process.exit(1);
+    process.exitCode = 1;
     return;
   }
 
@@ -88,7 +88,7 @@ export async function update(
     );
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -99,6 +99,7 @@ export const updateCommand = buildCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "muteId",
           brief: "Monitor mute rule ID",
           parse: String,
         },

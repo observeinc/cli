@@ -127,12 +127,7 @@ describe("datastream create", () => {
     });
 
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await create.call(context, { name: "fail-stream" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await create.call(context, { name: "fail-stream" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Error");
   });

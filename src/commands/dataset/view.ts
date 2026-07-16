@@ -74,7 +74,7 @@ export async function view(
     } else {
       writer.error(`Error: ${await formatApiError(error)}`);
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -85,6 +85,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "datasetId",
           brief: "Dataset ID",
           parse: String,
         },

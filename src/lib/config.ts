@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { CONFIG_DIR_MODE, CONFIG_DIR_NAME, CONFIG_FILES } from "./constants";
+import { DEFAULT_PROFILE_NAME } from "./profile";
 
 /**
  * Schema for Observe CLI configuration
@@ -16,6 +17,13 @@ export const ConfigSchema = z.object({
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
+
+const ProfileConfigFileSchema = z.object({
+  currentProfile: z.string().default(DEFAULT_PROFILE_NAME),
+  profiles: z.record(z.string(), ConfigSchema),
+});
+
+type ProfileConfigFile = z.infer<typeof ProfileConfigFileSchema>;
 
 /**
  * Get the configuration directory path
@@ -48,18 +56,7 @@ export function getConfigPath(): string {
   return path.join(getConfigDir(), CONFIG_FILES.config.name);
 }
 
-/**
- * Check if configuration exists
- */
-export function configExists(): boolean {
-  return fs.existsSync(getConfigPath());
-}
-
-/**
- * Load configuration from file
- * @throws Error if config doesn't exist or is invalid
- */
-export function loadConfig(): Config {
+function loadConfigFile(): ProfileConfigFile {
   const configPath = getConfigPath();
 
   if (!fs.existsSync(configPath)) {
@@ -73,62 +70,155 @@ export function loadConfig(): Config {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(`Failed to parse configuration file as JSON`);
-  }
-
-  const result = ConfigSchema.safeParse(parsed);
-
-  if (!result.success) {
+    fs.unlinkSync(configPath);
     throw new Error(
-      `Invalid configuration: ${result.error.issues.map((i) => i.message).join(", ")}`,
+      `Configuration file was corrupt and has been removed. Run 'observe auth login' to authenticate.`,
     );
   }
 
+  const result = ProfileConfigFileSchema.safeParse(parsed);
+  if (!result.success) {
+    fs.unlinkSync(configPath);
+    throw new Error(
+      `Configuration format is no longer valid and has been removed. Run 'observe auth login' to re-authenticate.`,
+    );
+  }
   return result.data;
 }
 
-/**
- * Save configuration to file
- */
-export function saveConfig(config: Config): void {
+function saveConfigFile(data: ProfileConfigFile): void {
   ensureConfigDir();
-  const configPath = getConfigPath();
-
-  // Validate config before saving
-  const result = ConfigSchema.safeParse(config);
-  if (!result.success) {
-    throw new Error(
-      `Invalid configuration: ${result.error.issues.map((i) => i.message).join(", ")}`,
-    );
-  }
-
-  // Write config file with restricted permissions
-  fs.writeFileSync(configPath, JSON.stringify(result.data, null, 2), {
+  fs.writeFileSync(getConfigPath(), JSON.stringify(data, null, 2), {
     mode: CONFIG_FILES.config.mode,
   });
 }
 
+export function getActiveProfileName(): string {
+  const envProfile = process.env.OBSERVE_PROFILE;
+  if (envProfile) return envProfile;
+
+  try {
+    const file = loadConfigFile();
+    return file.currentProfile;
+  } catch {
+    return DEFAULT_PROFILE_NAME;
+  }
+}
+
 /**
- * Delete configuration file
- * @returns true if config was deleted, false if it didn't exist
+ * Check if configuration exists for the active profile
+ */
+export function configExists(): boolean {
+  try {
+    const file = loadConfigFile();
+    const profileName = getActiveProfileName();
+    return profileName in file.profiles;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Load configuration for the active profile
+ * @throws Error if config doesn't exist or the active profile is missing
+ */
+export function loadConfig(): Config {
+  const file = loadConfigFile();
+  const profileName = getActiveProfileName();
+  const profile = file.profiles[profileName];
+
+  if (!profile) {
+    const available = Object.keys(file.profiles).join(", ");
+    throw new Error(
+      `Profile "${profileName}" not found. Available profiles: ${available}`,
+    );
+  }
+
+  return profile;
+}
+
+/**
+ * Save configuration to the active profile
+ */
+export function saveConfig(config: Config): void {
+  const result = ConfigSchema.safeParse(config);
+  if (!result.success) {
+    throw new Error(`Invalid configuration:\n${z.prettifyError(result.error)}`);
+  }
+
+  let file: ProfileConfigFile;
+  try {
+    file = loadConfigFile();
+  } catch {
+    file = { currentProfile: DEFAULT_PROFILE_NAME, profiles: {} };
+  }
+
+  const profileName = getActiveProfileName();
+  file.profiles[profileName] = result.data;
+
+  if (Object.keys(file.profiles).length === 1) {
+    file.currentProfile = profileName;
+  }
+
+  saveConfigFile(file);
+}
+
+/**
+ * Delete the active profile's configuration
+ * @returns true if the profile was deleted, false if it didn't exist
  */
 export function deleteConfig(): boolean {
-  const configPath = getConfigPath();
-
-  if (!fs.existsSync(configPath)) {
+  let file: ProfileConfigFile;
+  try {
+    file = loadConfigFile();
+  } catch {
     return false;
   }
 
-  fs.unlinkSync(configPath);
+  const profileName = getActiveProfileName();
+  if (!file.profiles[profileName]) return false;
+
+  file.profiles = Object.fromEntries(
+    Object.entries(file.profiles).filter(([k]) => k !== profileName),
+  );
+
+  if (Object.keys(file.profiles).length === 0) {
+    fs.unlinkSync(getConfigPath());
+  } else {
+    if (file.currentProfile === profileName) {
+      const first = Object.keys(file.profiles)[0];
+      if (first) file.currentProfile = first;
+    }
+    saveConfigFile(file);
+  }
   return true;
+}
+
+export function loadAllProfiles(): Record<string, Config> {
+  try {
+    const file = loadConfigFile();
+    return file.profiles;
+  } catch {
+    return {};
+  }
+}
+
+export function setCurrentProfile(name: string): void {
+  const file = loadConfigFile();
+  if (!file.profiles[name]) {
+    const available = Object.keys(file.profiles).join(", ");
+    throw new Error(
+      `Profile "${name}" not found. Available profiles: ${available}`,
+    );
+  }
+  file.currentProfile = name;
+  saveConfigFile(file);
 }
 
 /**
  * Get the base URL for the Observe API
  */
 export function getApiBaseUrl(config: Config): string {
-  // apiUrl is the full API endpoint (e.g., "https://123456789012.observe-sandbox.com/v1/meta")
-  // Strip the /v1/meta suffix to get the base URL
   if (config.apiUrl) {
     return config.apiUrl.replace(/\/v1\/meta$/, "");
   }

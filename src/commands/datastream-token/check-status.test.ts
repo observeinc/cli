@@ -104,12 +104,7 @@ describe("datastream-token check-status", () => {
       throw new GqlApiError("nope", 403);
     });
     const { context, stderr, getExitCode } = createMockContext();
-    try {
-      await checkStatus.call(context, { tokenId: "tok-1" }, deps);
-      throw new Error("expected process.exit");
-    } catch (error) {
-      expect((error as Error).message).toBe("process.exit");
-    }
+    await checkStatus.call(context, { tokenId: "tok-1" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("API Error (403)");
   });
