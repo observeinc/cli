@@ -1,14 +1,9 @@
 import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
-import {
-  getActiveProfileName,
-  listProfiles,
-  loadAllProfiles,
-} from "../../../lib/config";
+import { getActiveProfileName, loadAllProfiles } from "../../../lib/config";
 
 export interface ProfileListDeps {
-  listProfiles?: typeof listProfiles;
   loadAllProfiles?: typeof loadAllProfiles;
   getActiveProfileName?: typeof getActiveProfileName;
 }
@@ -19,14 +14,13 @@ export async function profileList(
   deps: ProfileListDeps = {},
 ): Promise<void> {
   const {
-    listProfiles: listProfilesImpl = listProfiles,
     loadAllProfiles: loadAllProfilesImpl = loadAllProfiles,
     getActiveProfileName: getActiveProfileNameImpl = getActiveProfileName,
   } = deps;
   const { writer } = this;
 
-  const profiles = listProfilesImpl();
   const allProfiles = loadAllProfilesImpl();
+  const profiles = Object.keys(allProfiles);
   const active = getActiveProfileNameImpl();
 
   if (flags.json) {

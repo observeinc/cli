@@ -17,7 +17,6 @@ const allProfiles = {
 describe("auth profile list", () => {
   test("lists profiles with active marker, customer ID, and domain", async () => {
     const deps: ProfileListDeps = {
-      listProfiles: () => ["default", "staging", "production"],
       loadAllProfiles: () => allProfiles,
       getActiveProfileName: () => "staging",
     };
@@ -35,7 +34,6 @@ describe("auth profile list", () => {
 
   test("shows message when no profiles exist", async () => {
     const deps: ProfileListDeps = {
-      listProfiles: () => [],
       loadAllProfiles: () => ({}),
       getActiveProfileName: () => "default",
     };
@@ -47,7 +45,6 @@ describe("auth profile list", () => {
 
   test("outputs JSON when --json flag is set", async () => {
     const deps: ProfileListDeps = {
-      listProfiles: () => ["default", "staging"],
       loadAllProfiles: () => allProfiles,
       getActiveProfileName: () => "default",
     };

@@ -194,15 +194,6 @@ export function deleteConfig(): boolean {
   return true;
 }
 
-export function listProfiles(): string[] {
-  try {
-    const file = loadConfigFile();
-    return Object.keys(file.profiles);
-  } catch {
-    return [];
-  }
-}
-
 export function loadAllProfiles(): Record<string, Config> {
   try {
     const file = loadConfigFile();

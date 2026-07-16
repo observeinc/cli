@@ -84,4 +84,32 @@ describe("auth logout", () => {
       'Logged out from profile "default" successfully',
     );
   });
+
+  test("success message uses profile name captured before config is deleted", async () => {
+    // Simulate: getActiveProfileName returns "staging" before delete, but
+    // falls back to "default" after the config file has been removed.
+    let deleted = false;
+    const getActiveProfileNameFn = mock(() =>
+      deleted ? "default" : "staging",
+    );
+    const deleteConfigWithSideEffect = mock(() => {
+      deleted = true;
+      return true;
+    });
+
+    const { context, stdout } = createMockContext();
+    await run.call(
+      context,
+      {},
+      {
+        ...deps,
+        deleteConfig: deleteConfigWithSideEffect,
+        getActiveProfileName: getActiveProfileNameFn,
+      },
+    );
+
+    expect(stdout.join("")).toContain(
+      'Logged out from profile "staging" successfully',
+    );
+  });
 });

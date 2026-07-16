@@ -6,7 +6,7 @@ import {
   configExists,
   deleteConfig,
   getActiveProfileName,
-  listProfiles,
+  loadAllProfiles,
   loadConfig,
   saveConfig,
   setCurrentProfile,
@@ -280,8 +280,8 @@ describe("configExists", () => {
   });
 });
 
-describe("listProfiles", () => {
-  test("returns all profile names", () => {
+describe("loadAllProfiles", () => {
+  test("returns all profiles with their config", () => {
     writeConfigFile({
       currentProfile: "default",
       profiles: {
@@ -298,11 +298,14 @@ describe("listProfiles", () => {
       },
     });
 
-    expect(listProfiles()).toEqual(["default", "staging"]);
+    const result = loadAllProfiles();
+    expect(Object.keys(result)).toEqual(["default", "staging"]);
+    expect(result.default?.customerId).toBe("111");
+    expect(result.staging?.customerId).toBe("222");
   });
 
-  test("returns empty array when no config file", () => {
-    expect(listProfiles()).toEqual([]);
+  test("returns empty object when no config file", () => {
+    expect(loadAllProfiles()).toEqual({});
   });
 });
 
