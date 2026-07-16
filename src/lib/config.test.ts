@@ -58,40 +58,27 @@ function readConfigFile(): unknown {
   return JSON.parse(raw);
 }
 
-describe("migration from flat format", () => {
-  test("auto-migrates flat config to profile format on load", () => {
+describe("invalid / unrecognised config format", () => {
+  test("deletes the file and throws when config is old flat format", () => {
     writeConfigFile({
       customerId: "123",
       domain: "observeinc.com",
       token: "tok-abc",
     });
 
-    const config = loadConfig();
+    expect(() => loadConfig()).toThrow(/no longer valid/);
 
-    expect(config.customerId).toBe("123");
-    expect(config.domain).toBe("observeinc.com");
-    expect(config.token).toBe("tok-abc");
-
-    const onDisk = readConfigFile() as Record<string, unknown>;
-    expect(onDisk).toHaveProperty("profiles");
-    expect(onDisk).toHaveProperty("currentProfile", "default");
-    const profiles = onDisk.profiles as Record<string, unknown>;
-    expect(profiles).toHaveProperty("default");
+    const configPath = path.join(tmpDir, ".observe", "config.json");
+    expect(fs.existsSync(configPath)).toBe(false);
   });
 
-  test("preserves optional fields during migration", () => {
-    writeConfigFile({
-      customerId: "123",
-      domain: "observeinc.com",
-      token: "tok-abc",
-      tokenId: "tid-1",
-      apiUrl: "https://123.observeinc.com/v1/meta",
-    });
+  test("deletes the file and throws when config is unrecognised JSON", () => {
+    writeConfigFile({ foo: "bar" });
 
-    const config = loadConfig();
+    expect(() => loadConfig()).toThrow(/no longer valid/);
 
-    expect(config.tokenId).toBe("tid-1");
-    expect(config.apiUrl).toBe("https://123.observeinc.com/v1/meta");
+    const configPath = path.join(tmpDir, ".observe", "config.json");
+    expect(fs.existsSync(configPath)).toBe(false);
   });
 });
 

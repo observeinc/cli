@@ -56,28 +56,6 @@ export function getConfigPath(): string {
   return path.join(getConfigDir(), CONFIG_FILES.config.name);
 }
 
-function isProfileFormat(parsed: unknown): boolean {
-  return (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "profiles" in parsed &&
-    typeof (parsed as Record<string, unknown>).profiles === "object"
-  );
-}
-
-function migrateFromFlat(parsed: unknown): ProfileConfigFile {
-  const config = ConfigSchema.safeParse(parsed);
-  if (!config.success) {
-    throw new Error(
-      `Cannot migrate config: ${config.error.issues.map((i) => i.message).join(", ")}`,
-    );
-  }
-  return {
-    currentProfile: DEFAULT_PROFILE_NAME,
-    profiles: { [DEFAULT_PROFILE_NAME]: config.data },
-  };
-}
-
 function loadConfigFile(): ProfileConfigFile {
   const configPath = getConfigPath();
 
@@ -92,19 +70,17 @@ function loadConfigFile(): ProfileConfigFile {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(`Failed to parse configuration file as JSON`);
-  }
-
-  if (!isProfileFormat(parsed)) {
-    const migrated = migrateFromFlat(parsed);
-    saveConfigFile(migrated);
-    return migrated;
+    fs.unlinkSync(configPath);
+    throw new Error(
+      `Configuration file was corrupt and has been removed. Run 'observe auth login' to authenticate.`,
+    );
   }
 
   const result = ProfileConfigFileSchema.safeParse(parsed);
   if (!result.success) {
+    fs.unlinkSync(configPath);
     throw new Error(
-      `Invalid configuration: ${result.error.issues.map((i) => i.message).join(", ")}`,
+      `Configuration format is no longer valid and has been removed. Run 'observe auth login' to re-authenticate.`,
     );
   }
   return result.data;
