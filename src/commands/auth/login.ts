@@ -24,6 +24,7 @@ import {
 } from "../../lib/auth/server-discovery";
 
 interface LoginCommandFlags {
+  profile?: string;
   url?: string;
   useDeviceCode?: boolean;
   port?: number;
@@ -287,6 +288,10 @@ async function login(
 ): Promise<void> {
   const { process, writer } = this;
 
+  if (flags.profile !== undefined) {
+    process.env.OBSERVE_PROFILE = flags.profile;
+  }
+
   try {
     const port = flags.port ?? DEFAULT_PORT;
     let baseUrl: string;
@@ -366,6 +371,13 @@ export const loginCommand = defineCommand({
       parameters: [],
     },
     flags: {
+      profile: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "Profile name to save credentials under (default: active profile)",
+        optional: true,
+      },
       url: {
         kind: "parsed",
         parse: String,
@@ -385,6 +397,7 @@ export const loginCommand = defineCommand({
       },
     },
     aliases: {
+      P: "profile",
       u: "url",
       D: "useDeviceCode",
       p: "port",
@@ -397,9 +410,12 @@ export const loginCommand = defineCommand({
 Browser flow opens your default browser for authentication.
 Device code flow (--useDeviceCode) is useful for headless/remote environments.
 
+To switch between profiles after login, use OBSERVE_PROFILE env var or 'observe auth profile use <name>'.
+
 Examples:
-  observe auth login                                # Discover accounts via browser
-  observe auth login --url https://123456.observeinc.com    # Login to specific customer
+  observe auth login                                              # Discover accounts via browser
+  observe auth login --url https://123456.observeinc.com         # Login to specific customer
+  observe auth login --profile staging -u 123456.observeinc.com  # Login to a named profile
   observe auth login --useDeviceCode -u https://123456.observeinc.com  # Device code flow`,
   },
 });
