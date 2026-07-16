@@ -97,6 +97,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "metricName",
           brief: "Metric name (exact match)",
           parse: String,
         },

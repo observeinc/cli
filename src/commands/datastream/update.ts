@@ -74,6 +74,7 @@ export const updateCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "datastreamId",
           brief: "Datastream ID to update",
           parse: String,
         },

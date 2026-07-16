@@ -148,6 +148,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "alertId",
           brief: "Alert ID",
           parse: String,
         },

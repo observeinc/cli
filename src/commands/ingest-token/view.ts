@@ -40,6 +40,7 @@ export const viewCommand = defineCommand({
       kind: "tuple",
       parameters: [
         {
+          placeholder: "tokenId",
           brief: "Ingest token ID",
           parse: String,
         },
