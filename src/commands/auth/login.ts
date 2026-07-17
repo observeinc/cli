@@ -268,6 +268,15 @@ async function login(
     // Parse URL input (handles full URLs like https://123456.observeinc.com)
     let parsedUrl = parseUrlInput(flags.url);
 
+    // If --url was provided but couldn't be parsed, error out rather than
+    // silently falling back to a different URL
+    if (flags.url && !parsedUrl) {
+      throw new Error(
+        `Invalid URL: "${flags.url}". Please provide a valid customer URL.\n` +
+          "  Example: observe auth login --url 123456.observeinc.com",
+      );
+    }
+
     // If no --url was provided, fall back to the previously saved config URL
     if (!parsedUrl) {
       try {
