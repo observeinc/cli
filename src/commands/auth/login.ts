@@ -77,9 +77,9 @@ function isHeadlessEnvironment(): boolean {
 function parseUrlInput(input?: string): {
   domain?: string;
   customerId?: string;
-} {
+} | null {
   if (!input) {
-    return {};
+    return null;
   }
 
   // Add https:// if no protocol provided
@@ -105,7 +105,7 @@ function parseUrlInput(input?: string): {
     return { domain: hostname };
   } catch {
     // Invalid URL
-    return {};
+    return null;
   }
 }
 
@@ -279,7 +279,7 @@ async function doBrowserLogin({
   const token = result.accessToken.slice(spaceIdx + 1);
 
   const parsed = parseUrlInput(baseUrl);
-  const domain = parsed.domain ?? new URL(baseUrl).hostname;
+  const domain = parsed?.domain ?? new URL(baseUrl).hostname;
 
   return { customerId, token, domain, apiUrl: baseUrl };
 }
@@ -310,12 +310,12 @@ async function login(
     let parsedUrl = parseUrlInput(flags.url);
 
     // If no --url was provided, fall back to the previously saved config URL
-    if (!flags.url) {
+    if (!parsedUrl) {
       try {
         const savedConfig = loadConfig();
         const savedBaseUrl = getApiBaseUrl(savedConfig);
         const fallback = parseUrlInput(savedBaseUrl);
-        if (fallback.customerId && fallback.domain) {
+        if (fallback?.customerId && fallback.domain) {
           parsedUrl = fallback;
           writer.info(
             `Using previously configured URL: ${savedBaseUrl} (use --url to override)\n`,
@@ -327,7 +327,7 @@ async function login(
     }
 
     if (useDeviceCode) {
-      if (!parsedUrl.domain || !parsedUrl.customerId) {
+      if (!parsedUrl?.domain || !parsedUrl.customerId) {
         throw new Error(
           "Device code flow requires --url with a full customer URL.\n" +
             "  Example: observe auth login --useDeviceCode --url 123456.observeinc.com",
@@ -347,7 +347,7 @@ async function login(
       authResult = await doDeviceCodeLogin({ baseUrl, writer });
     } else {
       // Browser flow
-      if (parsedUrl.customerId && parsedUrl.domain) {
+      if (parsedUrl?.customerId && parsedUrl.domain) {
         // Full URL provided or resolved from saved config - go directly to customer server
         baseUrl = buildCustomerMainappURL({
           customerId: parsedUrl.customerId,
