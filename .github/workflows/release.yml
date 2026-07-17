@@ -129,27 +129,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
 
+      - uses: actions/checkout@v6
+
       - name: Notify Slack
         run: |
           RELEASE_URL=$(gh release view "$TAG" --repo "${{ github.repository }}" --json url --jq '.url')
           RELEASE_NOTES=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body --jq '.body')
-          # Convert GitHub Markdown → Slack mrkdwn, truncate, then JSON-encode
-          RELEASE_NOTES=$(printf '%s' "$RELEASE_NOTES" | python3 - <<'PYEOF'
-import json, sys, re
-text = sys.stdin.read()
-# ## Heading  →  *Heading*
-text = re.sub(r'^#{1,3} (.+)$', r'*\1*', text, flags=re.MULTILINE)
-# **bold**  →  *bold*
-text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', text)
-# [label](url)  →  <url|label>
-text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<\2|\1>', text)
-# * bullet  →  •
-text = re.sub(r'^\* ', '• ', text, flags=re.MULTILINE)
-# Truncate to 2900 chars
-text = text[:2900]
-print(json.dumps(text))
-PYEOF
-)
+          RELEASE_NOTES=$(printf '%s' "$RELEASE_NOTES" | python3 .github/scripts/md-to-slack.py)
           curl -s -o /dev/null -w "%{http_code}" -X POST "$SLACK_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -d "{
