@@ -2,17 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { parseUrlInput } from "./url";
 
 describe("parseUrlInput", () => {
-  describe("returns null for empty / unparseable input", () => {
+  describe("returns an error for empty / unparseable input", () => {
     test("undefined", () => {
-      expect(parseUrlInput(undefined)).toBeNull();
+      expect(parseUrlInput(undefined)).toEqual({ error: "No URL provided" });
     });
 
     test("empty string", () => {
-      expect(parseUrlInput("")).toBeNull();
+      expect(parseUrlInput("")).toEqual({ error: "No URL provided" });
     });
 
     test("completely invalid string", () => {
-      expect(parseUrlInput(":::not a url:::")).toBeNull();
+      expect(parseUrlInput(":::not a url:::")).toEqual({
+        error: 'Invalid URL: ":::not a url:::"',
+      });
     });
   });
 

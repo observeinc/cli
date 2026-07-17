@@ -238,7 +238,7 @@ async function doBrowserLogin({
   const token = result.accessToken.slice(spaceIdx + 1);
 
   const parsed = parseUrlInput(baseUrl);
-  const domain = parsed?.domain ?? new URL(baseUrl).hostname;
+  const domain = "error" in parsed ? new URL(baseUrl).hostname : parsed.domain;
 
   return { customerId, token, domain, apiUrl: baseUrl };
 }
@@ -266,15 +266,17 @@ async function login(
     const useDeviceCode = flags.useDeviceCode ?? isHeadlessEnvironment();
 
     // Parse URL input (handles full URLs like https://123456.observeinc.com)
-    let parsedUrl = parseUrlInput(flags.url);
+    let parsedUrl: { domain: string; customerId?: string } | null = null;
 
-    // If --url was provided but couldn't be parsed, error out rather than
-    // silently falling back to a different URL
-    if (flags.url && !parsedUrl) {
-      throw new Error(
-        `Invalid URL: "${flags.url}". Please provide a valid customer URL.\n` +
-          "  Example: observe auth login --url 123456.observeinc.com",
-      );
+    if (flags.url) {
+      const parsed = parseUrlInput(flags.url);
+      if ("error" in parsed) {
+        throw new Error(
+          `Invalid URL: "${flags.url}". Please provide a valid customer URL.\n` +
+            "  Example: observe auth login --url 123456.observeinc.com",
+        );
+      }
+      parsedUrl = parsed;
     }
 
     // If no --url was provided, fall back to the previously saved config URL
@@ -283,7 +285,7 @@ async function login(
         const savedConfig = loadConfig();
         const savedBaseUrl = getApiBaseUrl(savedConfig);
         const fallback = parseUrlInput(savedBaseUrl);
-        if (fallback?.customerId && fallback.domain) {
+        if (!("error" in fallback) && fallback.customerId && fallback.domain) {
           parsedUrl = fallback;
           writer.info(
             `Using previously configured URL: ${savedBaseUrl} (use --url to override)\n`,

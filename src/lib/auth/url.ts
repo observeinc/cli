@@ -3,16 +3,14 @@
  * - A full URL like "https://123456.observeinc.com"
  * - A hostname like "123456.observeinc.com"
  *
- * Returns the domain suffix and customerId when the hostname matches the
- * standard customer pattern `{customerId}.{domain}.com`, or just the domain
- * when it does not. Returns null for empty/unparseable input.
+ * Returns `{ domain, customerId? }` on success, or `{ error }` when the input
+ * is empty/missing or cannot be parsed as a URL.
  */
-export function parseUrlInput(input?: string): {
-  domain?: string;
-  customerId?: string;
-} | null {
+export function parseUrlInput(input?: string):
+  | { domain: string; customerId?: string }
+  | { error: string } {
   if (!input) {
-    return null;
+    return { error: "No URL provided" };
   }
 
   // Add https:// if no protocol provided
@@ -29,15 +27,14 @@ export function parseUrlInput(input?: string): {
     const match = /^(\d+)\.(.+)\.com$/.exec(hostname);
     if (match) {
       return {
-        domain: match[2],
-        customerId: match[1],
+        domain: match[2]!,
+        customerId: match[1]!,
       };
     }
 
     // Couldn't parse customerId, return the hostname as domain
     return { domain: hostname };
   } catch {
-    // Invalid URL
-    return null;
+    return { error: `Invalid URL: "${input}"` };
   }
 }
