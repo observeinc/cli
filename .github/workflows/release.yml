@@ -133,10 +133,23 @@ jobs:
         run: |
           RELEASE_URL=$(gh release view "$TAG" --repo "${{ github.repository }}" --json url --jq '.url')
           RELEASE_NOTES=$(gh release view "$TAG" --repo "${{ github.repository }}" --json body --jq '.body')
-          # Truncate notes to 2900 chars to stay within Slack block limits
-          RELEASE_NOTES="${RELEASE_NOTES:0:2900}"
-          # Escape for JSON
-          RELEASE_NOTES=$(printf '%s' "$RELEASE_NOTES" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+          # Convert GitHub Markdown → Slack mrkdwn, truncate, then JSON-encode
+          RELEASE_NOTES=$(printf '%s' "$RELEASE_NOTES" | python3 - <<'PYEOF'
+import json, sys, re
+text = sys.stdin.read()
+# ## Heading  →  *Heading*
+text = re.sub(r'^#{1,3} (.+)$', r'*\1*', text, flags=re.MULTILINE)
+# **bold**  →  *bold*
+text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', text)
+# [label](url)  →  <url|label>
+text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<\2|\1>', text)
+# * bullet  →  •
+text = re.sub(r'^\* ', '• ', text, flags=re.MULTILINE)
+# Truncate to 2900 chars
+text = text[:2900]
+print(json.dumps(text))
+PYEOF
+)
           curl -s -o /dev/null -w "%{http_code}" -X POST "$SLACK_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -d "{
