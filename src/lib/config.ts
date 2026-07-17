@@ -18,7 +18,7 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
-const ProfileConfigFileSchema = z.object({
+export const ProfileConfigFileSchema = z.object({
   currentProfile: z.string().default(DEFAULT_PROFILE_NAME),
   profiles: z.record(z.string(), ConfigSchema),
 });
