@@ -49,6 +49,7 @@
     "@eslint/js": "^10.0.1",
     "@graphql-codegen/cli": "^7.0.0",
     "@openapitools/openapi-generator-cli": "^2.34.0",
+    "@slack/webhook": "^7.2.0",
     "@types/bun": "^1.3.14",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
