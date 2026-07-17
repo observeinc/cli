@@ -11,7 +11,9 @@ import type { LocalContext } from "../../context";
 import {
   configExists,
   getActiveProfileName,
+  getApiBaseUrl,
   getConfigPath,
+  loadConfig,
   saveConfig,
 } from "../../lib/config";
 import type { Writer } from "../../lib/writer";
@@ -305,7 +307,24 @@ async function login(
     const useDeviceCode = flags.useDeviceCode ?? isHeadlessEnvironment();
 
     // Parse URL input (handles full URLs like https://123456.observeinc.com)
-    const parsedUrl = parseUrlInput(flags.url);
+    let parsedUrl = parseUrlInput(flags.url);
+
+    // If no --url was provided, fall back to the previously saved config URL
+    if (!flags.url) {
+      try {
+        const savedConfig = loadConfig();
+        const savedBaseUrl = getApiBaseUrl(savedConfig);
+        const fallback = parseUrlInput(savedBaseUrl);
+        if (fallback.customerId && fallback.domain) {
+          parsedUrl = fallback;
+          writer.info(
+            `Using previously configured URL: ${savedBaseUrl} (use --url to override)\n`,
+          );
+        }
+      } catch {
+        // No saved config — proceed with normal discovery flow
+      }
+    }
 
     if (useDeviceCode) {
       if (!parsedUrl.domain || !parsedUrl.customerId) {
@@ -329,7 +348,7 @@ async function login(
     } else {
       // Browser flow
       if (parsedUrl.customerId && parsedUrl.domain) {
-        // Full URL provided - go directly to customer server
+        // Full URL provided or resolved from saved config - go directly to customer server
         baseUrl = buildCustomerMainappURL({
           customerId: parsedUrl.customerId,
           domain: parsedUrl.domain,
