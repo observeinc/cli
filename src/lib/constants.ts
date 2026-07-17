@@ -44,6 +44,11 @@ export const INSTALL_SCRIPT_URL = `https://raw.githubusercontent.com/${GITHUB_RE
 export const GITHUB_SKILLS_REPO = "observeinc/skills";
 export const GITHUB_SKILLS_RAW_BASE = `https://raw.githubusercontent.com/${GITHUB_SKILLS_REPO}/main/skills`;
 
+// Tarball of the whole skills repo at `main`, used to fetch the full catalog
+// and every skill's files in one request. codeload serves an ETag and honors
+// `If-None-Match` (304), and is not subject to the api.github.com rate limit.
+export const GITHUB_SKILLS_ARCHIVE_URL = `https://codeload.github.com/${GITHUB_SKILLS_REPO}/tar.gz/main`;
+
 export const TELEMETRY_TOKEN =
   typeof OBSERVE_INGEST_TOKEN !== "undefined"
     ? OBSERVE_INGEST_TOKEN

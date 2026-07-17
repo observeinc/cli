@@ -14,9 +14,10 @@
 import { parseSkillMarkdown, type ParsedSkill } from "./parse";
 import { GITHUB_SKILLS_RAW_BASE } from "../constants";
 
-// Skill names map directly into the fetch URL path, so restrict them to the
-// repo's own `skills/<name>/` directory naming to avoid path traversal.
-const SKILL_NAME_PATTERN = /^[a-z0-9-]+$/;
+// A bundled skill's name is also its `skills/<name>/` directory name. Restrict
+// the charset so a name is safe to interpolate into a fetch URL or a local
+// filesystem path (no traversal). Shared with bundled-repo.ts.
+export const SKILL_NAME_PATTERN = /^[a-z0-9-]+$/;
 
 // A supporting file's relative path also maps into the fetch URL. Restrict the
 // charset and reject leading `/` or `..` segments so it can only address a file
