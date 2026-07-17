@@ -18,6 +18,8 @@ jobs:
     concurrency:
       group: integration-tests-${{ github.ref }}
     timeout-minutes: 60
+    outputs:
+      failed_tests: ${{ steps.failed_tests.outputs.failed_tests }}
     steps:
       - uses: actions/checkout@v6
 
@@ -33,12 +35,23 @@ jobs:
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
 
       - name: Integration tests
-        run: bun run test:integration
+        id: tests
+        run: bun run test:integration --reporter=junit --reporter-outfile=junit.xml
         env:
           CI: "true"
           OBSERVE_INTEGRATION_CUSTOMER: ${{ vars.OBSERVE_INTEGRATION_CUSTOMER }}
           OBSERVE_INTEGRATION_DOMAIN: ${{ vars.OBSERVE_INTEGRATION_DOMAIN }}
           OBSERVE_INTEGRATION_API_TOKEN: ${{ secrets.OBSERVE_INTEGRATION_API_TOKEN }}
+
+      - name: Collect failing tests
+        id: failed_tests
+        if: failure()
+        run: |
+          {
+            echo "failed_tests<<__EOF__"
+            bun run scripts/failed-tests-preview.ts junit.xml 5
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
 
   notify:
     name: Notify Slack on failure
@@ -48,7 +61,8 @@ jobs:
     steps:
       - name: Send Slack alert
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INTEGRATION_TEST_WEBHOOK_URL }}
+          FAILED_TESTS: ${{ needs.integration.outputs.failed_tests }}
         run: |
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           fallback="❌ CLI integration tests failed for ${GITHUB_REPOSITORY} (${GITHUB_REF_NAME}, ${GITHUB_EVENT_NAME}) — ${run_url}"
@@ -57,17 +71,25 @@ jobs:
             --arg repo "$GITHUB_REPOSITORY" \
             --arg ref "$GITHUB_REF_NAME" \
             --arg event "$GITHUB_EVENT_NAME" \
-            --arg run_url "$run_url" '
+            --arg run_url "$run_url" \
+            --arg failed "$FAILED_TESTS" '
             {
               text: $fallback,
-              blocks: [
-                { type: "header", text: { type: "plain_text", text: "❌ CLI integration tests failed", emoji: true } },
-                { type: "context", elements: [
-                    { type: "mrkdwn", text: ("*\($repo)*  ·  `\($ref)`  ·  \($event)") }
-                ] },
-                { type: "actions", elements: [
-                    { type: "button", text: { type: "plain_text", text: "View run", emoji: true }, url: $run_url }
-                ] }
-              ]
+              blocks: (
+                [
+                  { type: "header", text: { type: "plain_text", text: "❌ CLI integration tests failed", emoji: true } },
+                  { type: "context", elements: [
+                      { type: "mrkdwn", text: ("*\($repo)*  ·  `\($ref)`  ·  \($event)") }
+                  ] }
+                ]
+                + (if ($failed | gsub("\\s"; "")) != "" then
+                    [ { type: "section", text: { type: "mrkdwn", text: ("*Failing tests:*\n```\n\($failed)\n```") } } ]
+                   else [] end)
+                + [
+                  { type: "actions", elements: [
+                      { type: "button", text: { type: "plain_text", text: "View run", emoji: true }, url: $run_url }
+                  ] }
+                ]
+              )
             }')
           curl -sf -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
