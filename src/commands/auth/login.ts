@@ -11,7 +11,9 @@ import type { LocalContext } from "../../context";
 import {
   configExists,
   getActiveProfileName,
+  getApiBaseUrl,
   getConfigPath,
+  loadConfig,
   saveConfig,
 } from "../../lib/config";
 import type { Writer } from "../../lib/writer";
@@ -22,6 +24,7 @@ import {
   promptServerSelection,
   type ServerInfo,
 } from "../../lib/auth/server-discovery";
+import { parseUrlInput } from "../../lib/auth/url";
 
 interface LoginCommandFlags {
   profile?: string;
@@ -63,48 +66,6 @@ function isHeadlessEnvironment(): boolean {
   }
 
   return false;
-}
-
-/**
- * Parse URL input which can be:
- * - A full URL like "https://123456.observeinc.com"
- * - A hostname like "123456.observeinc.com"
- *
- * Returns the domain suffix and customerId if parsed from URL.
- */
-function parseUrlInput(input?: string): {
-  domain?: string;
-  customerId?: string;
-} {
-  if (!input) {
-    return {};
-  }
-
-  // Add https:// if no protocol provided
-  const urlString =
-    input.startsWith("http://") || input.startsWith("https://")
-      ? input
-      : `https://${input}`;
-
-  try {
-    const url = new URL(urlString);
-    const hostname = url.hostname;
-
-    // Try to extract customerId and domain from hostname like "123456.observeinc.com"
-    const match = /^(\d+)\.(.+)\.com$/.exec(hostname);
-    if (match) {
-      return {
-        domain: match[2],
-        customerId: match[1],
-      };
-    }
-
-    // Couldn't parse customerId, return the hostname as domain
-    return { domain: hostname };
-  } catch {
-    // Invalid URL
-    return {};
-  }
 }
 
 /**
@@ -277,7 +238,7 @@ async function doBrowserLogin({
   const token = result.accessToken.slice(spaceIdx + 1);
 
   const parsed = parseUrlInput(baseUrl);
-  const domain = parsed.domain ?? new URL(baseUrl).hostname;
+  const domain = "error" in parsed ? new URL(baseUrl).hostname : parsed.domain;
 
   return { customerId, token, domain, apiUrl: baseUrl };
 }
@@ -305,10 +266,38 @@ async function login(
     const useDeviceCode = flags.useDeviceCode ?? isHeadlessEnvironment();
 
     // Parse URL input (handles full URLs like https://123456.observeinc.com)
-    const parsedUrl = parseUrlInput(flags.url);
+    let parsedUrl;
+
+    if (flags.url) {
+      const parsed = parseUrlInput(flags.url);
+      if ("error" in parsed) {
+        throw new Error(
+          `Invalid URL: "${flags.url}". Please provide a valid customer URL.\n` +
+            "  Example: observe auth login --url 123456.observeinc.com",
+        );
+      }
+      parsedUrl = parsed;
+    }
+
+    // If no --url was provided, fall back to the previously saved config URL
+    if (!parsedUrl) {
+      try {
+        const savedConfig = loadConfig();
+        const savedBaseUrl = getApiBaseUrl(savedConfig);
+        const fallback = parseUrlInput(savedBaseUrl);
+        if (!("error" in fallback) && fallback.customerId && fallback.domain) {
+          parsedUrl = fallback;
+          writer.info(
+            `Using previously configured URL: ${savedBaseUrl} (use --url to override)\n`,
+          );
+        }
+      } catch {
+        // No saved config — proceed with normal discovery flow
+      }
+    }
 
     if (useDeviceCode) {
-      if (!parsedUrl.domain || !parsedUrl.customerId) {
+      if (!parsedUrl?.domain || !parsedUrl.customerId) {
         throw new Error(
           "Device code flow requires --url with a full customer URL.\n" +
             "  Example: observe auth login --useDeviceCode --url 123456.observeinc.com",
@@ -328,8 +317,8 @@ async function login(
       authResult = await doDeviceCodeLogin({ baseUrl, writer });
     } else {
       // Browser flow
-      if (parsedUrl.customerId && parsedUrl.domain) {
-        // Full URL provided - go directly to customer server
+      if (parsedUrl?.customerId && parsedUrl.domain) {
+        // Full URL provided or resolved from saved config - go directly to customer server
         baseUrl = buildCustomerMainappURL({
           customerId: parsedUrl.customerId,
           domain: parsedUrl.domain,

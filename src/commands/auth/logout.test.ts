@@ -20,6 +20,7 @@ const deps: LogoutDeps = {
   loadConfig: loadConfigFn,
   deleteConfig: deleteConfigFn,
   deleteAuthtoken: deleteAuthtokenFn,
+  getActiveProfileName: () => "default",
 };
 
 beforeEach(() => {
