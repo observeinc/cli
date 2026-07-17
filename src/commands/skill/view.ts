@@ -2,7 +2,10 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { getSkill } from "../../rest/skill/get-skill";
-import { fetchBundledSkill } from "../../lib/skills/bundled";
+import {
+  fetchBundledSkill,
+  fetchBundledSkillPath,
+} from "../../lib/skills/bundled";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter, type Writer } from "../../lib/writer";
@@ -16,11 +19,13 @@ interface ViewSkillFlags {
   json?: boolean;
   content?: boolean;
   userDefined?: boolean;
+  path?: string;
 }
 
 export interface ViewSkillDeps {
   loadConfig?: typeof loadConfig;
   fetchBundledSkill?: typeof fetchBundledSkill;
+  fetchBundledSkillPath?: typeof fetchBundledSkillPath;
 }
 
 /**
@@ -50,12 +55,30 @@ export async function view(
   const {
     loadConfig: loadConfigImpl = loadConfig,
     fetchBundledSkill: fetchBundledSkillImpl = fetchBundledSkill,
+    fetchBundledSkillPath: fetchBundledSkillPathImpl = fetchBundledSkillPath,
   } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
   const isStructuredOutput =
     format === "json" || format === "csv" || flags.content === true;
   const writer = muteStatusWriter(_writer, { muted: isStructuredOutput });
+
+  // --path prints one supporting file from a bundled skill's directory,
+  // verbatim. It is bundled-only and skips frontmatter parsing.
+  if (flags.path !== undefined) {
+    await viewBundledPath(
+      { process },
+      {
+        format,
+        userDefined: flags.userDefined === true,
+        name: skill,
+        path: flags.path,
+      },
+      writer,
+      fetchBundledSkillPathImpl,
+    );
+    return;
+  }
 
   try {
     writer.info("Fetching skill...");
@@ -76,6 +99,53 @@ export async function view(
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;
+  }
+}
+
+async function viewBundledPath(
+  { process }: Pick<LocalContext, "process">,
+  {
+    format,
+    userDefined,
+    name,
+    path,
+  }: {
+    format?: OutputFormat;
+    userDefined: boolean;
+    name: string;
+    path: string;
+  },
+  writer: Writer,
+  fetchBundledSkillPathImpl: typeof fetchBundledSkillPath,
+): Promise<void> {
+  if (userDefined) {
+    writer.error("The --path flag is only valid for bundled skills");
+    process.exit(1);
+    return;
+  }
+
+  try {
+    const content = await fetchBundledSkillPathImpl(name, path);
+    if (content === null) {
+      writer.error(`File not found: ${name}/${path}`);
+      process.exit(1);
+      return;
+    }
+
+    const record = { source: "bundled", name, path, content };
+    if (format === "json") {
+      writer.write(JSON.stringify(record, null, 2));
+      return;
+    }
+    if (format === "csv") {
+      writer.write(renderAsCSV(record));
+      return;
+    }
+    // Default and --content both print the file verbatim.
+    writer.write(content);
+  } catch (error) {
+    writer.error(`Error: ${await formatApiError(error)}`);
+    process.exit(1);
   }
 }
 
@@ -178,6 +248,13 @@ export const viewCommand = defineCommand({
         kind: "boolean",
         brief:
           "Fetch a user-defined skill by id from the platform, instead of a bundled skill by name",
+        optional: true,
+      },
+      path: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "Print one supporting file from the bundled skill's directory, by relative path (e.g. references/opal-logs.md)",
         optional: true,
       },
       format: {

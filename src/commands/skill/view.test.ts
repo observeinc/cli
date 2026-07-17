@@ -55,11 +55,17 @@ const fetchBundledSkillFn = mock((_name: string) =>
   Promise.resolve(bundledToReturn),
 );
 
+let bundledPathToReturn: string | null;
+const fetchBundledSkillPathFn = mock((_name: string, _path: string) =>
+  Promise.resolve(bundledPathToReturn),
+);
+
 let view: (typeof import("./view"))["view"];
 
 const deps = {
   loadConfig: loadConfigFn,
   fetchBundledSkill: fetchBundledSkillFn,
+  fetchBundledSkillPath: fetchBundledSkillPathFn,
 } as Parameters<(typeof import("./view"))["view"]>[2];
 
 suppressAnsiColor();
@@ -176,5 +182,105 @@ describe("skill view — bundled (name)", () => {
     expect(out).toContain("Skill generate-opal");
     expect(out).toContain("Content");
     expect(out).toContain("# Core OPAL");
+  });
+});
+
+describe("skill view — bundled file (--path)", () => {
+  beforeEach(() => {
+    getSkillFn.mockClear();
+    fetchBundledSkillFn.mockClear();
+    fetchBundledSkillPathFn.mockClear();
+    bundledPathToReturn = "# Logs\nStep by step.";
+  });
+
+  test("prints the file verbatim by default", async () => {
+    const { context, stdout } = createMockContext();
+    await view.call(
+      context,
+      { path: "references/opal-logs.md" },
+      "generate-opal",
+      deps,
+    );
+    expect(fetchBundledSkillPathFn).toHaveBeenCalledTimes(1);
+    expect(fetchBundledSkillPathFn.mock.calls[0]).toEqual([
+      "generate-opal",
+      "references/opal-logs.md",
+    ]);
+    expect(fetchBundledSkillFn).not.toHaveBeenCalled();
+    expect(stdout.join("")).toBe("# Logs\nStep by step.\n");
+  });
+
+  test("prints the file verbatim with --content", async () => {
+    const { context, stdout } = createMockContext();
+    await view.call(
+      context,
+      { content: true, path: "references/opal-logs.md" },
+      "generate-opal",
+      deps,
+    );
+    expect(stdout.join("")).toBe("# Logs\nStep by step.\n");
+  });
+
+  test("emits { source, name, path, content } with --json", async () => {
+    const { context, stdout } = createMockContext();
+    await view.call(
+      context,
+      { json: true, path: "references/opal-logs.md" },
+      "generate-opal",
+      deps,
+    );
+    const payload = JSON.parse(stdout.join("")) as {
+      source: string;
+      name: string;
+      path: string;
+      content: string;
+    };
+    expect(payload).toEqual({
+      source: "bundled",
+      name: "generate-opal",
+      path: "references/opal-logs.md",
+      content: "# Logs\nStep by step.",
+    });
+  });
+
+  test("errors and exits 1 when the file is not found", async () => {
+    bundledPathToReturn = null;
+    const { context, stderr, getExitCode } = createMockContext();
+    try {
+      await view.call(
+        context,
+        { path: "references/missing.md" },
+        "generate-opal",
+        deps,
+      );
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain(
+      "File not found: generate-opal/references/missing.md",
+    );
+  });
+
+  test("errors and exits 1 when combined with --user-defined, without fetching", async () => {
+    const { context, stderr, getExitCode } = createMockContext();
+    try {
+      await view.call(
+        context,
+        { userDefined: true, path: "anything" },
+        "7291",
+        deps,
+      );
+      throw new Error("expected process.exit");
+    } catch (error) {
+      expect((error as Error).message).toBe("process.exit");
+    }
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain(
+      "The --path flag is only valid for bundled skills",
+    );
+    expect(fetchBundledSkillPathFn).not.toHaveBeenCalled();
+    expect(getSkillFn).not.toHaveBeenCalled();
   });
 });
