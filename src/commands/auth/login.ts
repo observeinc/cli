@@ -266,7 +266,7 @@ async function login(
     const useDeviceCode = flags.useDeviceCode ?? isHeadlessEnvironment();
 
     // Parse URL input (handles full URLs like https://123456.observeinc.com)
-    let parsedUrl: { domain: string; customerId?: string } | null = null;
+    let parsedUrl;
 
     if (flags.url) {
       const parsed = parseUrlInput(flags.url);

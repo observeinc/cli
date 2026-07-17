@@ -6,9 +6,9 @@
  * Returns `{ domain, customerId? }` on success, or `{ error }` when the input
  * is empty/missing or cannot be parsed as a URL.
  */
-export function parseUrlInput(input?: string):
-  | { domain: string; customerId?: string }
-  | { error: string } {
+export function parseUrlInput(
+  input?: string,
+): { domain: string; customerId?: string } | { error: string } {
   if (!input) {
     return { error: "No URL provided" };
   }
@@ -26,10 +26,12 @@ export function parseUrlInput(input?: string):
     // Try to extract customerId and domain from hostname like "123456.observeinc.com"
     const match = /^(\d+)\.(.+)\.com$/.exec(hostname);
     if (match) {
-      return {
-        domain: match[2]!,
-        customerId: match[1]!,
-      };
+      const [, customerId, domain] = match;
+      if (!domain || !customerId) {
+        return { error: `Invalid URL: "${input}"` };
+      }
+
+      return { domain, customerId };
     }
 
     // Couldn't parse customerId, return the hostname as domain

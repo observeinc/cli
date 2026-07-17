@@ -31,6 +31,7 @@ const deps: StatusDeps = {
   getApiBaseUrl: getApiBaseUrlFn,
   getConfigPath: getConfigPathFn,
   getDefaultWorkspace: getDefaultWorkspaceFn,
+  getActiveProfileName: () => "default",
 };
 
 beforeEach(() => {
