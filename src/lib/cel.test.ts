@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { celFuzzyContains, escapeCelString, fuzzyContains } from "./cel";
+import {
+  celFuzzyContains,
+  celHasCorrelationTag,
+  escapeCelString,
+  fuzzyContains,
+} from "./cel";
 
 describe("fuzzyContains", () => {
   test("single-word: plain case-insensitive substring", () => {
@@ -64,5 +69,19 @@ describe("escapeCelString", () => {
     expect(tokens).toContain('"a\\"');
     expect(tokens).toContain('"b\\"');
     expect(tokens).not.toContain('"a"');
+  });
+});
+
+describe("celHasCorrelationTag", () => {
+  test("emits the hasCorrelationTag macro with both string literals", () => {
+    expect(celHasCorrelationTag("customer.name", "tekion")).toBe(
+      'hasCorrelationTag("customer.name", "tekion")',
+    );
+  });
+
+  test("escapes quotes/backslashes in both arguments", () => {
+    expect(celHasCorrelationTag('a"b', "c\\d")).toBe(
+      'hasCorrelationTag("a\\"b", "c\\\\d")',
+    );
   });
 });

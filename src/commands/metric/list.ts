@@ -2,11 +2,18 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import {
-  listMetrics,
+  listMetrics as listMetricsViaGql,
   type GqlMetricMatch,
 } from "../../gql/metric/list-metrics";
+import { listMetrics } from "../../rest/metric/list-metrics";
 import { searchMetricsViaKG } from "../../kg/search-metrics-kg";
 import { GqlApiError } from "../../gql/gql-request";
+import {
+  celFuzzyContains,
+  celHasCorrelationTag,
+  combineFilters,
+} from "../../lib/cel";
+import { isExperimentalEnabled } from "../../lib/experimental";
 import { loadConfig } from "../../lib/config";
 import { muteStatusWriter } from "../../lib/writer";
 import { parseNonNegativeInt } from "../../lib/parsers";
@@ -99,7 +106,9 @@ const FIELD_COLUMNS: Record<FieldName, ColumnDef<GqlMetricMatch>> = {
 export interface ListMetricsDeps {
   loadConfig?: typeof loadConfig;
   searchMetricsViaKG?: typeof searchMetricsViaKG;
+  listMetricsViaGql?: typeof listMetricsViaGql;
   listMetrics?: typeof listMetrics;
+  isExperimentalEnabled?: typeof isExperimentalEnabled;
 }
 
 export async function list(
@@ -110,7 +119,9 @@ export async function list(
   const {
     loadConfig: loadConfigImpl = loadConfig,
     searchMetricsViaKG: searchKG = searchMetricsViaKG,
-    listMetrics: listM = listMetrics,
+    listMetricsViaGql: listGql = listMetricsViaGql,
+    listMetrics: listRest = listMetrics,
+    isExperimentalEnabled: isExperimentalEnabledImpl = isExperimentalEnabled,
   } = deps;
   const { process, writer: _writer } = this;
 
@@ -132,15 +143,37 @@ export async function list(
     const correlationTagKey = flags.correlationTagKey;
     const correlationTagValue = flags.correlationTagValue;
 
-    // Interim KG path: routes --correlation-tag-key/--correlation-tag-value
-    // through the V2 Knowledge Graph while the native GraphQL `metricSearch`
-    // lacks a correlation-tag predicate. Delete this branch (and
-    // `searchMetricsViaKG`) once the native API supports it. The wrapper
-    // mirrors `listMetrics`'s response shape, so the command stays a flat
-    // dispatch.
+    // When experimental mode is on, all searches route through the REST
+    // `/v1/metrics` endpoint (correlation-tag filtering included, via the
+    // `hasCorrelationTag()` CEL macro). Otherwise the GraphQL `metricSearch`
+    // path handles plain searches and the interim KG path handles
+    // --correlation-tag-key/--correlation-tag-value. Delete the KG branch (and
+    // `searchMetricsViaKG`) once the REST macro is GA. All branches yield
+    // `listMetrics`'s `{ matches, numSearched }` shape, so the command stays a
+    // flat dispatch.
+    const experimentalEnabled = isExperimentalEnabledImpl();
+
     let metrics: GqlMetricMatch[];
     let totalCount: number;
-    if (correlationTagKey != null && correlationTagValue != null) {
+    if (experimentalEnabled) {
+      // Assemble the CEL filter here so the REST helper stays a thin wrapper:
+      // a case-insensitive substring on `name` (the field GraphQL keys on)
+      // AND'd with an optional `hasCorrelationTag()` predicate.
+      const filter = combineFilters([
+        flags.match !== "" ? celFuzzyContains("name", flags.match) : undefined,
+        correlationTagKey != null && correlationTagValue != null
+          ? celHasCorrelationTag(correlationTagKey, correlationTagValue)
+          : undefined,
+      ]);
+      const response = await listRest({
+        config,
+        filter,
+        limit: flags.limit,
+        offset: flags.offset,
+      });
+      metrics = response.matches;
+      totalCount = Number(response.numSearched);
+    } else if (correlationTagKey != null && correlationTagValue != null) {
       const response = await searchKG({
         config,
         correlationTagKey,
@@ -152,7 +185,7 @@ export async function list(
       metrics = response.matches;
       totalCount = Number(response.numSearched);
     } else {
-      const response = await listM(config, {
+      const response = await listGql(config, {
         match: flags.match,
         heuristicsOptions: {
           inclusionOption: "Everything",
@@ -247,7 +280,7 @@ export const listCommand = defineCommand({
       match: {
         kind: "parsed",
         parse: String,
-        brief: "Search metrics by name (required on the native path)",
+        brief: "Search metrics by name (required in experimental REST mode)",
         default: "",
       },
       correlationTagKey: {

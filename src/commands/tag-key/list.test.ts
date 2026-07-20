@@ -12,9 +12,9 @@ import { resolve } from "node:path";
 import type { TagKeyEntry } from "../../rest/types/tag-keys";
 
 const repoRoot = resolve(import.meta.dir, "../../..");
-const listTagKeysModulePath = resolve(
+const listTagKeysKGModulePath = resolve(
   repoRoot,
-  "src/rest/tag-key/list-tag-keys.ts",
+  "src/rest/tag-key/list-tag-keys-kg-deprecated.ts",
 );
 
 const loadConfigFn = mock(() => ({
@@ -40,17 +40,44 @@ const listTagKeysFn = mock(
   },
 );
 
+let lastRestArgs:
+  | { filter?: string; limit?: number; offset?: number; valueLimit?: number }
+  | undefined;
+
+const listTagKeysRestFn = mock(
+  (args: {
+    filter?: string;
+    limit?: number;
+    offset?: number;
+    valueLimit?: number;
+  }) => {
+    lastRestArgs = args;
+    return Promise.resolve({
+      tagKeys: tagKeysToReturn,
+      meta: { totalCount: tagKeysToReturn.length },
+    });
+  },
+);
+
 let list: (typeof import("./list"))["list"];
 
 const deps = {
   loadConfig: loadConfigFn,
+  isExperimentalEnabled: () => false,
+} as Parameters<(typeof import("./list"))["list"]>[1];
+
+// Experimental gate forced on, with the REST helper injected.
+const experimentalDeps = {
+  loadConfig: loadConfigFn,
+  listTagKeys: listTagKeysRestFn,
+  isExperimentalEnabled: () => true,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
 
 beforeAll(async () => {
-  void mock.module(listTagKeysModulePath, () => ({
-    listTagKeys: listTagKeysFn,
+  void mock.module(listTagKeysKGModulePath, () => ({
+    listTagKeysKGDeprecated: listTagKeysFn,
   }));
 
   const mod = await import("./list.ts");
@@ -65,7 +92,9 @@ describe("tag-key list", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     listTagKeysFn.mockClear();
+    listTagKeysRestFn.mockClear();
     lastListArgs = undefined;
+    lastRestArgs = undefined;
     tagKeysToReturn = [
       { name: "service.name", values: ["checkout", "cart"] },
       { name: "k8s.namespace", values: ["prod"] },
@@ -108,6 +137,20 @@ describe("tag-key list", () => {
       limit: 5,
       valueLimit: 3,
     });
+  });
+
+  test("experimental path builds a correlation-scoped name filter for the REST listTagKeys", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 5, match: "svc", "value-limit": 3, json: true },
+      experimentalDeps,
+    );
+    expect(listTagKeysRestFn).toHaveBeenCalledTimes(1);
+    expect(listTagKeysFn).not.toHaveBeenCalled();
+    expect(lastRestArgs).toMatchObject({ limit: 5, valueLimit: 3 });
+    expect(lastRestArgs?.filter).toContain('kind == "Correlation"');
+    expect(lastRestArgs?.filter).toContain('name.matches("(?i)svc")');
   });
 
   test("warns when there are no tag keys", async () => {

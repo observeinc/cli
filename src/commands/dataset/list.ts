@@ -4,7 +4,12 @@ import type { LocalContext } from "../../context";
 import { listDatasets } from "../../rest/dataset/list-datasets";
 import { searchDatasetsViaKG } from "../../kg/search-datasets-kg";
 import type { DatasetResource } from "../../rest/generated";
-import { celFuzzyContains } from "../../lib/cel";
+import {
+  celFuzzyContains,
+  celHasCorrelationTag,
+  combineFilters,
+} from "../../lib/cel";
+import { isExperimentalEnabled } from "../../lib/experimental";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -74,9 +79,12 @@ const FIELD_COLUMNS: Record<FieldName, ColumnDef<DatasetResource>> = {
  *
  * `--label`, `--limit` and `--offset` stay allowed; `searchDatasetsViaKG`
  * applies them internally so the call site stays symmetric with the
- * native `listDatasets` helper.
+ * REST `listDatasets` helper.
  */
-export function validateDatasetFlags(flags: ListDatasetsFlags): void {
+export function validateDatasetFlags(
+  flags: ListDatasetsFlags,
+  experimentalEnabled = false,
+): void {
   if (flags.correlationTagValue != null && flags.correlationTagKey == null) {
     throw new Error("--correlation-tag-value requires --correlation-tag-key");
   }
@@ -84,6 +92,11 @@ export function validateDatasetFlags(flags: ListDatasetsFlags): void {
     throw new Error("--correlation-tag-key requires --correlation-tag-value");
   }
   if (flags.correlationTagKey == null) return;
+  // The REST /v1/datasets path expresses correlation-tag filtering as a
+  // CEL `hasCorrelationTag()` predicate AND'd into the normal filter, so
+  // --filter and --sort remain fully compatible there. The KG fallback has
+  // no CEL-equivalent filter or order_by, so it keeps rejecting them.
+  if (experimentalEnabled) return;
   const offenders: string[] = [];
   if (flags.filter != null) offenders.push("--filter");
   if (flags.sort != null) offenders.push("--sort");
@@ -101,6 +114,7 @@ export interface ListDatasetsDeps {
   loadConfig?: typeof loadConfig;
   searchDatasetsViaKG?: typeof searchDatasetsViaKG;
   listDatasets?: typeof listDatasets;
+  isExperimentalEnabled?: typeof isExperimentalEnabled;
 }
 
 export async function list(
@@ -112,6 +126,7 @@ export async function list(
     loadConfig: loadConfigImpl = loadConfig,
     searchDatasetsViaKG: searchKG = searchDatasetsViaKG,
     listDatasets: listD = listDatasets,
+    isExperimentalEnabled: isExperimentalEnabledImpl = isExperimentalEnabled,
   } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
@@ -119,8 +134,14 @@ export async function list(
     muted: format === "json" || format === "csv",
   });
 
+  // When experimental mode is on, correlation-tag filtering runs via the
+  // `hasCorrelationTag()` CEL macro on the REST /v1/datasets endpoint instead
+  // of the KG fallback, so the KG-incompatible flag restrictions no longer
+  // apply.
+  const experimentalEnabled = isExperimentalEnabledImpl();
+
   try {
-    validateDatasetFlags(flags);
+    validateDatasetFlags(flags, experimentalEnabled);
 
     const config = loadConfigImpl();
     // Aliased as consts so TS narrows inside the KG dispatch branch without
@@ -132,14 +153,19 @@ export async function list(
     writer.info("Fetching datasets...");
 
     // Interim KG path: routes --correlation-tag-key/--correlation-tag-value
-    // through the V2 Knowledge Graph while the native Dataset API lacks a
-    // correlation-tag predicate. Delete this branch (and
-    // `searchDatasetsViaKG`) once the native API supports it. The wrapper
-    // mirrors `listDatasets`'s `DatasetsResponse` contract, so the command
-    // stays a flat dispatch.
+    // through the V2 Knowledge Graph while the REST Dataset API lacks a
+    // correlation-tag predicate. The experimental path instead AND's a
+    // `hasCorrelationTag()` CEL predicate into the normal /v1/datasets
+    // filter. Delete the KG branch (and `searchDatasetsViaKG`) once the REST
+    // macro is GA. Both branches yield `listDatasets`'s `DatasetsResponse`
+    // contract, so the command stays a flat dispatch.
     let datasets: DatasetResource[];
     let totalCount: number;
-    if (correlationTagKey != null && correlationTagValue != null) {
+    if (
+      correlationTagKey != null &&
+      correlationTagValue != null &&
+      !experimentalEnabled
+    ) {
       const response = await searchKG({
         config,
         correlationTagKey,
@@ -151,14 +177,14 @@ export async function list(
       datasets = response.datasets;
       totalCount = response.meta.totalCount;
     } else {
-      const filters: string[] = [];
-      if (flags.label) {
-        filters.push(celFuzzyContains("label", flags.label));
-      }
-      if (flags.filter) {
-        filters.push(flags.filter);
-      }
-      const filter = filters.join(" && ");
+      const filter =
+        combineFilters([
+          flags.label ? celFuzzyContains("label", flags.label) : undefined,
+          correlationTagKey != null && correlationTagValue != null
+            ? celHasCorrelationTag(correlationTagKey, correlationTagValue)
+            : undefined,
+          flags.filter,
+        ]) ?? "";
 
       const response = await listD({
         config,
