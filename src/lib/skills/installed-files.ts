@@ -1,5 +1,13 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+
+/** Lists subdirectory names under `canonicalRoot`; returns [] if the root doesn't exist. */
+export function listInstalledSkillNames(canonicalRoot: string): string[] {
+  if (!existsSync(canonicalRoot)) return [];
+  return readdirSync(canonicalRoot).filter((entry) =>
+    statSync(join(canonicalRoot, entry)).isDirectory(),
+  );
+}
 
 /** Recursively reads all files under `canonicalDir` into a relative-path → bytes map. */
 export function readInstalledSkillFiles(
