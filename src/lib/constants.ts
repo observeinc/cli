@@ -39,6 +39,9 @@ export const GITHUB_REPO = "observeinc/cli";
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 export const INSTALL_SCRIPT_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/install.sh`;
 
+// Skills that are always installed/refreshed on `cli install` and `cli upgrade`.
+export const MANDATORY_SKILLS = ["observe-cli", "generate-opal"] as const;
+
 // Public repo of Observe-curated ("bundled") skills. Skills live under
 // skills/<name>/SKILL.md on the main branch.
 export const GITHUB_SKILLS_REPO = "observeinc/skills";
