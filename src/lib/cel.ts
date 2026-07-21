@@ -31,12 +31,18 @@ export function celMatchesInsensitive(field: string, search: string) {
  * consumers assemble a `filter` from independently-optional predicates without
  * juggling separator logic. Returns `undefined` when nothing remains so the
  * caller can omit the `filter` parameter entirely.
+ *
+ * When more than one clause is combined, each is wrapped in parentheses so a
+ * clause that itself contains a top-level `||` (e.g. `a || b`) still binds
+ * correctly under the `&&` join. A lone clause is returned verbatim.
  */
 export function combineFilters(
   clauses: (string | false | null | undefined)[],
 ): string | undefined {
   const active = clauses.filter((clause): clause is string => Boolean(clause));
-  return active.length > 0 ? active.join(" && ") : undefined;
+  if (active.length === 0) return undefined;
+  if (active.length === 1) return active[0];
+  return active.map((clause) => `(${clause})`).join(" && ");
 }
 
 /**

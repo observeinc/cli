@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   celFuzzyContains,
   celHasCorrelationTag,
+  combineFilters,
   escapeCelString,
   fuzzyContains,
 } from "./cel";
@@ -83,5 +84,31 @@ describe("celHasCorrelationTag", () => {
     expect(celHasCorrelationTag('a"b', "c\\d")).toBe(
       'hasCorrelationTag("a\\"b", "c\\\\d")',
     );
+  });
+});
+
+describe("combineFilters", () => {
+  test("returns undefined when no clauses are active", () => {
+    expect(combineFilters([])).toBeUndefined();
+    expect(combineFilters([undefined, false, null, ""])).toBeUndefined();
+  });
+
+  test("returns a lone clause verbatim (no wrapping parens)", () => {
+    expect(combineFilters(['kind == "Correlation"'])).toBe(
+      'kind == "Correlation"',
+    );
+    expect(combineFilters([undefined, "a == 1", false])).toBe("a == 1");
+  });
+
+  test("parenthesizes each clause when combining multiple", () => {
+    expect(combineFilters(['kind == "Correlation"', "a == 1"])).toBe(
+      '(kind == "Correlation") && (a == 1)',
+    );
+  });
+
+  test("keeps a clause with a top-level || bound correctly under &&", () => {
+    // Without the wrapping parens this would mis-parse as
+    // `a && b || c` due to CEL's `&&`-over-`||` precedence.
+    expect(combineFilters(["a", "b || c"])).toBe("(a) && (b || c)");
   });
 });

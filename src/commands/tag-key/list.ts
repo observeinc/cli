@@ -4,7 +4,7 @@ import type { LocalContext } from "../../context";
 import { listTagKeys } from "../../rest/tag-key/list-tag-keys";
 import { listTagKeysKGDeprecated } from "../../rest/tag-key/list-tag-keys-kg-deprecated";
 import type { TagKeyEntry } from "../../rest/types/tag-keys";
-import { celMatchesInsensitive, combineFilters } from "../../lib/cel";
+import { celFuzzyContains, combineFilters } from "../../lib/cel";
 import { isExperimentalEnabled } from "../../lib/experimental";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
@@ -79,8 +79,7 @@ export async function list(
 
     // When experimental mode is on, search runs against the REST `/v1/tags`
     // endpoint. Build the CEL filter here (correlation-kind scope AND'd with an
-    // optional case-insensitive regex on the tag name — the `/v1/tags` CEL env
-    // has no `.lowerAscii()`, hence the `(?i)` inline flag) so the REST helper
+    // optional case-insensitive fuzzy match on the tag name) so the REST helper
     // stays a thin wrapper. Otherwise it uses the deprecated V2 Knowledge Graph
     // path, which also supports semantic `--mode`.
     const response = isExperimentalEnabledImpl()
@@ -88,9 +87,7 @@ export async function list(
           config,
           filter: combineFilters([
             CORRELATION_KIND_FILTER,
-            flags.match
-              ? celMatchesInsensitive("name", flags.match)
-              : undefined,
+            flags.match ? celFuzzyContains("name", flags.match) : undefined,
           ]),
           limit: flags.limit,
           valueLimit: flags["value-limit"],

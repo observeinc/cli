@@ -150,7 +150,9 @@ describe("tag-key list", () => {
     expect(listTagKeysFn).not.toHaveBeenCalled();
     expect(lastRestArgs).toMatchObject({ limit: 5, valueLimit: 3 });
     expect(lastRestArgs?.filter).toContain('kind == "Correlation"');
-    expect(lastRestArgs?.filter).toContain('name.matches("(?i)svc")');
+    expect(lastRestArgs?.filter).toContain(
+      'name.lowerAscii().contains("svc".lowerAscii())',
+    );
   });
 
   test("warns when there are no tag keys", async () => {
