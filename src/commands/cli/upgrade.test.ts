@@ -6,19 +6,25 @@ import { upgrade, type UpgradeDeps } from "./upgrade";
 // Only the version-check / "already up to date" short-circuit is unit-tested
 // here: it's the handler's own decision logic and runs before any filesystem
 // access. The download + atomic binary swap that follows is filesystem- and
-// network-heavy and is left to integration tests rather than mocking node:fs.
+// network-heavy and is left to integration tests.
 let latestToReturn: { version: string; tag: string; url: string };
 const fetchLatestReleaseFn = mock(() => Promise.resolve(latestToReturn));
 const loadStateFn = mock(() => ({ installPath: "/usr/local/bin/observe" }));
+const installSkillsFn = mock(() => Promise.resolve());
+const updateSkillsFn = mock(() => Promise.resolve());
 
 const deps: UpgradeDeps = {
   loadState: loadStateFn,
   fetchLatestRelease: fetchLatestReleaseFn,
+  installSkills: installSkillsFn,
+  updateSkills: updateSkillsFn,
 };
 
 beforeEach(() => {
   fetchLatestReleaseFn.mockClear();
   loadStateFn.mockClear();
+  installSkillsFn.mockClear();
+  updateSkillsFn.mockClear();
   latestToReturn = {
     version: CURRENT_CLI_VERSION,
     tag: `v${CURRENT_CLI_VERSION}`,
@@ -37,5 +43,7 @@ describe("cli upgrade", () => {
     const out = stdout.join("");
     expect(out).toContain("Checking for updates...");
     expect(out).toContain(`Already up to date (v${CURRENT_CLI_VERSION})`);
+    expect(installSkillsFn).not.toHaveBeenCalled();
+    expect(updateSkillsFn).not.toHaveBeenCalled();
   });
 });
