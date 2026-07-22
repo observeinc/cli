@@ -52,6 +52,7 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe query`                         | Execute OPAL queries on datasets                        |
 | `observe skill list`                    | List AI agent skills                                    |
 | `observe skill view`                    | View skill details and content                          |
+| `observe skill install`                 | Install skills into your coding agents                  |
 | `observe alert list`                    | List alerts with severity and status filtering          |
 | `observe alert view`                    | View full alert details                                 |
 | `observe monitor mute list`             | List and search monitor mute rules                      |

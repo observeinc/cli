@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, lstatSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   loadTenantConfig,
   parseJsonOutput,
@@ -66,6 +68,29 @@ describe("skill CLI integration", () => {
       `;
 
       expect(contentResult.stdout.trim()).toBe(content);
+    });
+  });
+
+  test("install writes a bundled skill and symlinks it into a detected agent", async () => {
+    await withIntegrationFixture(tenant, async (fixture) => {
+      // Simulate Claude Code being installed by creating its config dir.
+      mkdirSync(join(fixture.tempHome, ".claude"), { recursive: true });
+
+      const result = await fixture.runCli`observe skill install generate-opal`;
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("Installed 1 skill to ~/.agents/skills:");
+      expect(result.stdout).toContain("generate-opal");
+
+      // Canonical copy exists under the global skills store.
+      const canonical = join(
+        fixture.tempHome,
+        ".agents/skills/generate-opal/SKILL.md",
+      );
+      expect(existsSync(canonical)).toBe(true);
+
+      // Claude Code's skills dir receives a symlink into the canonical copy.
+      const link = join(fixture.tempHome, ".claude/skills/generate-opal");
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
     });
   });
 });

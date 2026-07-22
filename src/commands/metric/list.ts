@@ -79,6 +79,7 @@ const FIELD_COLUMNS: Record<FieldName, ColumnDef<GqlMetricMatch>> = {
   }),
   type: columns.accessor((row) => row.metric.type, {
     header: "TYPE",
+
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     format: (value) => (value ? chalk.blue(value) : chalk.dim("-")),
   }),
