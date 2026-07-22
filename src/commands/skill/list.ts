@@ -1,5 +1,8 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { LocalContext } from "../../context";
 import { listSkills } from "../../rest/skill/list-skills";
 import {
@@ -10,7 +13,15 @@ import {
 import {
   getBundledRepo,
   listBundledCatalog,
+  readBundledSkillFiles,
+  type BundledRepo,
 } from "../../lib/skills/bundled-repo";
+import {
+  slugifyLabel,
+  synthesizeUserSkill,
+} from "../../lib/skills/install-target";
+import { skillManifestHash } from "../../lib/skills/hash";
+import { readInstalledSkillFiles } from "../../lib/skills/installed-files";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter, type Writer } from "../../lib/writer";
@@ -46,11 +57,14 @@ const USER_DEFINED_ONLY_FLAGS = [
   "sort",
 ] as const;
 
-/** One row of the bundled catalog: a skill's frontmatter name + description. */
+/** One row of the bundled catalog: name, install status, and description. */
 interface BundledSkill {
   name: string;
+  installed: string;
   description: string;
 }
+
+type UserDefinedRow = SkillResource & { installed: string };
 
 const bundledCol = createColumnHelper<BundledSkill>();
 
@@ -59,20 +73,22 @@ const BUNDLED_COLUMNS: ColumnDef<BundledSkill>[] = [
     header: "NAME",
     format: (value) => chalk.cyan(value),
   }),
+  bundledCol.accessor((row) => row.installed, { header: "INSTALLED" }),
   bundledCol.accessor((row) => row.description, {
     header: "DESCRIPTION",
     flex: true,
   }),
 ];
 
-const userCol = createColumnHelper<SkillResource>();
+const userCol = createColumnHelper<UserDefinedRow>();
 
-const USER_DEFINED_COLUMNS: ColumnDef<SkillResource>[] = [
+const USER_DEFINED_COLUMNS: ColumnDef<UserDefinedRow>[] = [
   userCol.accessor((row) => row.id, { header: "ID" }),
   userCol.accessor((row) => row.label, {
     header: "LABEL",
     format: (value) => chalk.cyan(value),
   }),
+  userCol.accessor((row) => row.installed, { header: "INSTALLED" }),
   userCol.accessor((row) => row.visibility, {
     header: "VISIBILITY",
     format: visibilityDisplay,
@@ -98,6 +114,9 @@ export interface ListSkillsDeps {
   loadConfig?: typeof loadConfig;
   getBundledRepo?: typeof getBundledRepo;
   listBundledCatalog?: typeof listBundledCatalog;
+  readBundledSkillFiles?: typeof readBundledSkillFiles;
+  readInstalledSkillFiles?: typeof readInstalledSkillFiles;
+  home?: string;
 }
 
 export async function list(
@@ -109,7 +128,11 @@ export async function list(
     loadConfig: loadConfigImpl = loadConfig,
     getBundledRepo: getBundledRepoImpl = getBundledRepo,
     listBundledCatalog: listBundledCatalogImpl = listBundledCatalog,
+    readBundledSkillFiles: readBundledSkillFilesImpl = readBundledSkillFiles,
+    readInstalledSkillFiles:
+      readInstalledSkillFilesImpl = readInstalledSkillFiles,
   } = deps;
+  const home = deps.home ?? homedir();
   const { process, writer: _writer } = this;
 
   const format = flags.json ? ("json" as const) : flags.format;
@@ -138,11 +161,18 @@ export async function list(
     // Skills are bundled (the Observe-curated catalog) by default;
     // --user-defined lists the customer's own platform skills instead.
     if (flags.userDefined) {
-      await listUserDefined(writer, format, flags, loadConfigImpl);
+      await listUserDefined(writer, format, flags, {
+        loadConfig: loadConfigImpl,
+        readInstalledSkillFiles: readInstalledSkillFilesImpl,
+        home,
+      });
     } else {
       await listBundled(writer, format, flags, {
         getBundledRepo: getBundledRepoImpl,
         listBundledCatalog: listBundledCatalogImpl,
+        readBundledSkillFiles: readBundledSkillFilesImpl,
+        readInstalledSkillFiles: readInstalledSkillFilesImpl,
+        home,
       });
     }
   } catch (error) {
@@ -158,27 +188,70 @@ async function listBundled(
   deps: {
     getBundledRepo: typeof getBundledRepo;
     listBundledCatalog: typeof listBundledCatalog;
+    readBundledSkillFiles: typeof readBundledSkillFiles;
+    readInstalledSkillFiles: typeof readInstalledSkillFiles;
+    home: string;
   },
 ): Promise<void> {
   writer.info("Fetching skills...");
 
   const repo = await deps.getBundledRepo();
-  const skills = filterByMatch(
+  const catalog = filterByMatch(
     deps.listBundledCatalog(repo),
     flags.match,
     (s) => [s.name, s.description],
   );
 
+  const skills: BundledSkill[] = catalog.map((entry) => ({
+    name: entry.name,
+    installed: resolveBundledInstallStatus({
+      name: entry.name,
+      repo,
+      home: deps.home,
+      readInstalledSkillFiles: deps.readInstalledSkillFiles,
+      readBundledSkillFiles: deps.readBundledSkillFiles,
+    }),
+    description: entry.description,
+  }));
+
   renderList(writer, format, skills, BUNDLED_COLUMNS);
+}
+
+/** Returns `yes`, `outdated`, or `no` by comparing disk files against the bundled catalog. */
+function resolveBundledInstallStatus({
+  name,
+  repo,
+  home,
+  readInstalledSkillFiles: readInstalled,
+  readBundledSkillFiles: readCurrent,
+}: {
+  name: string;
+  repo: BundledRepo;
+  home: string;
+  readInstalledSkillFiles: (canonicalDir: string) => Map<string, Uint8Array>;
+  readBundledSkillFiles: typeof readBundledSkillFiles;
+}): string {
+  const canonicalDir = join(home, ".agents", "skills", name);
+  if (!existsSync(canonicalDir)) return "no";
+  const installed = readInstalled(canonicalDir);
+  if (installed.size === 0) return "outdated";
+  const current = readCurrent(repo, name);
+  return skillManifestHash(installed) === skillManifestHash(current)
+    ? "yes"
+    : "outdated";
 }
 
 async function listUserDefined(
   writer: Writer,
   format: OutputFormat | undefined,
   flags: ListSkillsFlags,
-  loadConfigImpl: typeof loadConfig,
+  deps: {
+    loadConfig: typeof loadConfig;
+    readInstalledSkillFiles: typeof readInstalledSkillFiles;
+    home: string;
+  },
 ): Promise<void> {
-  const config = loadConfigImpl();
+  const config = deps.loadConfig();
   const limit = flags.limit ?? DEFAULT_LIMIT;
 
   writer.info("Fetching skills...");
@@ -196,14 +269,24 @@ async function listUserDefined(
     offset: flags.offset,
     orderBy: flags.sort,
     visibility,
+    expand: true,
   });
 
-  const skills = filterByMatch(result.skills, flags.match, (s) => [
+  const filtered = filterByMatch(result.skills, flags.match, (s) => [
     s.label,
     s.description,
   ]);
 
-  const rendered = renderList(writer, format, skills, USER_DEFINED_COLUMNS);
+  const rows: UserDefinedRow[] = filtered.map((skill) => ({
+    ...skill,
+    installed: resolveUserDefinedInstallStatus({
+      skill,
+      home: deps.home,
+      readInstalledSkillFiles: deps.readInstalledSkillFiles,
+    }),
+  }));
+
+  const rendered = renderList(writer, format, rows, USER_DEFINED_COLUMNS);
 
   // A full page back from the API means there may be more; the hint only makes
   // sense alongside a rendered table (not under --json/--csv or an empty list).
@@ -213,6 +296,28 @@ async function listUserDefined(
       `\nMore results may be available. Use --offset ${nextOffset} to see the next page.`,
     );
   }
+}
+
+/** Returns `yes`, `outdated`, or `no` by comparing disk files against the synthesized SKILL.md. */
+function resolveUserDefinedInstallStatus({
+  skill,
+  home,
+  readInstalledSkillFiles: readInstalled,
+}: {
+  skill: SkillResource;
+  home: string;
+  readInstalledSkillFiles: (canonicalDir: string) => Map<string, Uint8Array>;
+}): string {
+  const name = slugifyLabel(skill.label);
+  if (!name) return "no";
+  const canonicalDir = join(home, ".agents", "skills", name);
+  if (!existsSync(canonicalDir)) return "no";
+  const installed = readInstalled(canonicalDir);
+  if (installed.size === 0) return "outdated";
+  const { files } = synthesizeUserSkill(skill);
+  return skillManifestHash(installed) === skillManifestHash(files)
+    ? "yes"
+    : "outdated";
 }
 
 /**
