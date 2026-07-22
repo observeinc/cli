@@ -28,6 +28,7 @@ type SortField = "label" | "id" | "kind" | "updatedAt";
 interface ListDatasetsFlags {
   label?: string;
   filter?: string;
+  query?: string;
   correlationTagKey?: string;
   correlationTagValue?: string;
   limit: number;
@@ -71,6 +72,8 @@ const FIELD_COLUMNS: Record<FieldName, ColumnDef<DatasetResource>> = {
  * tag-value document in the KG).
  *
  * Flags incompatible with the KG correlation-tag path:
+ * - `--query`: the KG correlation lookup runs its own fixed document search
+ *   and has no free-text `query` passthrough.
  * - `--filter`: the semantic search service has no CEL-equivalent filter
  *   (only an exact `metadata_key`/`metadata_value` pair).
  * - `--sort`: `ListDocumentsRequest` has no `order_by` parameter, and
@@ -98,6 +101,7 @@ export function validateDatasetFlags(
   // no CEL-equivalent filter or order_by, so it keeps rejecting them.
   if (experimentalEnabled) return;
   const offenders: string[] = [];
+  if (flags.query != null) offenders.push("--query");
   if (flags.filter != null) offenders.push("--filter");
   if (flags.sort != null) offenders.push("--sort");
   if (offenders.length > 0) {
@@ -186,9 +190,14 @@ export async function list(
           flags.filter,
         ]) ?? "";
 
+      // `query` (semantic search) and `filter` map 1:1 to the /v1/datasets
+      // params and are combinable — `filter` narrows the ranked results. Note
+      // the API ignores `orderBy` when `query` is set and returns
+      // `meta.totalCount = -1`, which the summary below already handles.
       const response = await listD({
         config,
         filter,
+        query: flags.query,
         limit: flags.limit,
         offset: flags.offset,
         orderBy: flags.sort,
@@ -288,6 +297,13 @@ export const listCommand = defineCommand({
         brief: "Filter datasets with a CEL expression",
         optional: true,
       },
+      query: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "Search datasets by relevance (semantic search; ignores --sort, combinable with --filter)",
+        optional: true,
+      },
       correlationTagKey: {
         kind: "parsed",
         parse: String,
@@ -340,6 +356,7 @@ export const listCommand = defineCommand({
     },
     aliases: {
       f: "filter",
+      q: "query",
       l: "limit",
       s: "sort",
     },

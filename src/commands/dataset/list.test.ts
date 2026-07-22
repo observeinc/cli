@@ -37,6 +37,7 @@ let lastListDatasetsArgs:
   | {
       config: Config;
       filter?: string;
+      query?: string;
       limit?: number;
       offset?: number;
       orderBy?: string;
@@ -47,6 +48,7 @@ const listDatasetsFn = mock(
   (args: {
     config: Config;
     filter?: string;
+    query?: string;
     limit?: number;
     offset?: number;
     orderBy?: string;
@@ -166,6 +168,17 @@ describe("validateDatasetFlags", () => {
     ).toThrow(/--sort.*--correlation-tag-key/);
   });
 
+  test("rejects --query combined with correlation-tag flags", () => {
+    expect(() =>
+      validateDatasetFlags({
+        limit: 10,
+        query: "checkout latency",
+        correlationTagKey: "k",
+        correlationTagValue: "v",
+      }),
+    ).toThrow(/--query.*--correlation-tag-key/);
+  });
+
   test("allows --offset with correlation-tag flags (applied client-side)", () => {
     expect(() =>
       validateDatasetFlags({
@@ -234,6 +247,21 @@ describe("dataset list routing", () => {
     await list.call(context, { limit: 10, json: true }, deps);
     expect(listDatasetsFn).toHaveBeenCalledTimes(1);
     expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
+  });
+
+  test("forwards --query to listDatasets alongside a --filter", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 10, json: true, query: "checkout latency", filter: "a = 'b'" },
+      deps,
+    );
+    expect(listDatasetsFn).toHaveBeenCalledTimes(1);
+    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
+    expect(lastListDatasetsArgs).toMatchObject({
+      query: "checkout latency",
+      filter: "a = 'b'",
+    });
   });
 
   test("routes to searchDatasetsViaKG when both correlation-tag flags are set", async () => {
