@@ -33,14 +33,29 @@ function envelope(rows: DatasetResource[], totalCount = -1) {
   return { datasets: rows, meta: { totalCount } };
 }
 
+let lastListDatasetsArgs:
+  | {
+      config: Config;
+      filter?: string;
+      query?: string;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+    }
+  | undefined;
+
 const listDatasetsFn = mock(
-  (_args: {
+  (args: {
     config: Config;
     filter?: string;
+    query?: string;
     limit?: number;
     offset?: number;
     orderBy?: string;
-  }) => Promise.resolve(envelope([datasetStub("42", "native-result")], 1)),
+  }) => {
+    lastListDatasetsArgs = args;
+    return Promise.resolve(envelope([datasetStub("42", "rest-result")], 1));
+  },
 );
 
 let lastSearchKGArgs:
@@ -83,6 +98,15 @@ const deps = {
   loadConfig: loadConfigFn,
   searchDatasetsViaKG: searchDatasetsViaKGFn,
   listDatasets: listDatasetsFn,
+  isExperimentalEnabled: () => false,
+} as Parameters<(typeof import("./list"))["list"]>[1];
+
+// Same backends, but with the experimental (REST API) gate forced on.
+const experimentalDeps = {
+  loadConfig: loadConfigFn,
+  searchDatasetsViaKG: searchDatasetsViaKGFn,
+  listDatasets: listDatasetsFn,
+  isExperimentalEnabled: () => true,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
@@ -144,6 +168,17 @@ describe("validateDatasetFlags", () => {
     ).toThrow(/--sort.*--correlation-tag-key/);
   });
 
+  test("rejects --query combined with correlation-tag flags", () => {
+    expect(() =>
+      validateDatasetFlags({
+        limit: 10,
+        query: "checkout latency",
+        correlationTagKey: "k",
+        correlationTagValue: "v",
+      }),
+    ).toThrow(/--query.*--correlation-tag-key/);
+  });
+
   test("allows --offset with correlation-tag flags (applied client-side)", () => {
     expect(() =>
       validateDatasetFlags({
@@ -177,6 +212,21 @@ describe("validateDatasetFlags", () => {
       }),
     ).not.toThrow();
   });
+
+  test("allows --filter / --sort with correlation-tag flags on the experimental path", () => {
+    expect(() =>
+      validateDatasetFlags(
+        {
+          limit: 10,
+          filter: "a = 'b'",
+          sort: "label",
+          correlationTagKey: "k",
+          correlationTagValue: "v",
+        },
+        true,
+      ),
+    ).not.toThrow();
+  });
 });
 
 describe("dataset list routing", () => {
@@ -185,17 +235,33 @@ describe("dataset list routing", () => {
     listDatasetsFn.mockClear();
     searchDatasetsViaKGFn.mockClear();
     lastSearchKGArgs = undefined;
+    lastListDatasetsArgs = undefined;
     searchKGReturn = envelope([
       datasetStub("kg-1", "alpha-service"),
       datasetStub("kg-2", "beta-service"),
     ]);
   });
 
-  test("routes to native listDatasets when correlation-tag flags are absent", async () => {
+  test("routes to REST listDatasets when correlation-tag flags are absent", async () => {
     const { context } = createMockContext();
     await list.call(context, { limit: 10, json: true }, deps);
     expect(listDatasetsFn).toHaveBeenCalledTimes(1);
     expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
+  });
+
+  test("forwards --query to listDatasets alongside a --filter", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 10, json: true, query: "checkout latency", filter: "a = 'b'" },
+      deps,
+    );
+    expect(listDatasetsFn).toHaveBeenCalledTimes(1);
+    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
+    expect(lastListDatasetsArgs).toMatchObject({
+      query: "checkout latency",
+      filter: "a = 'b'",
+    });
   });
 
   test("routes to searchDatasetsViaKG when both correlation-tag flags are set", async () => {
@@ -298,6 +364,47 @@ describe("dataset list routing", () => {
     expect(lastSearchKGArgs?.offset).toBeUndefined();
   });
 
+  test("experimental path routes correlation-tag flags through listDatasets with a hasCorrelationTag filter", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      {
+        limit: 10,
+        json: true,
+        correlationTagKey: "service.name",
+        correlationTagValue: "checkout",
+      },
+      experimentalDeps,
+    );
+    expect(listDatasetsFn).toHaveBeenCalledTimes(1);
+    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
+    expect(lastListDatasetsArgs?.filter).toContain(
+      'hasCorrelationTag("service.name", "checkout")',
+    );
+  });
+
+  test("experimental path combines --label and --filter with the correlation-tag predicate", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      {
+        limit: 10,
+        json: true,
+        label: "checkout",
+        filter: "kind == 'Event'",
+        sort: "label",
+        correlationTagKey: "k",
+        correlationTagValue: "v",
+      },
+      experimentalDeps,
+    );
+    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
+    const filter = lastListDatasetsArgs?.filter ?? "";
+    expect(filter).toContain('hasCorrelationTag("k", "v")');
+    expect(filter).toContain("kind == 'Event'");
+    expect(lastListDatasetsArgs?.orderBy).toBe("label");
+  });
+
   test("emits DatasetResource shape in JSON output", async () => {
     const { context, stdout } = createMockContext();
     await list.call(
@@ -312,7 +419,7 @@ describe("dataset list routing", () => {
     expect(payload).toEqual([
       {
         id: "42",
-        label: "native-result",
+        label: "rest-result",
         description: "",
         kind: DatasetDatasetKind.Table,
         fieldList: [],

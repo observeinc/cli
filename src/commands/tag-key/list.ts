@@ -2,7 +2,10 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listTagKeys } from "../../rest/tag-key/list-tag-keys";
+import { listTagKeysKGDeprecated } from "../../rest/tag-key/list-tag-keys-kg-deprecated";
 import type { TagKeyEntry } from "../../rest/types/tag-keys";
+import { celFuzzyContains, combineFilters } from "../../lib/cel";
+import { isExperimentalEnabled } from "../../lib/experimental";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -29,6 +32,9 @@ const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 const MIN_LIMIT = 1;
 
+/** Base scope predicate: tag-key search only surfaces correlation tags. */
+const CORRELATION_KIND_FILTER = 'kind == "Correlation"';
+
 const col = createColumnHelper<TagKeyEntry>();
 
 const columns: ColumnDef<TagKeyEntry>[] = [
@@ -44,6 +50,9 @@ const columns: ColumnDef<TagKeyEntry>[] = [
 
 export interface ListTagKeysDeps {
   loadConfig?: typeof loadConfig;
+  listTagKeys?: typeof listTagKeys;
+  listTagKeysKGDeprecated?: typeof listTagKeysKGDeprecated;
+  isExperimentalEnabled?: typeof isExperimentalEnabled;
 }
 
 export async function list(
@@ -51,7 +60,12 @@ export async function list(
   flags: ListTagKeysFlags,
   deps: ListTagKeysDeps = {},
 ): Promise<void> {
-  const { loadConfig: loadConfigImpl = loadConfig } = deps;
+  const {
+    loadConfig: loadConfigImpl = loadConfig,
+    listTagKeys: listRest = listTagKeys,
+    listTagKeysKGDeprecated: listKG = listTagKeysKGDeprecated,
+    isExperimentalEnabled: isExperimentalEnabledImpl = isExperimentalEnabled,
+  } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, {
@@ -63,13 +77,28 @@ export async function list(
 
     writer.info("Searching for tag keys...");
 
-    const response = await listTagKeys({
-      config,
-      match: flags.match,
-      mode: flags.mode,
-      limit: flags.limit,
-      valueLimit: flags["value-limit"],
-    });
+    // When experimental mode is on, search runs against the REST `/v1/tags`
+    // endpoint. Build the CEL filter here (correlation-kind scope AND'd with an
+    // optional case-insensitive fuzzy match on the tag name) so the REST helper
+    // stays a thin wrapper. Otherwise it uses the deprecated V2 Knowledge Graph
+    // path, which also supports semantic `--mode`.
+    const response = isExperimentalEnabledImpl()
+      ? await listRest({
+          config,
+          filter: combineFilters([
+            CORRELATION_KIND_FILTER,
+            flags.match ? celFuzzyContains("name", flags.match) : undefined,
+          ]),
+          limit: flags.limit,
+          valueLimit: flags["value-limit"],
+        })
+      : await listKG({
+          config,
+          match: flags.match,
+          mode: flags.mode,
+          limit: flags.limit,
+          valueLimit: flags["value-limit"],
+        });
     const { tagKeys } = response;
 
     if (format === "json") {
@@ -149,6 +178,7 @@ export const listCommand = defineCommand({
     },
   },
   docs: {
-    brief: "Search for tag keys in the knowledge graph",
+    brief:
+      "Search for tag keys (knowledge graph; REST /v1/tags with OBSERVE_CLI_EXPERIMENTAL)",
   },
 });
