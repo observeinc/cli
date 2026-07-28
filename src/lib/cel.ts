@@ -27,6 +27,40 @@ export function celMatchesInsensitive(field: string, search: string) {
 }
 
 /**
+ * Combine CEL boolean clauses with `&&`, dropping empty/falsy entries. Lets
+ * consumers assemble a `filter` from independently-optional predicates without
+ * juggling separator logic. Returns `undefined` when nothing remains so the
+ * caller can omit the `filter` parameter entirely.
+ *
+ * When more than one clause is combined, each is wrapped in parentheses so a
+ * clause that itself contains a top-level `||` (e.g. `a || b`) still binds
+ * correctly under the `&&` join. A lone clause is returned verbatim.
+ */
+export function combineFilters(
+  clauses: (string | false | null | undefined)[],
+): string | undefined {
+  const active = clauses.filter((clause): clause is string => Boolean(clause));
+  if (active.length === 0) return undefined;
+  if (active.length === 1) return active[0];
+  return active.map((clause) => `(${clause})`).join(" && ");
+}
+
+/**
+ * Build a CEL boolean expression using the `hasCorrelationTag(tag, value)`
+ * macro exposed by the datasets/metrics REST endpoints. Matches rows that
+ * carry the given correlation tag key with the given value, e.g.
+ * `hasCorrelationTag("customer.name", "tekion")`.
+ *
+ * Both arguments must be constant string literals (the server-side macro
+ * rejects non-literal arguments at compile time), so they are emitted as
+ * escaped CEL string literals. The macro is feature-gated on the server; when
+ * disabled the endpoint returns HTTP 400 for filters that use it.
+ */
+export function celHasCorrelationTag(tag: string, value: string) {
+  return `hasCorrelationTag("${escapeCelString(tag)}", "${escapeCelString(value)}")`;
+}
+
+/**
  * Build a CEL expression that matches a field against a search term,
  * case-insensitively. Splits the search term on spaces so each word
  * must appear in the field (fuzzy/token matching), OR the full term

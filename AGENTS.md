@@ -130,6 +130,42 @@ A route group becomes experimental automatically once **all** of its children
 are — no annotation needed on the `defineRoutes` call. Promote to GA by deleting
 the `experimental: true` line. The feature lives in `lib/experimental.ts`.
 
+### Experimental REST Backends
+
+Some GA commands additionally use the `OBSERVE_CLI_EXPERIMENTAL` gate to toggle
+an alternative REST-API backend (mirroring the JS AI tools' "use native APIs"
+flag) rather than to hide the command. When the env var is set,
+`isExperimentalEnabled()` from `lib/experimental.ts` selects the REST path;
+otherwise the default (GraphQL / Knowledge Graph) path runs unchanged.
+
+| Command          | Default backend                                    | Experimental backend (`OBSERVE_CLI_EXPERIMENTAL=1`)                  |
+| ---------------- | -------------------------------------------------- | -------------------------------------------------------------------- |
+| `dataset list`   | REST `/v1/datasets` (KG only for correlation tags) | REST `/v1/datasets` with a `hasCorrelationTag()` CEL predicate       |
+| `metric list`    | GraphQL `metricSearch` (KG for correlation tags)   | REST `/v1/metrics` (`MetricsApi.listMetrics`)                        |
+| `tag-key list`   | V2 Knowledge Graph                                 | REST `/v1/tags` (`TagsApi.listDatasetTags`, `kind == "Correlation"`) |
+| `tag-value list` | V2 Knowledge Graph                                 | REST `/v1/tags/values` (`TagValuesApi.searchTagValues`)              |
+
+Each command's REST helper keeps the plain name (`listMetrics`, `listTagKeys`,
+`listTagValues`) in `src/rest/<resource>/list-<resource>.ts`. Where a
+Knowledge-Graph implementation still backs the default path and would collide
+on that name, the old helper is renamed with a `KGDeprecated` suffix and lives
+in `src/rest/<resource>/list-<resource>-kg-deprecated.ts` (`tag-key`,
+`tag-value`); it should be deleted once the REST path is promoted to GA. The
+`dataset` path reuses `src/rest/dataset/list-datasets.ts`, and the `metric` path
+keeps the GraphQL helper (imported as `listMetricsViaGql`) alongside the REST
+one. Backends are injected via each command's `deps` parameter (including
+`isExperimentalEnabled`) so tests can force either path without mutating the
+global environment.
+
+REST helpers stay thin wrappers around the generated client: they accept API
+parameters (`filter`, `orderBy`, `query`, `mode`, `limit`, `offset`) and only
+project the response into the shared envelope. The command (consumer) builds
+those parameters from user flags such as `--match` and
+`--correlation-tag-key`/`--correlation-tag-value` using the CEL helpers in
+`lib/cel.ts` (`celFuzzyContains`, `celMatchesInsensitive`,
+`celHasCorrelationTag`, and `combineFilters` to AND clauses together). This CEL
+layer does not replicate the JS query-util ranked-search scoring engine.
+
 ### Command Pattern
 
 Commands follow this structure:

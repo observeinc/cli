@@ -10,11 +10,12 @@ import {
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import { resolve } from "node:path";
 import { TagKind, type TagValuePair } from "../../rest/types/tag-values";
+import { TagValuesSearchMode } from "../../rest/generated";
 
 const repoRoot = resolve(import.meta.dir, "../../..");
-const listTagValuesModulePath = resolve(
+const listTagValuesKGModulePath = resolve(
   repoRoot,
-  "src/rest/tag-value/list-tag-values.ts",
+  "src/rest/tag-value/list-tag-values-kg-deprecated.ts",
 );
 
 const loadConfigFn = mock(() => ({
@@ -33,17 +34,39 @@ const listTagValuesFn = mock(
   },
 );
 
+let lastRestArgs:
+  | { query?: string; mode?: TagValuesSearchMode; limit?: number }
+  | undefined;
+
+const listTagValuesRestFn = mock(
+  (args: { query?: string; mode?: TagValuesSearchMode; limit?: number }) => {
+    lastRestArgs = args;
+    return Promise.resolve({
+      tagValuePairs: tagValuesToReturn,
+      meta: { totalCount: tagValuesToReturn.length },
+    });
+  },
+);
+
 let list: (typeof import("./list"))["list"];
 
 const deps = {
   loadConfig: loadConfigFn,
+  isExperimentalEnabled: () => false,
+} as Parameters<(typeof import("./list"))["list"]>[1];
+
+// Experimental gate forced on, with the REST helper injected.
+const experimentalDeps = {
+  loadConfig: loadConfigFn,
+  listTagValues: listTagValuesRestFn,
+  isExperimentalEnabled: () => true,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
 
 beforeAll(async () => {
-  void mock.module(listTagValuesModulePath, () => ({
-    listTagValues: listTagValuesFn,
+  void mock.module(listTagValuesKGModulePath, () => ({
+    listTagValuesKGDeprecated: listTagValuesFn,
   }));
 
   const mod = await import("./list.ts");
@@ -58,7 +81,9 @@ describe("tag-value list", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     listTagValuesFn.mockClear();
+    listTagValuesRestFn.mockClear();
     lastListArgs = undefined;
+    lastRestArgs = undefined;
     tagValuesToReturn = [
       { name: "service.name", value: "checkout", kind: TagKind.Correlation },
       { name: "service.name", value: "cart", kind: TagKind.Correlation },
@@ -92,6 +117,32 @@ describe("tag-value list", () => {
       match: "svc",
       mode: "semantic",
       limit: 7,
+    });
+  });
+
+  test("experimental path maps --match/--mode/--limit onto the REST listTagValues query", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 7, match: "svc", mode: "regex", json: true },
+      experimentalDeps,
+    );
+    expect(listTagValuesRestFn).toHaveBeenCalledTimes(1);
+    expect(listTagValuesFn).not.toHaveBeenCalled();
+    expect(lastRestArgs).toMatchObject({
+      query: "svc",
+      mode: TagValuesSearchMode.Regex,
+      limit: 7,
+    });
+  });
+
+  test("experimental path falls back to a match-all regex when --match is empty", async () => {
+    const { context } = createMockContext();
+    await list.call(context, { limit: 7, json: true }, experimentalDeps);
+    expect(listTagValuesRestFn).toHaveBeenCalledTimes(1);
+    expect(lastRestArgs).toMatchObject({
+      query: ".*",
+      mode: TagValuesSearchMode.Regex,
     });
   });
 

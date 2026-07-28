@@ -1,68 +1,46 @@
 import type { Config } from "../../lib/config";
-import {
-  KGV2DocumentType,
-  KGV2SearchMode,
-  type KGV2DocumentSearchRequest,
-} from "../generated";
+import { TagKind as GenTagKind, TagValuesSearchMode } from "../generated";
 import { ObserveRestSDK } from "../client";
 import { TagKind, type TagValuesResponse } from "../types/tag-values";
 
+/**
+ * Thin wrapper over the REST `GET /v1/tags/values` endpoint. Passes the
+ * caller-built `query`, `mode`, `limit`, and `offset` straight through (the
+ * caller decides the match-all fallback and `--mode` mapping). The response
+ * already matches the `TagValuesResponse` envelope, so it passes through after
+ * a small `kind` enum bridge.
+ */
 export async function listTagValues({
   config,
-  match,
-  mode = "semantic",
+  query,
+  mode,
   limit,
+  offset,
 }: {
   config: Config;
-  match?: string;
-  mode?: "semantic" | "regex";
+  query: string;
+  mode: TagValuesSearchMode;
   limit: number;
+  offset?: number;
 }): Promise<TagValuesResponse> {
   const sdk = new ObserveRestSDK(config);
 
-  const searchParams: Partial<KGV2DocumentSearchRequest> =
-    match && mode === "regex"
-      ? {
-          regex: { pattern: match },
-          searchMode: KGV2SearchMode.Regex,
-        }
-      : match
-        ? {
-            searchStr: match,
-            searchMode: KGV2SearchMode.Semantic,
-          }
-        : {
-            regex: { pattern: ".*" },
-            searchMode: KGV2SearchMode.Regex,
-          };
-
-  const response = await sdk.knowledgeGraphApi.searchDocumentsV2({
-    kGV2DocumentSearchRequest: {
-      documentType: KGV2DocumentType.TagValue,
-      nDocuments: limit,
-      metadataPostProcessing: {
-        groupByKey: "originalContent.key",
-        maxGroupCount: 5,
-      },
-      ...searchParams,
-    },
+  const response = await sdk.tagValuesApi.searchTagValues({
+    query,
+    mode,
+    limit,
+    offset,
   });
 
-  // Project KG documents into the REST TagValuesResponse envelope.
-  // V1 only emits Correlation tags, so kind is hard-coded.
-  const tagValuePairs = response.documents.flatMap((d) => {
-    const name = d.metadata?.tagKey as string | undefined;
-    const value = d.metadata?.tagValue as string | undefined;
-    if (name === undefined || value === undefined) {
-      return [];
-    }
-    return [{ name, value, kind: TagKind.Correlation }];
-  });
+  const tagValuePairs = response.tagValuePairs.map((pair) => ({
+    name: pair.name,
+    value: pair.value,
+    kind:
+      pair.kind === GenTagKind.Metric ? TagKind.Metric : TagKind.Correlation,
+  }));
 
-  // KG search returns at most `limit` documents and does not surface a
-  // separate population count, so totalCount mirrors the page length.
   return {
     tagValuePairs,
-    meta: { totalCount: tagValuePairs.length },
+    meta: { totalCount: response.meta.totalCount },
   };
 }

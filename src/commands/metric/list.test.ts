@@ -39,8 +39,8 @@ function envelope(matches: GqlMetricMatch[], numSearched = "-1") {
   return { matches, numSearched, datasets: [] };
 }
 
-const listMetricsFn = mock((_config: Config, _vars: unknown) =>
-  Promise.resolve(envelope([metricStub("native.metric", "ds-1")], "1")),
+const listMetricsViaGqlFn = mock((_config: Config, _vars: unknown) =>
+  Promise.resolve(envelope([metricStub("gql.metric", "ds-1")], "1")),
 );
 
 let lastSearchKGArgs:
@@ -70,6 +70,27 @@ const searchMetricsViaKGFn = mock(
   },
 );
 
+let lastListRestArgs:
+  | {
+      config: Config;
+      filter?: string;
+      limit?: number;
+      offset?: number;
+    }
+  | undefined;
+
+const listMetricsFn = mock(
+  (args: {
+    config: Config;
+    filter?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    lastListRestArgs = args;
+    return Promise.resolve(envelope([metricStub("rest.metric", "ds-9")]));
+  },
+);
+
 let list: (typeof import("./list"))["list"];
 let validateMetricFlags: (typeof import("./list"))["validateMetricFlags"];
 
@@ -79,7 +100,18 @@ let validateMetricFlags: (typeof import("./list"))["validateMetricFlags"];
 const deps = {
   loadConfig: loadConfigFn,
   searchMetricsViaKG: searchMetricsViaKGFn,
+  listMetricsViaGql: listMetricsViaGqlFn,
   listMetrics: listMetricsFn,
+  isExperimentalEnabled: () => false,
+} as Parameters<(typeof import("./list"))["list"]>[1];
+
+// Same backends, but with the experimental (REST API) gate forced on.
+const experimentalDeps = {
+  loadConfig: loadConfigFn,
+  searchMetricsViaKG: searchMetricsViaKGFn,
+  listMetricsViaGql: listMetricsViaGqlFn,
+  listMetrics: listMetricsFn,
+  isExperimentalEnabled: () => true,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
@@ -134,17 +166,20 @@ describe("validateMetricFlags", () => {
 describe("metric list routing", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
-    listMetricsFn.mockClear();
+    listMetricsViaGqlFn.mockClear();
     searchMetricsViaKGFn.mockClear();
+    listMetricsFn.mockClear();
     lastSearchKGArgs = undefined;
+    lastListRestArgs = undefined;
     searchKGReturn = envelope([metricStub("kg.metric", "ds-42")]);
   });
 
-  test("routes to listMetrics when correlation-tag flags are absent", async () => {
+  test("routes to GraphQL metricSearch when correlation-tag flags are absent", async () => {
     const { context } = createMockContext();
     await list.call(context, { limit: 10, match: "", json: true }, deps);
-    expect(listMetricsFn).toHaveBeenCalledTimes(1);
+    expect(listMetricsViaGqlFn).toHaveBeenCalledTimes(1);
     expect(searchMetricsViaKGFn).not.toHaveBeenCalled();
+    expect(listMetricsFn).not.toHaveBeenCalled();
   });
 
   test("routes to searchMetricsViaKG when both correlation-tag flags are set", async () => {
@@ -161,7 +196,7 @@ describe("metric list routing", () => {
       deps,
     );
     expect(searchMetricsViaKGFn).toHaveBeenCalledTimes(1);
-    expect(listMetricsFn).not.toHaveBeenCalled();
+    expect(listMetricsViaGqlFn).not.toHaveBeenCalled();
     expect(lastSearchKGArgs).toMatchObject({
       correlationTagKey: "service.name",
       correlationTagValue: "checkout",
@@ -182,7 +217,7 @@ describe("metric list routing", () => {
     );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--correlation-tag-value");
-    expect(listMetricsFn).not.toHaveBeenCalled();
+    expect(listMetricsViaGqlFn).not.toHaveBeenCalled();
     expect(searchMetricsViaKGFn).not.toHaveBeenCalled();
   });
 
@@ -230,12 +265,51 @@ describe("metric list routing", () => {
     expect(lastSearchKGArgs?.match).toBeUndefined();
     expect(lastSearchKGArgs?.offset).toBeUndefined();
   });
+
+  test("experimental path builds a name filter for the REST listMetrics", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 10, match: "cpu", json: true },
+      experimentalDeps,
+    );
+    expect(listMetricsFn).toHaveBeenCalledTimes(1);
+    expect(listMetricsViaGqlFn).not.toHaveBeenCalled();
+    expect(searchMetricsViaKGFn).not.toHaveBeenCalled();
+    expect(lastListRestArgs?.limit).toBe(10);
+    expect(lastListRestArgs?.filter).toContain(
+      'name.lowerAscii().contains("cpu".lowerAscii())',
+    );
+    expect(lastListRestArgs?.filter).not.toContain("hasCorrelationTag");
+  });
+
+  test("experimental path builds a hasCorrelationTag filter for the REST listMetrics", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      {
+        limit: 25,
+        match: "",
+        offset: 5,
+        json: true,
+        correlationTagKey: "service.name",
+        correlationTagValue: "checkout",
+      },
+      experimentalDeps,
+    );
+    expect(listMetricsFn).toHaveBeenCalledTimes(1);
+    expect(searchMetricsViaKGFn).not.toHaveBeenCalled();
+    expect(lastListRestArgs).toMatchObject({ limit: 25, offset: 5 });
+    expect(lastListRestArgs?.filter).toBe(
+      'hasCorrelationTag("service.name", "checkout")',
+    );
+  });
 });
 
 describe("metric list rendering", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
-    listMetricsFn.mockClear();
+    listMetricsViaGqlFn.mockClear();
     searchMetricsViaKGFn.mockClear();
   });
 
@@ -247,7 +321,7 @@ describe("metric list rendering", () => {
       {
         datasetId: "ds-1",
         metric: {
-          name: "native.metric",
+          name: "gql.metric",
           nameWithPath: "",
           description: "",
           type: "",
