@@ -12,9 +12,15 @@ import { dirname, join } from "node:path";
 import type { LocalContext } from "../../context";
 import { detectPlatform, downloadReleaseBinary } from "../../lib/binary";
 import { fetchLatestRelease } from "../../lib/github-release";
-import { CURRENT_CLI_VERSION, INSTALL_SCRIPT_URL } from "../../lib/constants";
+import {
+  CURRENT_CLI_VERSION,
+  INSTALL_SCRIPT_URL,
+  MANDATORY_SKILLS,
+} from "../../lib/constants";
 import { loadState, saveState } from "../../lib/state";
 import { trace } from "@opentelemetry/api";
+import { installSkills } from "../skill/install";
+import { updateSkills } from "../skill/update";
 
 interface UpgradeFlags {
   force?: boolean;
@@ -50,6 +56,8 @@ function permissionDeniedError(targetPath: string) {
 export interface UpgradeDeps {
   loadState?: typeof loadState;
   fetchLatestRelease?: typeof fetchLatestRelease;
+  installSkills?: typeof installSkills;
+  updateSkills?: typeof updateSkills;
 }
 
 export async function upgrade(
@@ -60,6 +68,8 @@ export async function upgrade(
   const {
     loadState: loadStateImpl = loadState,
     fetchLatestRelease: fetchLatestReleaseImpl = fetchLatestRelease,
+    installSkills: installSkillsImpl = installSkills,
+    updateSkills: updateSkillsImpl = updateSkills,
   } = deps;
   const { process: proc, writer } = this;
   const state = loadStateImpl();
@@ -154,6 +164,9 @@ export async function upgrade(
         "cli.upgrade.forced": flags.force ?? false,
       });
     }
+
+    await installSkillsImpl(this, {}, [...MANDATORY_SKILLS]);
+    await updateSkillsImpl(this, {}, []); // empty names = update all installed
   } catch (err) {
     try {
       unlinkSync(tmpPath);

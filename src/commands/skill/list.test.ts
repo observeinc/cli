@@ -1,5 +1,6 @@
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -7,6 +8,13 @@ import {
   mock,
   test,
 } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  synthesizeUserSkill,
+  slugifyLabel,
+} from "../../lib/skills/install-target";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import { resolve } from "node:path";
 import {
@@ -64,12 +72,29 @@ const listBundledCatalogFn = mock((repo: BundledRepo) => {
   return bundledToReturn;
 });
 
+// Default: returns empty map so size === 0 → "outdated" for any existing dir.
+const readInstalledSkillFilesFn = mock(
+  (_dir: string): Map<string, Uint8Array> => new Map<string, Uint8Array>(),
+);
+
+// Default: returns empty files so hash comparison falls to "outdated".
+const readBundledSkillFilesFn = mock(
+  (_repo: BundledRepo, _name: string): Map<string, Uint8Array> =>
+    new Map<string, Uint8Array>(),
+);
+
 let list: (typeof import("./list"))["list"];
+
+// home points at a path that does not exist on disk → existsSync always false.
+const FAKE_HOME = "/fake/home";
 
 const deps = {
   loadConfig: loadConfigFn,
   getBundledRepo: getBundledRepoFn,
   listBundledCatalog: listBundledCatalogFn,
+  readBundledSkillFiles: readBundledSkillFilesFn,
+  readInstalledSkillFiles: readInstalledSkillFilesFn,
+  home: FAKE_HOME,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
@@ -92,6 +117,8 @@ describe("skill list — bundled (default)", () => {
     getBundledRepoFn.mockClear();
     listBundledCatalogFn.mockClear();
     listSkillsFn.mockClear();
+    readInstalledSkillFilesFn.mockClear();
+    readBundledSkillFilesFn.mockClear();
     lastCatalogRepo = undefined;
     bundledToReturn = [
       { name: "alert-investigation", description: "Investigate an alert" },
@@ -121,9 +148,12 @@ describe("skill list — bundled (default)", () => {
 
     const payload = JSON.parse(stdout.join("")) as {
       name: string;
+      installed: string;
       description: string;
     }[];
-    expect(payload).toEqual(bundledToReturn);
+    expect(
+      payload.map(({ name, description }) => ({ name, description })),
+    ).toEqual(bundledToReturn);
   });
 
   test("filters client-side on --match against name and description", async () => {
@@ -168,6 +198,7 @@ describe("skill list — user-defined (--user-defined)", () => {
     loadConfigFn.mockClear();
     listSkillsFn.mockClear();
     getBundledRepoFn.mockClear();
+    readInstalledSkillFilesFn.mockClear();
     lastListArgs = undefined;
     skillsToReturn = [
       skillStub(
@@ -245,5 +276,118 @@ describe("skill list — user-defined (--user-defined)", () => {
       deps,
     );
     expect(lastListArgs?.visibility).toBe(ListSkillsVisibilityParameter.Listed);
+  });
+});
+
+describe("skill list — bundled INSTALLED column", () => {
+  let tmpHome: string;
+
+  beforeEach(() => {
+    tmpHome = mkdtempSync(join(tmpdir(), "list-bundled-installed-"));
+    getBundledRepoFn.mockClear();
+    listBundledCatalogFn.mockClear();
+    readInstalledSkillFilesFn.mockClear();
+    readBundledSkillFilesFn.mockClear();
+    bundledToReturn = [
+      { name: "alert-investigation", description: "Investigate an alert" },
+    ];
+  });
+
+  afterEach(() => {
+    rmSync(tmpHome, { recursive: true, force: true });
+  });
+
+  test("shows 'no' when the canonical dir does not exist", async () => {
+    // tmpHome is a fresh empty dir — no .agents/skills/alert-investigation subdir.
+    const { context, stdout } = createMockContext();
+    await list.call(context, { json: true }, { ...deps, home: tmpHome });
+    const payload = JSON.parse(stdout.join("")) as { installed: string }[];
+    expect(payload[0]!.installed).toBe("no");
+  });
+
+  test("shows 'outdated' when canonical dir exists but contains no files", async () => {
+    mkdirSync(join(tmpHome, ".agents", "skills", "alert-investigation"), {
+      recursive: true,
+    });
+    // readInstalledSkillFiles default returns empty Map → size === 0 → "outdated"
+    const { context, stdout } = createMockContext();
+    await list.call(context, { json: true }, { ...deps, home: tmpHome });
+    const payload = JSON.parse(stdout.join("")) as { installed: string }[];
+    expect(payload[0]!.installed).toBe("outdated");
+  });
+
+  test("shows 'outdated' when installed files do not match current bundled files", async () => {
+    mkdirSync(join(tmpHome, ".agents", "skills", "alert-investigation"), {
+      recursive: true,
+    });
+    readInstalledSkillFilesFn.mockImplementationOnce(
+      () => new Map([["SKILL.md", new Uint8Array([1, 2, 3])]]),
+    );
+    readBundledSkillFilesFn.mockImplementationOnce(
+      () => new Map([["SKILL.md", new Uint8Array([4, 5, 6])]]),
+    );
+    const { context, stdout } = createMockContext();
+    await list.call(context, { json: true }, { ...deps, home: tmpHome });
+    const payload = JSON.parse(stdout.join("")) as { installed: string }[];
+    expect(payload[0]!.installed).toBe("outdated");
+  });
+
+  test("shows 'yes' when installed files match current bundled files", async () => {
+    mkdirSync(join(tmpHome, ".agents", "skills", "alert-investigation"), {
+      recursive: true,
+    });
+    const files = new Map<string, Uint8Array>([
+      ["SKILL.md", new Uint8Array([1, 2, 3])],
+    ]);
+    readInstalledSkillFilesFn.mockImplementationOnce(() => files);
+    readBundledSkillFilesFn.mockImplementationOnce(() => files);
+    const { context, stdout } = createMockContext();
+    await list.call(context, { json: true }, { ...deps, home: tmpHome });
+    const payload = JSON.parse(stdout.join("")) as { installed: string }[];
+    expect(payload[0]!.installed).toBe("yes");
+  });
+});
+
+describe("skill list — user-defined INSTALLED column", () => {
+  let tmpHome: string;
+  const SKILL_ID = "7291";
+  const SKILL_LABEL = "team-triage";
+
+  function buildStub(): SkillResource {
+    return skillStub(
+      SKILL_ID,
+      SKILL_LABEL,
+      "Our internal triage runbook",
+      SkillVisibility.Listed,
+    );
+  }
+
+  beforeEach(() => {
+    tmpHome = mkdtempSync(join(tmpdir(), "list-ud-installed-"));
+    loadConfigFn.mockClear();
+    listSkillsFn.mockClear();
+    getBundledRepoFn.mockClear();
+    readInstalledSkillFilesFn.mockClear();
+    skillsToReturn = [buildStub()];
+  });
+
+  afterEach(() => {
+    rmSync(tmpHome, { recursive: true, force: true });
+  });
+
+  test("shows 'yes' when installed files match synthesized skill files", async () => {
+    const stub = buildStub();
+    const slug = slugifyLabel(SKILL_LABEL);
+    mkdirSync(join(tmpHome, ".agents", "skills", slug), { recursive: true });
+    const { files } = synthesizeUserSkill(stub);
+    readInstalledSkillFilesFn.mockImplementationOnce(() => files);
+    const { context, stdout } = createMockContext();
+    await list.call(
+      context,
+      { userDefined: true, json: true },
+      { ...deps, home: tmpHome },
+    );
+    const payload = JSON.parse(stdout.join("")) as { installed: string }[];
+    expect(payload[0]!.installed).toBe("yes");
   });
 });

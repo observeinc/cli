@@ -53,11 +53,13 @@ export async function view(
     // TODO: Remove the optional chaining when the API is updated
     const viewData = {
       ...dataset,
+
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       fieldList: dataset.fieldList?.map((f) => ({
         name: f.name,
         type: f.type.tag,
       })),
+
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       primaryKey: dataset.primaryKey?.join(", "),
     };

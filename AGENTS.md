@@ -48,7 +48,7 @@ src/
 │   ├── docs/           # Documentation commands (search)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
-│   ├── skill/          # AI agent skill commands (list, view)
+│   ├── skill/          # AI agent skill commands (list, view, install)
 │   ├── tag-key/        # Tag key commands (list)
 │   ├── tag-value/      # Tag value commands (list)
 │   ├── query.ts        # OPAL query execution

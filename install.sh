@@ -167,3 +167,4 @@ trap - EXIT
 
 # shellcheck disable=SC2086
 "$tmp_binary" cli install $setup_args
+"$tmp_binary" skill install observe-cli generate-opal || true
