@@ -103,9 +103,8 @@ export class IntegrationFixture {
       NO_COLOR: "1",
       // A global test-mode flag, alongside NO_COLOR / OBSERVE_NO_UPDATE_NOTIFIER
       // above. It only unhides commands marked `experimental` (see
-      // lib/experimental.ts) — the existing non-experimental smoke tests
-      // (auth/dataset/metric/alert/query) are unaffected — so enabling it here
-      // lets the apm smoke test run without adding per-call env plumbing.
+      // lib/experimental.ts, e.g. apm/content/ingest-token) — enabling it
+      // here lets those tests run without adding per-call env plumbing.
       OBSERVE_CLI_EXPERIMENTAL: "1",
     };
   }

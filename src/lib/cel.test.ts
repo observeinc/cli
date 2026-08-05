@@ -4,47 +4,16 @@ import {
   celHasCorrelationTag,
   combineFilters,
   escapeCelString,
-  fuzzyContains,
 } from "./cel";
 
-describe("fuzzyContains", () => {
-  test("single-word: plain case-insensitive substring", () => {
-    expect(fuzzyContains("Tracing/Service Metrics", "service")).toBe(true);
-    expect(fuzzyContains("Tracing/Service Metrics", "SERVICE")).toBe(true);
-    expect(fuzzyContains("alpha-service", "beta")).toBe(false);
-  });
-
-  test("multi-word: full substring match takes precedence", () => {
-    expect(fuzzyContains("Tracing/Service Metrics", "service metrics")).toBe(
-      true,
-    );
-  });
-
-  test("multi-word: token-independent match (order irrelevant)", () => {
-    // "service" and "metrics" both present, but not as a contiguous phrase.
-    expect(fuzzyContains("Metrics From Service X", "service metrics")).toBe(
-      true,
-    );
-    expect(fuzzyContains("alpha-service", "service metrics")).toBe(false);
-  });
-
-  test("collapses extra whitespace in the needle", () => {
-    expect(fuzzyContains("service metrics", "service   metrics")).toBe(true);
-  });
-
-  test("empty needle matches anything (parity with CEL)", () => {
-    // `"".toLowerCase()` substring is always true.
-    expect(fuzzyContains("anything", "")).toBe(true);
-  });
-
-  test("mirrors celFuzzyContains shape for single word", () => {
-    // Sanity: single-token CEL has no `||` token branch.
+describe("celFuzzyContains", () => {
+  test("single word has no `||` token branch", () => {
     expect(celFuzzyContains("label", "foo")).toBe(
       'label.lowerAscii().contains("foo".lowerAscii())',
     );
   });
 
-  test("mirrors celFuzzyContains shape for multi-word", () => {
+  test("multi-word combines a full-phrase branch with a token branch", () => {
     expect(celFuzzyContains("label", "service metrics")).toContain("||");
     expect(celFuzzyContains("label", "service metrics")).toContain("&&");
   });

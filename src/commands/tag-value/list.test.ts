@@ -8,15 +8,8 @@ import {
   test,
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
-import { resolve } from "node:path";
 import { TagKind, type TagValuePair } from "../../rest/types/tag-values";
 import { TagValuesSearchMode } from "../../rest/generated";
-
-const repoRoot = resolve(import.meta.dir, "../../..");
-const listTagValuesKGModulePath = resolve(
-  repoRoot,
-  "src/rest/tag-value/list-tag-values-kg-deprecated.ts",
-);
 
 const loadConfigFn = mock(() => ({
   customerId: "test-customer",
@@ -24,21 +17,12 @@ const loadConfigFn = mock(() => ({
   domain: "observeinc.com",
 }));
 
-let lastListArgs: { match?: string; mode?: string; limit?: number } | undefined;
-let tagValuesToReturn: TagValuePair[];
-
-const listTagValuesFn = mock(
-  (args: { match?: string; mode?: string; limit?: number }) => {
-    lastListArgs = args;
-    return Promise.resolve({ tagValuePairs: tagValuesToReturn });
-  },
-);
-
 let lastRestArgs:
   | { query?: string; mode?: TagValuesSearchMode; limit?: number }
   | undefined;
+let tagValuesToReturn: TagValuePair[];
 
-const listTagValuesRestFn = mock(
+const listTagValuesFn = mock(
   (args: { query?: string; mode?: TagValuesSearchMode; limit?: number }) => {
     lastRestArgs = args;
     return Promise.resolve({
@@ -50,25 +34,16 @@ const listTagValuesRestFn = mock(
 
 let list: (typeof import("./list"))["list"];
 
+// Backends are injected via `deps` instead of `mock.module`, which is
+// process-global in bun and leaks across test files.
 const deps = {
   loadConfig: loadConfigFn,
-  isExperimentalEnabled: () => false,
-} as Parameters<(typeof import("./list"))["list"]>[1];
-
-// Experimental gate forced on, with the REST helper injected.
-const experimentalDeps = {
-  loadConfig: loadConfigFn,
-  listTagValues: listTagValuesRestFn,
-  isExperimentalEnabled: () => true,
+  listTagValues: listTagValuesFn,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
 
 beforeAll(async () => {
-  void mock.module(listTagValuesKGModulePath, () => ({
-    listTagValuesKGDeprecated: listTagValuesFn,
-  }));
-
   const mod = await import("./list.ts");
   list = mod.list;
 });
@@ -81,8 +56,6 @@ describe("tag-value list", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     listTagValuesFn.mockClear();
-    listTagValuesRestFn.mockClear();
-    lastListArgs = undefined;
     lastRestArgs = undefined;
     tagValuesToReturn = [
       { name: "service.name", value: "checkout", kind: TagKind.Correlation },
@@ -106,29 +79,14 @@ describe("tag-value list", () => {
     expect(out).toContain("checkout");
   });
 
-  test("forwards --match/--mode/--limit to the API", async () => {
-    const { context } = createMockContext();
-    await list.call(
-      context,
-      { limit: 7, match: "svc", mode: "semantic", json: true },
-      deps,
-    );
-    expect(lastListArgs).toMatchObject({
-      match: "svc",
-      mode: "semantic",
-      limit: 7,
-    });
-  });
-
-  test("experimental path maps --match/--mode/--limit onto the REST listTagValues query", async () => {
+  test("maps --match/--mode/--limit onto the REST listTagValues query", async () => {
     const { context } = createMockContext();
     await list.call(
       context,
       { limit: 7, match: "svc", mode: "regex", json: true },
-      experimentalDeps,
+      deps,
     );
-    expect(listTagValuesRestFn).toHaveBeenCalledTimes(1);
-    expect(listTagValuesFn).not.toHaveBeenCalled();
+    expect(listTagValuesFn).toHaveBeenCalledTimes(1);
     expect(lastRestArgs).toMatchObject({
       query: "svc",
       mode: TagValuesSearchMode.Regex,
@@ -136,10 +94,10 @@ describe("tag-value list", () => {
     });
   });
 
-  test("experimental path falls back to a match-all regex when --match is empty", async () => {
+  test("falls back to a match-all regex when --match is empty", async () => {
     const { context } = createMockContext();
-    await list.call(context, { limit: 7, json: true }, experimentalDeps);
-    expect(listTagValuesRestFn).toHaveBeenCalledTimes(1);
+    await list.call(context, { limit: 7, json: true }, deps);
+    expect(listTagValuesFn).toHaveBeenCalledTimes(1);
     expect(lastRestArgs).toMatchObject({
       query: ".*",
       mode: TagValuesSearchMode.Regex,

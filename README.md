@@ -43,8 +43,8 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe auth configure`                | Manually configure CLI credentials                      |
 | `observe auth profile list`             | List all saved profiles                                 |
 | `observe auth profile use`              | Switch the default profile                              |
-| `observe tag-value list`                | Search tag values in the knowledge graph                |
-| `observe tag-key list`                  | Search tag keys in the knowledge graph                  |
+| `observe tag-value list`                | Search tag values                                       |
+| `observe tag-key list`                  | Search tag keys                                         |
 | `observe dataset list`                  | List datasets with optional filtering                   |
 | `observe dataset view`                  | View dataset details and schema                         |
 | `observe metric list`                   | Search and list metrics                                 |

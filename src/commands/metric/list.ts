@@ -1,20 +1,14 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
-import {
-  listMetrics as listMetricsViaGql,
-  type GqlMetricMatch,
-} from "../../gql/metric/list-metrics";
-import { listMetrics } from "../../rest/metric/list-metrics";
-import { searchMetricsViaKG } from "../../kg/search-metrics-kg";
-import { GqlApiError } from "../../gql/gql-request";
+import { listMetrics, type MetricMatch } from "../../rest/metric/list-metrics";
 import {
   celFuzzyContains,
   celHasCorrelationTag,
   combineFilters,
 } from "../../lib/cel";
-import { isExperimentalEnabled } from "../../lib/experimental";
 import { loadConfig } from "../../lib/config";
+import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
 import { parseNonNegativeInt } from "../../lib/parsers";
 import {
@@ -39,9 +33,8 @@ interface ListMetricsFlags {
 
 /**
  * The two correlation-tag flags must be supplied together: a value without
- * a key has no meaning, and a key without a value cannot resolve a
- * tag-value document in the KG. Validation runs before any backend call so
- * the user gets a fast, clear error.
+ * a key has no meaning, and a key without a value cannot build a
+ * `hasCorrelationTag()` predicate.
  */
 export function validateMetricFlags(flags: ListMetricsFlags): void {
   if (flags.correlationTagValue != null && flags.correlationTagKey == null) {
@@ -67,13 +60,13 @@ type FieldName = (typeof AVAILABLE_FIELDS)[number];
 
 const DEFAULT_FIELDS: FieldName[] = ["datasetId", "name", "type"];
 
-const columns = createColumnHelper<GqlMetricMatch>();
+const columns = createColumnHelper<MetricMatch>();
 
-const FIELD_COLUMNS: Record<FieldName, ColumnDef<GqlMetricMatch>> = {
+const FIELD_COLUMNS: Record<FieldName, ColumnDef<MetricMatch>> = {
   name: columns.accessor((row) => row.metric.name, {
     header: "NAME",
   }),
-  datasetId: columns.accessor((row) => row.datasetId ?? "", {
+  datasetId: columns.accessor((row) => row.datasetId, {
     header: "DATASET ID",
     format: (value) => chalk.cyan(value),
   }),
@@ -106,10 +99,7 @@ const FIELD_COLUMNS: Record<FieldName, ColumnDef<GqlMetricMatch>> = {
 // leaks across test files.
 export interface ListMetricsDeps {
   loadConfig?: typeof loadConfig;
-  searchMetricsViaKG?: typeof searchMetricsViaKG;
-  listMetricsViaGql?: typeof listMetricsViaGql;
   listMetrics?: typeof listMetrics;
-  isExperimentalEnabled?: typeof isExperimentalEnabled;
 }
 
 export async function list(
@@ -119,10 +109,7 @@ export async function list(
 ): Promise<void> {
   const {
     loadConfig: loadConfigImpl = loadConfig,
-    searchMetricsViaKG: searchKG = searchMetricsViaKG,
-    listMetricsViaGql: listGql = listMetricsViaGql,
     listMetrics: listRest = listMetrics,
-    isExperimentalEnabled: isExperimentalEnabledImpl = isExperimentalEnabled,
   } = deps;
   const { process, writer: _writer } = this;
 
@@ -138,65 +125,26 @@ export async function list(
 
     writer.info("Searching metrics...");
 
-    // Aliased as consts so TS narrows inside the KG dispatch branch without
-    // needing non-null assertions; validateMetricFlags guarantees both are
-    // present together.
     const correlationTagKey = flags.correlationTagKey;
     const correlationTagValue = flags.correlationTagValue;
 
-    // When experimental mode is on, all searches route through the REST
-    // `/v1/metrics` endpoint (correlation-tag filtering included, via the
-    // `hasCorrelationTag()` CEL macro). Otherwise the GraphQL `metricSearch`
-    // path handles plain searches and the interim KG path handles
-    // --correlation-tag-key/--correlation-tag-value. Delete the KG branch (and
-    // `searchMetricsViaKG`) once the REST macro is GA. All branches yield
-    // `listMetrics`'s `{ matches, numSearched }` shape, so the command stays a
-    // flat dispatch.
-    const experimentalEnabled = isExperimentalEnabledImpl();
-
-    let metrics: GqlMetricMatch[];
-    let totalCount: number;
-    if (experimentalEnabled) {
-      // Assemble the CEL filter here so the REST helper stays a thin wrapper:
-      // a case-insensitive substring on `name` (the field GraphQL keys on)
-      // AND'd with an optional `hasCorrelationTag()` predicate.
-      const filter = combineFilters([
-        flags.match !== "" ? celFuzzyContains("name", flags.match) : undefined,
-        correlationTagKey != null && correlationTagValue != null
-          ? celHasCorrelationTag(correlationTagKey, correlationTagValue)
-          : undefined,
-      ]);
-      const response = await listRest({
-        config,
-        filter,
-        limit: flags.limit,
-        offset: flags.offset,
-      });
-      metrics = response.matches;
-      totalCount = Number(response.numSearched);
-    } else if (correlationTagKey != null && correlationTagValue != null) {
-      const response = await searchKG({
-        config,
-        correlationTagKey,
-        correlationTagValue,
-        match: flags.match !== "" ? flags.match : undefined,
-        limit: flags.limit,
-        offset: flags.offset,
-      });
-      metrics = response.matches;
-      totalCount = Number(response.numSearched);
-    } else {
-      const response = await listGql(config, {
-        match: flags.match,
-        heuristicsOptions: {
-          inclusionOption: "Everything",
-          globalLimit: String(flags.limit),
-          ...(flags.offset != null && { offset: String(flags.offset) }),
-        },
-      });
-      metrics = response.matches;
-      totalCount = Number(response.numSearched);
-    }
+    // Assemble the CEL filter here so the REST helper stays a thin wrapper:
+    // a case-insensitive substring on `name` AND'd with an optional
+    // `hasCorrelationTag()` predicate.
+    const filter = combineFilters([
+      flags.match !== "" ? celFuzzyContains("name", flags.match) : undefined,
+      correlationTagKey != null && correlationTagValue != null
+        ? celHasCorrelationTag(correlationTagKey, correlationTagValue)
+        : undefined,
+    ]);
+    const response = await listRest({
+      config,
+      filter,
+      limit: flags.limit,
+      offset: flags.offset,
+    });
+    const metrics: MetricMatch[] = response.matches;
+    const totalCount = Number(response.numSearched);
 
     const fieldNames = flags.fields ?? DEFAULT_FIELDS;
 
@@ -215,8 +163,8 @@ export async function list(
       return;
     }
 
-    // `meta.totalCount = -1` signals "unknown / truncated" (KG path); only
-    // surface a true population total when the helper knows it.
+    // `numSearched: "-1"` signals "unknown" since the REST endpoint doesn't
+    // report a searched-population count.
     const summary =
       totalCount >= 0
         ? `Found ${metrics.length} metric(s) (${totalCount} searched):\n`
@@ -233,15 +181,7 @@ export async function list(
       );
     }
   } catch (error) {
-    if (error instanceof GqlApiError) {
-      writer.error(`API Error (${error.statusCode}): ${error.message}`);
-      if (error.errors) {
-        writer.write(JSON.stringify(error.errors, null, 2));
-      }
-    } else {
-      const message = error instanceof Error ? error.message : String(error);
-      writer.error(`Error: ${message}`);
-    }
+    writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;
   }
 }
@@ -281,7 +221,7 @@ export const listCommand = defineCommand({
       match: {
         kind: "parsed",
         parse: String,
-        brief: "Search metrics by name (required in experimental REST mode)",
+        brief: "Search metrics by name",
         default: "",
       },
       correlationTagKey: {

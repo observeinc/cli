@@ -58,55 +58,14 @@ const listDatasetsFn = mock(
   },
 );
 
-let lastSearchKGArgs:
-  | {
-      config: Config;
-      correlationTagKey: string;
-      correlationTagValue: string;
-      label?: string;
-      limit?: number;
-      offset?: number;
-    }
-  | undefined;
-
-let searchKGReturn = envelope([
-  datasetStub("kg-1", "alpha-service"),
-  datasetStub("kg-2", "beta-service"),
-]);
-
-const searchDatasetsViaKGFn = mock(
-  (args: {
-    config: Config;
-    correlationTagKey: string;
-    correlationTagValue: string;
-    label?: string;
-    limit?: number;
-    offset?: number;
-  }) => {
-    lastSearchKGArgs = args;
-    return Promise.resolve(searchKGReturn);
-  },
-);
-
 let list: (typeof import("./list"))["list"];
 let validateDatasetFlags: (typeof import("./list"))["validateDatasetFlags"];
 
-// Inject backends via `deps` instead of `mock.module` so the wrapper-level
-// tests in `src/rest/dataset/search-datasets-kg.test.ts` aren't affected by
-// bun's process-global module mocks.
+// Backends are injected via `deps` instead of `mock.module`, which is
+// process-global in bun and leaks across test files.
 const deps = {
   loadConfig: loadConfigFn,
-  searchDatasetsViaKG: searchDatasetsViaKGFn,
   listDatasets: listDatasetsFn,
-  isExperimentalEnabled: () => false,
-} as Parameters<(typeof import("./list"))["list"]>[1];
-
-// Same backends, but with the experimental (REST API) gate forced on.
-const experimentalDeps = {
-  loadConfig: loadConfigFn,
-  searchDatasetsViaKG: searchDatasetsViaKGFn,
-  listDatasets: listDatasetsFn,
-  isExperimentalEnabled: () => true,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
@@ -146,85 +105,18 @@ describe("validateDatasetFlags", () => {
     ).toThrow(/--correlation-tag-key requires --correlation-tag-value/);
   });
 
-  test("rejects --filter combined with correlation-tag flags", () => {
-    expect(() =>
-      validateDatasetFlags({
-        limit: 10,
-        filter: "a = 'b'",
-        correlationTagKey: "k",
-        correlationTagValue: "v",
-      }),
-    ).toThrow(/--filter.*--correlation-tag-key/);
-  });
-
-  test("rejects --sort combined with correlation-tag flags", () => {
-    expect(() =>
-      validateDatasetFlags({
-        limit: 10,
-        sort: "label",
-        correlationTagKey: "k",
-        correlationTagValue: "v",
-      }),
-    ).toThrow(/--sort.*--correlation-tag-key/);
-  });
-
-  test("rejects --query combined with correlation-tag flags", () => {
-    expect(() =>
-      validateDatasetFlags({
-        limit: 10,
-        query: "checkout latency",
-        correlationTagKey: "k",
-        correlationTagValue: "v",
-      }),
-    ).toThrow(/--query.*--correlation-tag-key/);
-  });
-
-  test("allows --offset with correlation-tag flags (applied client-side)", () => {
+  test("allows --filter / --sort / --query / --label / --offset alongside correlation-tag flags", () => {
     expect(() =>
       validateDatasetFlags({
         limit: 10,
         offset: 5,
-        correlationTagKey: "k",
-        correlationTagValue: "v",
-      }),
-    ).not.toThrow();
-  });
-
-  test("combines multiple offenders into one error", () => {
-    expect(() =>
-      validateDatasetFlags({
-        limit: 10,
-        filter: "x",
+        filter: "a = 'b'",
         sort: "label",
-        correlationTagKey: "k",
-        correlationTagValue: "v",
-      }),
-    ).toThrow(/--filter, --sort.*--correlation-tag-key/);
-  });
-
-  test("allows --label with correlation-tag flags (applied client-side)", () => {
-    expect(() =>
-      validateDatasetFlags({
-        limit: 10,
+        query: "checkout latency",
         label: "checkout",
         correlationTagKey: "k",
         correlationTagValue: "v",
       }),
-    ).not.toThrow();
-  });
-
-  test("allows --filter / --sort with correlation-tag flags on the experimental path", () => {
-    expect(() =>
-      validateDatasetFlags(
-        {
-          limit: 10,
-          filter: "a = 'b'",
-          sort: "label",
-          correlationTagKey: "k",
-          correlationTagValue: "v",
-        },
-        true,
-      ),
     ).not.toThrow();
   });
 });
@@ -233,20 +125,13 @@ describe("dataset list routing", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     listDatasetsFn.mockClear();
-    searchDatasetsViaKGFn.mockClear();
-    lastSearchKGArgs = undefined;
     lastListDatasetsArgs = undefined;
-    searchKGReturn = envelope([
-      datasetStub("kg-1", "alpha-service"),
-      datasetStub("kg-2", "beta-service"),
-    ]);
   });
 
-  test("routes to REST listDatasets when correlation-tag flags are absent", async () => {
+  test("calls REST listDatasets when correlation-tag flags are absent", async () => {
     const { context } = createMockContext();
     await list.call(context, { limit: 10, json: true }, deps);
     expect(listDatasetsFn).toHaveBeenCalledTimes(1);
-    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
   });
 
   test("forwards --query to listDatasets alongside a --filter", async () => {
@@ -257,30 +142,9 @@ describe("dataset list routing", () => {
       deps,
     );
     expect(listDatasetsFn).toHaveBeenCalledTimes(1);
-    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
     expect(lastListDatasetsArgs).toMatchObject({
       query: "checkout latency",
       filter: "a = 'b'",
-    });
-  });
-
-  test("routes to searchDatasetsViaKG when both correlation-tag flags are set", async () => {
-    const { context } = createMockContext();
-    await list.call(
-      context,
-      {
-        limit: 10,
-        json: true,
-        correlationTagKey: "service.name",
-        correlationTagValue: "checkout",
-      },
-      deps,
-    );
-    expect(searchDatasetsViaKGFn).toHaveBeenCalledTimes(1);
-    expect(listDatasetsFn).not.toHaveBeenCalled();
-    expect(lastSearchKGArgs).toMatchObject({
-      correlationTagKey: "service.name",
-      correlationTagValue: "checkout",
     });
   });
 
@@ -298,73 +162,9 @@ describe("dataset list routing", () => {
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--correlation-tag-value");
     expect(listDatasetsFn).not.toHaveBeenCalled();
-    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
   });
 
-  test("rejects incompatible flags before calling any backend", async () => {
-    const { context, stderr, getExitCode } = createMockContext();
-    await list.call(
-      context,
-      {
-        limit: 10,
-        json: true,
-        filter: "a = 'b'",
-        correlationTagKey: "k",
-        correlationTagValue: "v",
-      },
-      deps,
-    );
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("--filter");
-    expect(listDatasetsFn).not.toHaveBeenCalled();
-    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
-  });
-
-  test("forwards --label / --limit / --offset to searchDatasetsViaKG", async () => {
-    const { context } = createMockContext();
-    await list.call(
-      context,
-      {
-        limit: 25,
-        offset: 5,
-        label: "checkout",
-        json: true,
-        correlationTagKey: "service.name",
-        correlationTagValue: "checkout",
-      },
-      deps,
-    );
-    expect(lastSearchKGArgs).toMatchObject({
-      correlationTagKey: "service.name",
-      correlationTagValue: "checkout",
-      label: "checkout",
-      limit: 25,
-      offset: 5,
-    });
-  });
-
-  test("omits --label / --offset when flags are unset", async () => {
-    const { context } = createMockContext();
-    await list.call(
-      context,
-      {
-        limit: 10,
-        json: true,
-        correlationTagKey: "k",
-        correlationTagValue: "v",
-      },
-      deps,
-    );
-    expect(lastSearchKGArgs).toMatchObject({
-      correlationTagKey: "k",
-      correlationTagValue: "v",
-      limit: 10,
-    });
-    expect(lastSearchKGArgs?.label).toBeUndefined();
-    expect(lastSearchKGArgs?.offset).toBeUndefined();
-  });
-
-  test("experimental path routes correlation-tag flags through listDatasets with a hasCorrelationTag filter", async () => {
+  test("routes correlation-tag flags through listDatasets with a hasCorrelationTag filter", async () => {
     const { context } = createMockContext();
     await list.call(
       context,
@@ -374,16 +174,15 @@ describe("dataset list routing", () => {
         correlationTagKey: "service.name",
         correlationTagValue: "checkout",
       },
-      experimentalDeps,
+      deps,
     );
     expect(listDatasetsFn).toHaveBeenCalledTimes(1);
-    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
     expect(lastListDatasetsArgs?.filter).toContain(
       'hasCorrelationTag("service.name", "checkout")',
     );
   });
 
-  test("experimental path combines --label and --filter with the correlation-tag predicate", async () => {
+  test("combines --label and --filter with the correlation-tag predicate", async () => {
     const { context } = createMockContext();
     await list.call(
       context,
@@ -396,9 +195,8 @@ describe("dataset list routing", () => {
         correlationTagKey: "k",
         correlationTagValue: "v",
       },
-      experimentalDeps,
+      deps,
     );
-    expect(searchDatasetsViaKGFn).not.toHaveBeenCalled();
     const filter = lastListDatasetsArgs?.filter ?? "";
     expect(filter).toContain('hasCorrelationTag("k", "v")');
     expect(filter).toContain("kind == 'Event'");
