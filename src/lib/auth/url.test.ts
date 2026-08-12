@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseUrlInput } from "./url";
+import { applyPortOverride, parseUrlInput } from "./url";
 
 describe("parseUrlInput", () => {
   describe("returns an error for empty / unparseable input", () => {
@@ -21,6 +21,7 @@ describe("parseUrlInput", () => {
   describe("parses standard customer hostnames", () => {
     test("bare hostname", () => {
       expect(parseUrlInput("123456.observeinc.com")).toEqual({
+        baseUrl: "https://123456.observeinc.com",
         customerId: "123456",
         domain: "observeinc",
       });
@@ -28,6 +29,7 @@ describe("parseUrlInput", () => {
 
     test("https:// URL", () => {
       expect(parseUrlInput("https://123456.observeinc.com")).toEqual({
+        baseUrl: "https://123456.observeinc.com",
         customerId: "123456",
         domain: "observeinc",
       });
@@ -35,6 +37,7 @@ describe("parseUrlInput", () => {
 
     test("http:// URL", () => {
       expect(parseUrlInput("http://123456.observeinc.com")).toEqual({
+        baseUrl: "http://123456.observeinc.com",
         customerId: "123456",
         domain: "observeinc",
       });
@@ -42,15 +45,25 @@ describe("parseUrlInput", () => {
 
     test("URL with a trailing path is ignored for parsing", () => {
       expect(parseUrlInput("https://123456.observeinc.com/some/path")).toEqual({
+        baseUrl: "https://123456.observeinc.com",
         customerId: "123456",
         domain: "observeinc",
       });
     });
 
-    test("URL with a port is ignored for parsing", () => {
+    test("URL with a port preserves the port in the base URL", () => {
       expect(parseUrlInput("https://123456.observeinc.com:8080")).toEqual({
+        baseUrl: "https://123456.observeinc.com:8080",
         customerId: "123456",
         domain: "observeinc",
+      });
+    });
+
+    test("bare customer hostname with a port", () => {
+      expect(parseUrlInput("123456.example.com:1234")).toEqual({
+        baseUrl: "https://123456.example.com:1234",
+        customerId: "123456",
+        domain: "example",
       });
     });
   });
@@ -58,20 +71,42 @@ describe("parseUrlInput", () => {
   describe("handles non-standard hostnames (no customerId)", () => {
     test("bare hostname without leading digits", () => {
       expect(parseUrlInput("account.observeinc.com")).toEqual({
+        baseUrl: "https://account.observeinc.com",
         domain: "account.observeinc.com",
       });
     });
 
     test("plain domain", () => {
       expect(parseUrlInput("localhost")).toEqual({
+        baseUrl: "https://localhost",
         domain: "localhost",
       });
     });
 
     test("IP address", () => {
       expect(parseUrlInput("192.168.1.1")).toEqual({
+        baseUrl: "https://192.168.1.1",
         domain: "192.168.1.1",
       });
     });
+  });
+});
+
+describe("applyPortOverride", () => {
+  test("keeps an explicit URL port without an override", () => {
+    expect(
+      applyPortOverride({
+        baseUrl: "https://123456.example.com:1234",
+      }),
+    ).toBe("https://123456.example.com:1234");
+  });
+
+  test("applies a configured port override", () => {
+    expect(
+      applyPortOverride({
+        baseUrl: "https://123456.example.com:1234",
+        port: "8443",
+      }),
+    ).toBe("https://123456.example.com:8443");
   });
 });
