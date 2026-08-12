@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyPortOverride, parseUrlInput } from "./url";
+import { buildCustomerMainappUrl, parseUrlInput } from "./url";
 
 describe("parseUrlInput", () => {
   describe("returns an error for empty / unparseable input", () => {
@@ -92,10 +92,10 @@ describe("parseUrlInput", () => {
   });
 });
 
-describe("applyPortOverride", () => {
+describe("buildCustomerMainappUrl", () => {
   test("keeps an explicit URL port without an override", () => {
     expect(
-      applyPortOverride({
+      buildCustomerMainappUrl({
         baseUrl: "https://123456.example.com:1234",
       }),
     ).toBe("https://123456.example.com:1234");
@@ -103,7 +103,7 @@ describe("applyPortOverride", () => {
 
   test("applies a configured port override", () => {
     expect(
-      applyPortOverride({
+      buildCustomerMainappUrl({
         baseUrl: "https://123456.example.com:1234",
         port: "8443",
       }),

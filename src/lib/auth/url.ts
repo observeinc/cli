@@ -43,7 +43,7 @@ export function parseUrlInput(
   }
 }
 
-export function applyPortOverride({
+export function buildCustomerMainappUrl({
   baseUrl,
   port,
 }: {

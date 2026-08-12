@@ -24,7 +24,7 @@ import {
   promptServerSelection,
   type ServerInfo,
 } from "../../lib/auth/server-discovery";
-import { applyPortOverride, parseUrlInput } from "../../lib/auth/url";
+import { buildCustomerMainappUrl, parseUrlInput } from "../../lib/auth/url";
 
 interface LoginCommandFlags {
   profile?: string;
@@ -296,7 +296,7 @@ async function login(
         );
       }
 
-      baseUrl = applyPortOverride({
+      baseUrl = buildCustomerMainappUrl({
         baseUrl: parsedUrl.baseUrl,
         port: process.env.OBSERVE_MAINAPP_PORT,
       });
@@ -305,7 +305,7 @@ async function login(
       // Browser flow
       if (parsedUrl?.customerId && parsedUrl.domain) {
         // Full URL provided or resolved from saved config - go directly to customer server
-        baseUrl = applyPortOverride({
+        baseUrl = buildCustomerMainappUrl({
           baseUrl: parsedUrl.baseUrl,
           port: process.env.OBSERVE_MAINAPP_PORT,
         });
