@@ -24,7 +24,7 @@ import {
   promptServerSelection,
   type ServerInfo,
 } from "../../lib/auth/server-discovery";
-import { parseUrlInput } from "../../lib/auth/url";
+import { buildCustomerMainappUrl, parseUrlInput } from "../../lib/auth/url";
 
 interface LoginCommandFlags {
   profile?: string;
@@ -83,20 +83,6 @@ function buildDomainAccountUrl() {
 /**
  * Build the customer server URL.
  */
-function buildCustomerMainappURL({
-  customerId,
-  domain,
-}: {
-  customerId: string;
-  domain: string;
-}) {
-  const url = new URL(`https://${customerId}.${domain}.com`);
-  if (process.env.OBSERVE_MAINAPP_PORT) {
-    url.port = process.env.OBSERVE_MAINAPP_PORT;
-  }
-  return url.origin;
-}
-
 /**
  * Resolve the target server URL via discovery.
  * Discovers available servers from account.{domain}.com
@@ -196,7 +182,7 @@ async function doDeviceCodeLogin({
     customerId: result.customerId,
     token: result.token,
     domain: result.domain,
-    apiUrl: result.apiUrl,
+    apiUrl: result.apiUrl ?? baseUrl,
     tokenId: result.tokenId,
   };
 }
@@ -310,18 +296,18 @@ async function login(
         );
       }
 
-      baseUrl = buildCustomerMainappURL({
-        customerId: parsedUrl.customerId,
-        domain: parsedUrl.domain,
+      baseUrl = buildCustomerMainappUrl({
+        baseUrl: parsedUrl.baseUrl,
+        port: process.env.OBSERVE_MAINAPP_PORT,
       });
       authResult = await doDeviceCodeLogin({ baseUrl, writer });
     } else {
       // Browser flow
       if (parsedUrl?.customerId && parsedUrl.domain) {
         // Full URL provided or resolved from saved config - go directly to customer server
-        baseUrl = buildCustomerMainappURL({
-          customerId: parsedUrl.customerId,
-          domain: parsedUrl.domain,
+        baseUrl = buildCustomerMainappUrl({
+          baseUrl: parsedUrl.baseUrl,
+          port: process.env.OBSERVE_MAINAPP_PORT,
         });
       } else {
         // No URL or incomplete - discover via account server
