@@ -50,7 +50,8 @@ export const routes = defineRoutes({
     brief: "Observe CLI",
     fullDescription:
       "observe is a command-line interface for interacting with Observe Inc. " +
-      "It provides commands for configuration, querying datasets, and more.",
+      "It provides commands for configuration, querying datasets, and more.\n\n" +
+      "Set OBSERVE_CLI_EXPERIMENTAL=1 to reveal experimental commands. ",
   },
 });
 

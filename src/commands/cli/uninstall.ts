@@ -63,7 +63,7 @@ export const uninstallCommand = defineCommand({
   docs: {
     brief: "Remove shell integration for the Observe CLI",
     fullDescription:
-      "Removes shell integration previously set up by 'observe cli setup':\n\n" +
+      "Removes shell integration previously set up by 'observe cli install':\n\n" +
       "- Removes PATH entries from shell config\n\n" +
       "Examples:\n" +
       "  observe cli uninstall          # Remove all shell integration\n" +

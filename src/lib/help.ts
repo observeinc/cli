@@ -149,6 +149,31 @@ function generateCommands(): HelpCommand[] {
 const DOCS_URL = "https://docs.observeinc.com";
 
 /**
+ * Environment variables worth mentioning in top-level help, because neither is
+ * discoverable from the command list: one reveals commands that are hidden, the
+ * other redirects a command at a different profile.
+ */
+const ENV_NOTES: [name: string, description: string][] = [
+  ["OBSERVE_CLI_EXPERIMENTAL=1", "also show experimental commands"],
+  ["OBSERVE_PROFILE=<name>", "run one command against a saved profile"],
+];
+
+/**
+ * Format the environment-variable footnote, aligning descriptions with each
+ * other and labelling only the first row.
+ */
+function formatEnvNotes(): string {
+  const maxNameLength = Math.max(...ENV_NOTES.map(([name]) => name.length));
+  const padding = 2;
+
+  return ENV_NOTES.map(([name, description], i) => {
+    const label = i === 0 ? muted("env:") : "    ";
+    const namePadded = name.padEnd(maxNameLength + padding);
+    return `  ${label} ${cyan(namePadded)}${muted(description)}`;
+  }).join("\n");
+}
+
+/**
  * Format the command list with aligned descriptions.
  */
 function formatCommands(commands: HelpCommand[]): string {
@@ -178,6 +203,8 @@ export async function printCustomHelp(writer: Writer): Promise<void> {
   lines.push(formatCommands(generateCommands()));
   lines.push("");
   lines.push(`  ${muted("try:")} ${magenta(example)}`);
+  lines.push("");
+  lines.push(formatEnvNotes());
   lines.push("");
   lines.push(`  ${muted(`Learn more at ${DOCS_URL}`)}`);
   lines.push("");

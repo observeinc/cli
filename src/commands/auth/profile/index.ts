@@ -10,6 +10,7 @@ export const profileRoutes = defineRoutes({
   docs: {
     brief: "Manage CLI profiles",
     fullDescription:
-      "Manage named profiles for connecting to different Observe environments.",
+      "Manage named profiles for connecting to different Observe environments.\n\n" +
+      "Set OBSERVE_PROFILE=<name> to run a command with a different profile.",
   },
 });

@@ -4,7 +4,7 @@ Command line interface for [Observe Inc](https://www.observeinc.com).
 
 ## Features
 
-- **Knowledge Graph Search** - Resolve entities and entity types via tag keys and tag values to ground investigations in real data.
+- **Tag Search** - Resolve entities and entity types via tag keys and tag values to ground investigations in real data.
 - **Dataset Management** - List, view, and explore datasets with filtering and field selection.
 - **Metric Exploration** - Search, list, and inspect metrics including type, unit, and available dimensions.
 - **OPAL Query Execution** - Run OPAL queries directly from your terminal with schema-aware table output.
@@ -24,13 +24,11 @@ Install the CLI:
 curl -fsSL https://raw.githubusercontent.com/observeinc/cli/main/install.sh | bash
 ```
 
-Install the agent skills shipped under [`skills/`](./skills):
+Install the Observe agent skills into your coding agents:
 
 ```bash
-npx skills add observeinc/cli
+observe skill install --all
 ```
-
-To update installed skills after edits in this repo, run `npx skills update`.
 
 ## Commands
 
@@ -53,6 +51,7 @@ To update installed skills after edits in this repo, run `npx skills update`.
 | `observe skill list`                    | List AI agent skills                                    |
 | `observe skill view`                    | View skill details and content                          |
 | `observe skill install`                 | Install skills into your coding agents                  |
+| `observe skill update`                  | Update installed skills to the latest version           |
 | `observe alert list`                    | List alerts with severity and status filtering          |
 | `observe alert view`                    | View full alert details                                 |
 | `observe monitor mute list`             | List and search monitor mute rules                      |
@@ -125,13 +124,27 @@ Profile selection priority: `OBSERVE_PROFILE` env var → `currentProfile` in th
 
 ## Agent Skills
 
-This repo ships skills under [`skills/`](./skills). Install them with the `skills` CLI:
+Agent skills are instruction documents that teach a coding agent how to drive the CLI, write OPAL,
+and investigate with Observe data. Observe curates a set of them in
+[observeinc/skills](https://github.com/observeinc/skills); the CLI fetches the current version on
+demand, so you do not need to clone anything.
 
 ```bash
-npx skills add observeinc/cli
+# Install every curated skill into each coding agent the CLI detects
+observe skill install --all
+
+# Install specific skills by name
+observe skill install observe-cli generate-opal
+
+# Install into the current repo rather than your home directory
+observe skill install --all --project
+
+# Refresh installed skills to the latest published version
+observe skill update
 ```
 
-To update installed skills after edits in this repo, run `npx skills update`.
+`observe skill list` shows which skills exist and which are already installed. Skills your
+organization stores in Observe are reachable with the same commands under `--user-defined`.
 
 ## Contributing
 

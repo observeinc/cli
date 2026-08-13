@@ -48,7 +48,7 @@ src/
 │   ├── docs/           # Documentation commands (search)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
-│   ├── skill/          # AI agent skill commands (list, view, install)
+│   ├── skill/          # AI agent skill commands (list, view, install, update)
 │   ├── tag-key/        # Tag key commands (list)
 │   ├── tag-value/      # Tag value commands (list)
 │   ├── query.ts        # OPAL query execution
@@ -367,7 +367,7 @@ bun run src/bin.ts skill list
 bun run src/bin.ts content host install
 bun run src/bin.ts content kubernetes install
 bun run src/bin.ts tag-key list --match "host"
-bun run src/bin.ts tag-value list --key "host"
+bun run src/bin.ts tag-value list --match "checkout"
 bun run src/bin.ts docs search "how do I create a monitor"
 bun run src/bin.ts query --input <dataset-id> --pipeline "limit 10"
 ```
