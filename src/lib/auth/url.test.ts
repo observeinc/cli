@@ -23,7 +23,7 @@ describe("parseUrlInput", () => {
       expect(parseUrlInput("123456.observeinc.com")).toEqual({
         baseUrl: "https://123456.observeinc.com",
         customerId: "123456",
-        domain: "observeinc",
+        domain: "observeinc.com",
       });
     });
 
@@ -31,7 +31,7 @@ describe("parseUrlInput", () => {
       expect(parseUrlInput("https://123456.observeinc.com")).toEqual({
         baseUrl: "https://123456.observeinc.com",
         customerId: "123456",
-        domain: "observeinc",
+        domain: "observeinc.com",
       });
     });
 
@@ -39,7 +39,7 @@ describe("parseUrlInput", () => {
       expect(parseUrlInput("http://123456.observeinc.com")).toEqual({
         baseUrl: "http://123456.observeinc.com",
         customerId: "123456",
-        domain: "observeinc",
+        domain: "observeinc.com",
       });
     });
 
@@ -47,7 +47,7 @@ describe("parseUrlInput", () => {
       expect(parseUrlInput("https://123456.observeinc.com/some/path")).toEqual({
         baseUrl: "https://123456.observeinc.com",
         customerId: "123456",
-        domain: "observeinc",
+        domain: "observeinc.com",
       });
     });
 
@@ -55,7 +55,7 @@ describe("parseUrlInput", () => {
       expect(parseUrlInput("https://123456.observeinc.com:8080")).toEqual({
         baseUrl: "https://123456.observeinc.com:8080",
         customerId: "123456",
-        domain: "observeinc",
+        domain: "observeinc.com",
       });
     });
 
@@ -63,7 +63,7 @@ describe("parseUrlInput", () => {
       expect(parseUrlInput("123456.example.com:1234")).toEqual({
         baseUrl: "https://123456.example.com:1234",
         customerId: "123456",
-        domain: "example",
+        domain: "example.com",
       });
     });
   });

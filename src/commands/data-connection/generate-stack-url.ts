@@ -150,7 +150,7 @@ export async function generateStackUrlCmd(
       // empty, the substack skips deployment entirely.
       metricStreamFilterUri: "",
       observeAccountId: enableMetricStream ? config.customerId : "",
-      observeDomainName: enableMetricStream ? `${config.domain}.com` : "",
+      observeDomainName: enableMetricStream ? config.domain : "",
       datasourceId: enableMetricStream ? filedropDs.id : "",
       gqlToken: enableMetricStream ? config.token : "",
       updateTimestamp: enableMetricStream
