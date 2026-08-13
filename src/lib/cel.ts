@@ -86,26 +86,3 @@ export function celFuzzyContains(field: string, search: string) {
 
   return `(${fullMatch} || (${tokenMatch}))`;
 }
-
-/**
- * JS-side equivalent of `celFuzzyContains` for client-side filtering (e.g. on
- * the KG `--correlation-tag-key`/`--correlation-tag-value` path where the
- * server-side CEL filter cannot run).
- *
- * Matches when `haystack` contains the full `needle` as a substring (case
- * insensitive), OR — if `needle` has multiple space-separated tokens — every
- * token appears in `haystack` independently. Keep this in sync with
- * `celFuzzyContains` so native and client-side filtering stay behaviorally
- * equivalent.
- */
-export function fuzzyContains(haystack: string, needle: string): boolean {
-  const h = haystack.toLowerCase();
-  const n = needle.toLowerCase();
-  if (h.includes(n)) return true;
-  const parts = needle
-    .split(" ")
-    .filter((p) => p.length > 0)
-    .map((p) => p.toLowerCase());
-  if (parts.length <= 1) return false;
-  return parts.every((p) => h.includes(p));
-}

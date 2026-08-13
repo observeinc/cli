@@ -8,14 +8,7 @@ import {
   test,
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
-import { resolve } from "node:path";
 import type { TagKeyEntry } from "../../rest/types/tag-keys";
-
-const repoRoot = resolve(import.meta.dir, "../../..");
-const listTagKeysKGModulePath = resolve(
-  repoRoot,
-  "src/rest/tag-key/list-tag-keys-kg-deprecated.ts",
-);
 
 const loadConfigFn = mock(() => ({
   customerId: "test-customer",
@@ -23,28 +16,12 @@ const loadConfigFn = mock(() => ({
   domain: "observeinc.com",
 }));
 
-let lastListArgs:
-  | { match?: string; mode?: string; limit?: number; valueLimit?: number }
+let lastRestArgs:
+  | { filter?: string; limit?: number; offset?: number; valueLimit?: number }
   | undefined;
 let tagKeysToReturn: TagKeyEntry[];
 
 const listTagKeysFn = mock(
-  (args: {
-    match?: string;
-    mode?: string;
-    limit?: number;
-    valueLimit?: number;
-  }) => {
-    lastListArgs = args;
-    return Promise.resolve({ tagKeys: tagKeysToReturn });
-  },
-);
-
-let lastRestArgs:
-  | { filter?: string; limit?: number; offset?: number; valueLimit?: number }
-  | undefined;
-
-const listTagKeysRestFn = mock(
   (args: {
     filter?: string;
     limit?: number;
@@ -61,25 +38,16 @@ const listTagKeysRestFn = mock(
 
 let list: (typeof import("./list"))["list"];
 
+// Backends are injected via `deps` instead of `mock.module`, which is
+// process-global in bun and leaks across test files.
 const deps = {
   loadConfig: loadConfigFn,
-  isExperimentalEnabled: () => false,
-} as Parameters<(typeof import("./list"))["list"]>[1];
-
-// Experimental gate forced on, with the REST helper injected.
-const experimentalDeps = {
-  loadConfig: loadConfigFn,
-  listTagKeys: listTagKeysRestFn,
-  isExperimentalEnabled: () => true,
+  listTagKeys: listTagKeysFn,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
 
 beforeAll(async () => {
-  void mock.module(listTagKeysKGModulePath, () => ({
-    listTagKeysKGDeprecated: listTagKeysFn,
-  }));
-
   const mod = await import("./list.ts");
   list = mod.list;
 });
@@ -92,8 +60,6 @@ describe("tag-key list", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     listTagKeysFn.mockClear();
-    listTagKeysRestFn.mockClear();
-    lastListArgs = undefined;
     lastRestArgs = undefined;
     tagKeysToReturn = [
       { name: "service.name", values: ["checkout", "cart"] },
@@ -118,36 +84,14 @@ describe("tag-key list", () => {
     expect(out).toContain("checkout, cart");
   });
 
-  test("forwards --match/--mode/--limit/--value-limit to the API", async () => {
-    const { context } = createMockContext();
-    await list.call(
-      context,
-      {
-        limit: 5,
-        match: "svc",
-        mode: "regex",
-        "value-limit": 3,
-        json: true,
-      },
-      deps,
-    );
-    expect(lastListArgs).toMatchObject({
-      match: "svc",
-      mode: "regex",
-      limit: 5,
-      valueLimit: 3,
-    });
-  });
-
-  test("experimental path builds a correlation-scoped name filter for the REST listTagKeys", async () => {
+  test("builds a correlation-scoped name filter for the REST listTagKeys", async () => {
     const { context } = createMockContext();
     await list.call(
       context,
       { limit: 5, match: "svc", "value-limit": 3, json: true },
-      experimentalDeps,
+      deps,
     );
-    expect(listTagKeysRestFn).toHaveBeenCalledTimes(1);
-    expect(listTagKeysFn).not.toHaveBeenCalled();
+    expect(listTagKeysFn).toHaveBeenCalledTimes(1);
     expect(lastRestArgs).toMatchObject({ limit: 5, valueLimit: 3 });
     expect(lastRestArgs?.filter).toContain('kind == "Correlation"');
     expect(lastRestArgs?.filter).toContain(

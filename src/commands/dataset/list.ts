@@ -2,14 +2,12 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listDatasets } from "../../rest/dataset/list-datasets";
-import { searchDatasetsViaKG } from "../../kg/search-datasets-kg";
 import type { DatasetResource } from "../../rest/generated";
 import {
   celFuzzyContains,
   celHasCorrelationTag,
   combineFilters,
 } from "../../lib/cel";
-import { isExperimentalEnabled } from "../../lib/experimental";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -66,48 +64,16 @@ const FIELD_COLUMNS: Record<FieldName, ColumnDef<DatasetResource>> = {
 };
 
 /**
- * Validates correlation-tag flag combinations and KG-incompatible sibling
- * flags. The two correlation-tag flags must be supplied together (a value
- * without a key has no meaning, and a key without a value cannot resolve a
- * tag-value document in the KG).
- *
- * Flags incompatible with the KG correlation-tag path:
- * - `--query`: the KG correlation lookup runs its own fixed document search
- *   and has no free-text `query` passthrough.
- * - `--filter`: the semantic search service has no CEL-equivalent filter
- *   (only an exact `metadata_key`/`metadata_value` pair).
- * - `--sort`: `ListDocumentsRequest` has no `order_by` parameter, and
- *   sorting KG-projected rows on fields we cannot populate (`updatedAt`,
- *   `kind`) would produce meaningless results.
- *
- * `--label`, `--limit` and `--offset` stay allowed; `searchDatasetsViaKG`
- * applies them internally so the call site stays symmetric with the
- * REST `listDatasets` helper.
+ * Validates correlation-tag flag combinations: the two flags must be
+ * supplied together (a value without a key has no meaning, and a key
+ * without a value cannot build a `hasCorrelationTag()` predicate).
  */
-export function validateDatasetFlags(
-  flags: ListDatasetsFlags,
-  experimentalEnabled = false,
-): void {
+export function validateDatasetFlags(flags: ListDatasetsFlags): void {
   if (flags.correlationTagValue != null && flags.correlationTagKey == null) {
     throw new Error("--correlation-tag-value requires --correlation-tag-key");
   }
   if (flags.correlationTagKey != null && flags.correlationTagValue == null) {
     throw new Error("--correlation-tag-key requires --correlation-tag-value");
-  }
-  if (flags.correlationTagKey == null) return;
-  // The REST /v1/datasets path expresses correlation-tag filtering as a
-  // CEL `hasCorrelationTag()` predicate AND'd into the normal filter, so
-  // --filter and --sort remain fully compatible there. The KG fallback has
-  // no CEL-equivalent filter or order_by, so it keeps rejecting them.
-  if (experimentalEnabled) return;
-  const offenders: string[] = [];
-  if (flags.query != null) offenders.push("--query");
-  if (flags.filter != null) offenders.push("--filter");
-  if (flags.sort != null) offenders.push("--sort");
-  if (offenders.length > 0) {
-    throw new Error(
-      `${offenders.join(", ")} cannot be combined with --correlation-tag-key/--correlation-tag-value`,
-    );
   }
 }
 
@@ -116,9 +82,7 @@ export function validateDatasetFlags(
 // leaks across test files.
 export interface ListDatasetsDeps {
   loadConfig?: typeof loadConfig;
-  searchDatasetsViaKG?: typeof searchDatasetsViaKG;
   listDatasets?: typeof listDatasets;
-  isExperimentalEnabled?: typeof isExperimentalEnabled;
 }
 
 export async function list(
@@ -128,9 +92,7 @@ export async function list(
 ): Promise<void> {
   const {
     loadConfig: loadConfigImpl = loadConfig,
-    searchDatasetsViaKG: searchKG = searchDatasetsViaKG,
     listDatasets: listD = listDatasets,
-    isExperimentalEnabled: isExperimentalEnabledImpl = isExperimentalEnabled,
   } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
@@ -138,73 +100,38 @@ export async function list(
     muted: format === "json" || format === "csv",
   });
 
-  // When experimental mode is on, correlation-tag filtering runs via the
-  // `hasCorrelationTag()` CEL macro on the REST /v1/datasets endpoint instead
-  // of the KG fallback, so the KG-incompatible flag restrictions no longer
-  // apply.
-  const experimentalEnabled = isExperimentalEnabledImpl();
-
   try {
-    validateDatasetFlags(flags, experimentalEnabled);
+    validateDatasetFlags(flags);
 
     const config = loadConfigImpl();
-    // Aliased as consts so TS narrows inside the KG dispatch branch without
-    // needing non-null assertions; validateDatasetFlags guarantees both are
-    // present together.
     const correlationTagKey = flags.correlationTagKey;
     const correlationTagValue = flags.correlationTagValue;
 
     writer.info("Fetching datasets...");
 
-    // Interim KG path: routes --correlation-tag-key/--correlation-tag-value
-    // through the V2 Knowledge Graph while the REST Dataset API lacks a
-    // correlation-tag predicate. The experimental path instead AND's a
-    // `hasCorrelationTag()` CEL predicate into the normal /v1/datasets
-    // filter. Delete the KG branch (and `searchDatasetsViaKG`) once the REST
-    // macro is GA. Both branches yield `listDatasets`'s `DatasetsResponse`
-    // contract, so the command stays a flat dispatch.
-    let datasets: DatasetResource[];
-    let totalCount: number;
-    if (
-      correlationTagKey != null &&
-      correlationTagValue != null &&
-      !experimentalEnabled
-    ) {
-      const response = await searchKG({
-        config,
-        correlationTagKey,
-        correlationTagValue,
-        label: flags.label,
-        limit: flags.limit,
-        offset: flags.offset,
-      });
-      datasets = response.datasets;
-      totalCount = response.meta.totalCount;
-    } else {
-      const filter =
-        combineFilters([
-          flags.label ? celFuzzyContains("label", flags.label) : undefined,
-          correlationTagKey != null && correlationTagValue != null
-            ? celHasCorrelationTag(correlationTagKey, correlationTagValue)
-            : undefined,
-          flags.filter,
-        ]) ?? "";
+    const filter =
+      combineFilters([
+        flags.label ? celFuzzyContains("label", flags.label) : undefined,
+        correlationTagKey != null && correlationTagValue != null
+          ? celHasCorrelationTag(correlationTagKey, correlationTagValue)
+          : undefined,
+        flags.filter,
+      ]) ?? "";
 
-      // `query` (semantic search) and `filter` map 1:1 to the /v1/datasets
-      // params and are combinable — `filter` narrows the ranked results. Note
-      // the API ignores `orderBy` when `query` is set and returns
-      // `meta.totalCount = -1`, which the summary below already handles.
-      const response = await listD({
-        config,
-        filter,
-        query: flags.query,
-        limit: flags.limit,
-        offset: flags.offset,
-        orderBy: flags.sort,
-      });
-      datasets = response.datasets;
-      totalCount = response.meta.totalCount;
-    }
+    // `query` (semantic search) and `filter` map 1:1 to the /v1/datasets
+    // params and are combinable — `filter` narrows the ranked results. Note
+    // the API ignores `orderBy` when `query` is set and returns
+    // `meta.totalCount = -1`, which the summary below already handles.
+    const response = await listD({
+      config,
+      filter,
+      query: flags.query,
+      limit: flags.limit,
+      offset: flags.offset,
+      orderBy: flags.sort,
+    });
+    const datasets: DatasetResource[] = response.datasets;
+    const totalCount = response.meta.totalCount;
 
     const fieldNames = flags.fields ?? DEFAULT_FIELDS;
 
@@ -223,8 +150,8 @@ export async function list(
       return;
     }
 
-    // `meta.totalCount = -1` signals "unknown / truncated" (KG path); only
-    // surface a true population total when the helper knows it.
+    // `meta.totalCount = -1` signals "unknown" (set when `--query` is used);
+    // only surface a true population total when the API reports one.
     const summary =
       totalCount >= 0
         ? `Found ${datasets.length} dataset(s) (${totalCount} total):\n`

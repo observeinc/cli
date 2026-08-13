@@ -1,21 +1,35 @@
 import type { Config } from "../../lib/config";
 import { ObserveRestSDK } from "../client";
-import type { MetricResource } from "../generated";
-import type { GqlMetricMatch } from "../../gql/metric/list-metrics";
+import type { MetricResource, MetricStatus, MetricType } from "../generated";
+
+/** A single metric within its owning dataset, as returned by `listMetrics`. */
+export interface Metric {
+  name: string;
+  nameWithPath: string;
+  description: string;
+  type: MetricType;
+  unit: string;
+  aggregate: string;
+  rollup: string;
+  state: MetricStatus;
+  interval: string | null;
+  userDefined: boolean;
+}
+
+export interface MetricMatch {
+  datasetId: string;
+  metric: Metric;
+}
 
 /**
- * Project a REST `/v1/metrics` `MetricResource` into the GraphQL
- * `metricSearch` match shape so the command layer can dispatch uniformly
- * across the GraphQL, KG, and REST backends. Mirrors
- * `search-metrics-kg.ts`'s projection: unknown/enum leaves are widened with
- * casts and null leaves fall back to empty strings to keep `--format json`
- * output stable.
+ * Project a REST `/v1/metrics` `MetricResource` into a `MetricMatch`. Null
+ * leaves fall back to empty strings to keep `--format json` output stable.
  *
  * `nameWithPath` is reconstructed as `"<name> (<dataset label>)"`, which
  * requires the request to set `expand=true` so `dataset.record.label` is
  * populated.
  */
-function projectMetricResource(m: MetricResource): GqlMetricMatch {
+function projectMetricResource(m: MetricResource): MetricMatch {
   return {
     datasetId: m.dataset.id,
     metric: {
@@ -24,9 +38,7 @@ function projectMetricResource(m: MetricResource): GqlMetricMatch {
         ? `${m.name} (${m.dataset.record.label})`
         : m.name,
       description: m.description ?? "",
-      // The REST `type` enum carries the same string values as the GraphQL
-      // one but is a distinct nominal type, so bridge it through `unknown`.
-      type: m.type as unknown as GqlMetricMatch["metric"]["type"],
+      type: m.type,
       unit: m.unit ?? "",
       aggregate: m.aggregate,
       rollup: m.rollup,
@@ -41,10 +53,8 @@ function projectMetricResource(m: MetricResource): GqlMetricMatch {
  * Thin wrapper over the REST `GET /v1/metrics` endpoint. Passes `filter`,
  * `limit`, and `offset` straight through (the caller assembles the CEL
  * `filter`) and forces `expand=true` so the projection can reconstruct
- * `nameWithPath`. Results are mapped into the same
- * `{ matches, numSearched, datasets }` envelope the GraphQL/KG helpers return.
- * `numSearched: "-1"` signals "unknown / truncated" since the REST endpoint
- * does not report a searched-population count.
+ * `nameWithPath`. `numSearched: "-1"` signals "unknown" since the REST
+ * endpoint does not report a searched-population count.
  */
 export async function listMetrics({
   config,
@@ -69,6 +79,5 @@ export async function listMetrics({
   return {
     matches: response.metrics.map(projectMetricResource),
     numSearched: "-1",
-    datasets: [],
   };
 }

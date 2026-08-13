@@ -2,10 +2,8 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listTagValues } from "../../rest/tag-value/list-tag-values";
-import { listTagValuesKGDeprecated } from "../../rest/tag-value/list-tag-values-kg-deprecated";
 import type { TagValuePair } from "../../rest/types/tag-values";
 import { TagValuesSearchMode } from "../../rest/generated";
-import { isExperimentalEnabled } from "../../lib/experimental";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -47,8 +45,6 @@ const columns: ColumnDef<TagValuePair>[] = [
 export interface ListTagValuesDeps {
   loadConfig?: typeof loadConfig;
   listTagValues?: typeof listTagValues;
-  listTagValuesKGDeprecated?: typeof listTagValuesKGDeprecated;
-  isExperimentalEnabled?: typeof isExperimentalEnabled;
 }
 
 export async function list(
@@ -59,8 +55,6 @@ export async function list(
   const {
     loadConfig: loadConfigImpl = loadConfig,
     listTagValues: listRest = listTagValues,
-    listTagValuesKGDeprecated: listKG = listTagValuesKGDeprecated,
-    isExperimentalEnabled: isExperimentalEnabledImpl = isExperimentalEnabled,
   } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
@@ -73,29 +67,21 @@ export async function list(
 
     writer.info("Searching for tag values...");
 
-    // When experimental mode is on, search runs against the REST
-    // `/v1/tags/values` endpoint. The endpoint requires a `query`, so resolve
-    // the match-all fallback and map `--mode` onto the API enum here, keeping
-    // the REST helper a thin wrapper. With no query the semantic backend has
-    // nothing to rank against, so fall back to a match-all regex. Otherwise it
-    // uses the deprecated V2 Knowledge Graph path.
+    // Search runs against the REST `/v1/tags/values` endpoint. The endpoint
+    // requires a `query`, so resolve the match-all fallback and map `--mode`
+    // onto the API enum here, keeping the REST helper a thin wrapper. With no
+    // query the semantic backend has nothing to rank against, so fall back
+    // to a match-all regex.
     const match = flags.match ?? "";
-    const response = isExperimentalEnabledImpl()
-      ? await listRest({
-          config,
-          query: match !== "" ? match : ".*",
-          mode:
-            match !== "" && flags.mode === "semantic"
-              ? TagValuesSearchMode.Semantic
-              : TagValuesSearchMode.Regex,
-          limit: flags.limit,
-        })
-      : await listKG({
-          config,
-          match: flags.match,
-          mode: flags.mode,
-          limit: flags.limit,
-        });
+    const response = await listRest({
+      config,
+      query: match !== "" ? match : ".*",
+      mode:
+        match !== "" && flags.mode === "semantic"
+          ? TagValuesSearchMode.Semantic
+          : TagValuesSearchMode.Regex,
+      limit: flags.limit,
+    });
     const { tagValuePairs } = response;
 
     if (format === "json") {
@@ -169,7 +155,6 @@ export const listCommand = defineCommand({
     },
   },
   docs: {
-    brief:
-      "Search for tag values (knowledge graph; REST /v1/tags/values with OBSERVE_CLI_EXPERIMENTAL)",
+    brief: "Search for tag values",
   },
 });
