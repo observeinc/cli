@@ -105,7 +105,7 @@ describe("validateDatasetFlags", () => {
     ).toThrow(/--correlation-tag-key requires --correlation-tag-value/);
   });
 
-  test("allows --filter / --sort / --query / --label / --offset alongside correlation-tag flags", () => {
+  test("allows --filter / --sort / --query / --match / --offset alongside correlation-tag flags", () => {
     expect(() =>
       validateDatasetFlags({
         limit: 10,
@@ -113,7 +113,7 @@ describe("validateDatasetFlags", () => {
         filter: "a = 'b'",
         sort: "label",
         query: "checkout latency",
-        label: "checkout",
+        match: "checkout",
         correlationTagKey: "k",
         correlationTagValue: "v",
       }),
@@ -182,14 +182,14 @@ describe("dataset list routing", () => {
     );
   });
 
-  test("combines --label and --filter with the correlation-tag predicate", async () => {
+  test("combines --match and --filter with the correlation-tag predicate", async () => {
     const { context } = createMockContext();
     await list.call(
       context,
       {
         limit: 10,
         json: true,
-        label: "checkout",
+        match: "checkout",
         filter: "kind == 'Event'",
         sort: "label",
         correlationTagKey: "k",
@@ -201,6 +201,30 @@ describe("dataset list routing", () => {
     expect(filter).toContain('hasCorrelationTag("k", "v")');
     expect(filter).toContain("kind == 'Event'");
     expect(lastListDatasetsArgs?.orderBy).toBe("label");
+  });
+
+  test("accepts the deprecated --label as an alias for --match", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 10, json: true, label: "checkout" },
+      deps,
+    );
+    expect(lastListDatasetsArgs?.filter).toBe(
+      'label.lowerAscii().contains("checkout".lowerAscii())',
+    );
+  });
+
+  test("--match wins when both --match and --label are supplied", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 10, json: true, match: "winner", label: "loser" },
+      deps,
+    );
+    const filter = lastListDatasetsArgs?.filter ?? "";
+    expect(filter).toContain('"winner"');
+    expect(filter).not.toContain("loser");
   });
 
   test("emits DatasetResource shape in JSON output", async () => {

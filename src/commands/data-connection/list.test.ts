@@ -70,9 +70,9 @@ describe("data-connection list", () => {
     expect(output[0]).toMatchObject({ id: "conn-1", name: "aws-prod" });
   });
 
-  test("forwards --name and --module-id as filters", async () => {
+  test("forwards --match and --module-id as filters", async () => {
     const { context } = createMockContext();
-    await list.call(context, { name: "prod", moduleId: "mod-x" }, deps);
+    await list.call(context, { match: "prod", moduleId: "mod-x" }, deps);
 
     expect(lastSearchArgs).toMatchObject({
       nameSubstring: "prod",
