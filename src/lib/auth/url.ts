@@ -26,7 +26,7 @@ export function parseUrlInput(
     const hostname = url.hostname;
 
     // Try to extract customerId and domain from hostname like "123456.observeinc.com"
-    const match = /^(\d+)\.(.+)\.com$/.exec(hostname);
+    const match = /^(\d+)\.(.+\.com)$/.exec(hostname);
     if (match) {
       const [, customerId, domain] = match;
       if (!domain || !customerId) {
