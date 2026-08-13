@@ -3,14 +3,13 @@
  * directory each one reads in global and project (repo-local) modes. Directories
  * follow vercel-labs/skills.
  *
- * An agent is "detected" when its base dir — the parent of its global skills
- * dir, i.e. the agent's config home — exists. Detection always uses the global
- * base dir, even in project mode: it answers "does the user use this agent?",
- * which then decides where a project-local skill gets symlinked.
+ * An agent counts as present only once the skills dir it reads already exists, so
+ * an install never creates one — some config homes are read-only, and trying used
+ * to abort the whole install. Creating the directory is how a user opts in.
  */
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 export interface Agent {
   /** Display name, e.g. "Claude Code". */
@@ -383,18 +382,24 @@ export function getAgents(home: string = homedir()): Agent[] {
 }
 
 /**
- * The agents present on this machine: those whose base dir (the parent of the
- * global skills dir) exists. Filesystem access is injectable so tests can point
- * at a fake home.
+ * The agents this run can write to: those whose skills dir already exists — the
+ * agent's global dir, or its repo-local dir under `--project`.
  */
 export function detectAgents({
   home = homedir(),
+  cwd = process.cwd(),
+  project = false,
   existsImpl = existsSync,
 }: {
   home?: string;
+  /** Repo root, used in project mode. */
+  cwd?: string;
+  project?: boolean;
   existsImpl?: (path: string) => boolean;
 } = {}): Agent[] {
   return getAgents(home).filter((agent) =>
-    existsImpl(dirname(agent.globalSkillsDir)),
+    existsImpl(
+      project ? join(cwd, agent.projectSkillsDir) : agent.globalSkillsDir,
+    ),
   );
 }

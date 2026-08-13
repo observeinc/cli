@@ -165,8 +165,13 @@ export async function upgrade(
       });
     }
 
-    await installSkillsImpl(this, {}, [...MANDATORY_SKILLS]);
-    await updateSkillsImpl(this, {}, []); // empty names = update all installed
+    // The binary is already swapped, so a skill problem is a warning that stays
+    // out of the exit code — the success line above says the upgrade itself held.
+    await installSkillsImpl(this, {}, [...MANDATORY_SKILLS], {
+      bestEffort: true,
+    });
+    // empty names = update all installed
+    await updateSkillsImpl(this, {}, [], { bestEffort: true });
   } catch (err) {
     try {
       unlinkSync(tmpPath);

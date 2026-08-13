@@ -3,7 +3,7 @@ import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import { SkillVisibility, type SkillResource } from "../../rest/generated";
 import type { BundledRepo } from "../../lib/skills/bundled-repo";
 import type { Agent } from "../../lib/skills/agents";
-import type { InstalledPath } from "../../lib/skills/install-target";
+import type { InstallResult } from "../../lib/skills/install-target";
 import { updateSkills } from "./update";
 
 const HOME = "/fake/home";
@@ -36,16 +36,19 @@ const fakeAgents: Agent[] = [
 ];
 const detectAgentsFn = mock(() => fakeAgents);
 
-const installSkillFn = mock(
-  (_args: {
-    name: string;
-    files: Map<string, Uint8Array>;
-    project?: boolean;
-    agents: Agent[];
-    home?: string;
-    cwd?: string;
-  }): InstalledPath[] => [],
-);
+// Tests assert only *that* a skill was reinstalled, so this writes nothing.
+function defaultInstall(_args: {
+  name: string;
+  files: Map<string, Uint8Array>;
+  project?: boolean;
+  agents: Agent[];
+  home?: string;
+  cwd?: string;
+}): InstallResult {
+  return { installed: [], skipped: [] };
+}
+
+const installSkillFn = mock(defaultInstall);
 
 // name -> files on disk; absent = dir does not exist
 let installedDirs: Map<string, Map<string, Uint8Array>>;
@@ -105,6 +108,7 @@ beforeEach(() => {
   ]) {
     m.mockClear();
   }
+  installSkillFn.mockImplementation(defaultInstall);
 
   bundledFiles = new Map([
     ["alert-investigation", CURRENT_FILES],
@@ -215,5 +219,21 @@ describe("skill update — user-defined", () => {
 
     expect(installSkillFn).toHaveBeenCalledTimes(1);
     expect(stdout.join("")).toContain("Updated 1 skill: alert-investigation.");
+  });
+});
+
+describe("skill update — best effort", () => {
+  test("bestEffort warns and leaves the exit code alone", async () => {
+    const { context, stdout, stderr, getExitCode } = createMockContext();
+    await updateSkills(context, {}, ["missing-skill"], {
+      ...deps,
+      bestEffort: true,
+    });
+
+    expect(getExitCode()).toBeUndefined();
+    expect(stderr.join("")).toBe("");
+    expect(stdout.join("")).toContain(
+      "Could not install skills: Skill not installed: missing-skill",
+    );
   });
 });

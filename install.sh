@@ -3,18 +3,23 @@ set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
 DIM='\033[0;2m'
 BOLD='\033[1m'
 NC='\033[0m'
 
 # Only use colors when connected to a terminal
 if [[ ! -t 1 ]]; then
-  RED='' GREEN='' DIM='' BOLD='' NC=''
+  RED='' GREEN='' YELLOW='' DIM='' BOLD='' NC=''
 fi
 
 error() {
   echo -e "${RED}error${NC}: $*" >&2
   exit 1
+}
+
+warn() {
+  echo -e "${YELLOW}warning${NC}: $*" >&2
 }
 
 info() {
@@ -167,4 +172,18 @@ trap - EXIT
 
 # shellcheck disable=SC2086
 "$tmp_binary" cli install $setup_args
-"$tmp_binary" skill install observe-cli generate-opal || true
+info "Installing skills..."
+# A skill failure must not read as a failed CLI install, so buffer the output and
+# restate it as a warning. NO_COLOR keeps the text free of ANSI escapes so the
+# error marker strips reliably below.
+if skills_output="$(NO_COLOR=1 "$tmp_binary" skill install observe-cli generate-opal 2>&1)"; then
+  if [[ -n "$skills_output" ]]; then
+    printf '%s\n' "$skills_output" | sed '/^Installing\.\.\.$/d'
+  fi
+else
+  warn "The observe CLI installed successfully, but its skills did not:"
+  if [[ -n "$skills_output" ]]; then
+    printf '%s\n' "$skills_output" | sed '/^Installing\.\.\.$/d; s/^✗ //; s/^/  /' >&2
+  fi
+  warn "Run 'observe skill install observe-cli generate-opal' to retry."
+fi

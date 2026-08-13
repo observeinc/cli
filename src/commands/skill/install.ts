@@ -1,6 +1,6 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import { homedir } from "node:os";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, join } from "node:path";
 import type { LocalContext } from "../../context";
 import { getSkill } from "../../rest/skill/get-skill";
 import { listSkills } from "../../rest/skill/list-skills";
@@ -9,15 +9,22 @@ import {
   listBundledCatalog,
   readBundledSkillFiles,
 } from "../../lib/skills/bundled-repo";
-import { detectAgents } from "../../lib/skills/agents";
+import { detectAgents, type Agent } from "../../lib/skills/agents";
 import {
   installSkill,
   synthesizeUserSkill,
   type InstalledPath,
+  type SkippedTarget,
 } from "../../lib/skills/install-target";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import type { Writer } from "../../lib/writer";
+import {
+  displayPath,
+  makeFail,
+  warnSkippedTargets,
+  type PathContext,
+} from "./report";
 
 interface InstallSkillFlags {
   userDefined?: boolean;
@@ -48,6 +55,8 @@ export interface InstallSkillDeps {
   installSkill?: typeof installSkill;
   home?: string;
   cwd?: string;
+  /** Report a failure as a warning and leave the exit code alone. */
+  bestEffort?: boolean;
 }
 
 /** Upper bound when enumerating user-defined skills for `--all`. */
@@ -89,6 +98,10 @@ export async function installSkills(
   const all = flags.all === true;
   const project = flags.project === true;
   const userDefined = flags.userDefined === true;
+  const bestEffort = deps.bestEffort === true;
+  const paths: PathContext = { home, cwd, project };
+
+  const fail = makeFail({ writer, process, bestEffort });
 
   // Drop duplicate names so a skill isn't installed (and printed) twice.
   const requested = [...new Set(skills)];
@@ -96,8 +109,7 @@ export async function installSkills(
   // Nothing to install without either a skill name or --all. The interactive
   // picker for this case is a later step; here it is simply an error.
   if (requested.length === 0 && !all) {
-    writer.error("specify a skill name (or --all)");
-    process.exitCode = 1;
+    fail("no skill name given (pass a name, or --all)");
     return;
   }
 
@@ -122,30 +134,30 @@ export async function installSkills(
 
     // Fail fast on any unknown name rather than leaving a partial install.
     if (missing.length > 0) {
-      writer.error(
+      fail(
         `Skill${missing.length > 1 ? "s" : ""} not found: ${missing.join(", ")}`,
       );
-      process.exitCode = 1;
       return;
     }
 
-    const agents = detectAgentsImpl({ home });
-    const installs = resolved.map((s) => ({
-      name: s.name,
-      paths: installSkillImpl({
-        name: s.name,
-        files: s.files,
-        project,
-        agents,
-        home,
-        cwd,
-      }),
-    }));
+    const agents = detectAgentsImpl(paths);
+    const written: InstalledPath[] = [];
+    const skipped: SkippedTarget[] = [];
+    for (const skill of resolved) {
+      const result = installSkillImpl({ ...skill, project, agents, home, cwd });
+      written.push(...result.installed);
+      skipped.push(...result.skipped);
+    }
 
-    printResult(writer, { installs, project, home, cwd });
+    printResult(writer, {
+      names: resolved.map((s) => s.name),
+      written,
+      skipped,
+      agents,
+      paths,
+    });
   } catch (error) {
-    writer.error(`Error: ${await formatApiError(error)}`);
-    process.exitCode = 1;
+    fail(await formatApiError(error));
   }
 }
 
@@ -227,79 +239,67 @@ async function resolveUserDefined({
 }
 
 /**
- * Render the install result: the installed skill names under the canonical
- * directory, then the agent directories they were linked into. Directories
- * only — no per-skill paths. The same shape covers one skill, several, or
- * `--all`.
+ * Render the install result: the skill names under the canonical directory, then
+ * the agent directories they were linked into — directories only, no per-skill
+ * paths. Directories that could not be written are reported after.
  */
 function printResult(
   writer: Writer,
   {
-    installs,
-    project,
-    home,
-    cwd,
+    names,
+    written,
+    skipped,
+    agents,
+    paths,
   }: {
-    installs: { name: string; paths: InstalledPath[] }[];
-    project: boolean;
-    home: string;
-    cwd: string;
+    names: string[];
+    /** Every path the run wrote, canonical copies and agent targets alike. */
+    written: InstalledPath[];
+    skipped: SkippedTarget[];
+    agents: Agent[];
+    paths: PathContext;
   },
 ): void {
-  if (installs.length === 0) {
+  if (names.length === 0) {
     writer.warn("No skills installed.");
     return;
   }
 
-  const display = (p: string) => displayPath(p, { home, cwd, project });
+  const { home, cwd, project } = paths;
+  const display = (p: string) => displayPath(p, paths);
   const canonicalRoot = join(project ? cwd : home, ".agents", "skills");
-  const noun = installs.length === 1 ? "skill" : "skills";
+  const noun = names.length === 1 ? "skill" : "skills";
 
   writer.write(
-    `Installed ${installs.length} ${noun} to ${display(canonicalRoot)}:`,
+    `Installed ${names.length} ${noun} to ${display(canonicalRoot)}:`,
   );
-  for (const { name } of installs) {
+  for (const name of names) {
     writer.write(`  ${name}`);
   }
 
-  const linkDirs = uniqueLinkDirs(installs).map(display);
+  const linkDirs = [
+    ...new Set(
+      written
+        .filter((p) => p.kind !== "canonical")
+        .map((p) => display(dirname(p.path))),
+    ),
+  ];
   if (linkDirs.length > 0) {
     // On the Windows fallback the per-agent targets are copies, not symlinks.
-    const verb = installs.some((i) => i.paths.some((p) => p.kind === "copy"))
+    const verb = written.some((p) => p.kind === "copy")
       ? "Copied"
       : "Symlinked";
     writer.write(`${verb} into ${linkDirs.join(", ")}.`);
   }
-}
 
-/** The distinct parent dirs of every non-canonical (symlink/copy) target. */
-function uniqueLinkDirs(installs: { paths: InstalledPath[] }[]): string[] {
-  const dirs: string[] = [];
-  for (const { paths } of installs) {
-    for (const p of paths) {
-      if (p.kind === "canonical") continue;
-      const dir = dirname(p.path);
-      if (!dirs.includes(dir)) dirs.push(dir);
-    }
+  warnSkippedTargets(writer, skipped, paths);
+  // Not keyed off the link list: an agent whose skills dir *is* the canonical dir
+  // reads that copy directly, so nothing linked can still mean served.
+  if (agents.length === 0) {
+    writer.warn(
+      `No agent skills directories found, so nothing was linked. The skills are in ${display(canonicalRoot)}.`,
+    );
   }
-  return dirs;
-}
-
-/**
- * A path shown to the user: relative to the repo (`./…`) in project mode, or
- * home-anchored (`~/…`) otherwise, with POSIX separators. Falls back to the
- * absolute path when it lies outside the anchor.
- */
-function displayPath(
-  p: string,
-  { home, cwd, project }: { home: string; cwd: string; project: boolean },
-): string {
-  const anchor = project ? cwd : home;
-  const prefix = project ? "./" : "~/";
-  const rel = relative(anchor, p);
-  return rel && !rel.startsWith("..")
-    ? `${prefix}${rel.split(sep).join("/")}`
-    : p;
 }
 
 export const installCommand = defineCommand({

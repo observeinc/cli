@@ -3,7 +3,7 @@ import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import { SkillVisibility, type SkillResource } from "../../rest/generated";
 import type { BundledRepo } from "../../lib/skills/bundled-repo";
 import type { Agent } from "../../lib/skills/agents";
-import type { InstalledPath } from "../../lib/skills/install-target";
+import type { InstallResult } from "../../lib/skills/install-target";
 import { installSkills } from "./install";
 
 const HOME = "/fake/home";
@@ -53,20 +53,26 @@ const detectAgentsFn = mock(() => fakeAgents);
 
 // A deterministic stand-in for the real filesystem writer: one canonical path
 // plus one agent symlink, derived from the call's name/project.
-const installSkillFn = mock(
-  (args: { name: string; project?: boolean }): InstalledPath[] => {
-    const root = args.project
-      ? `${CWD}/.agents/skills`
-      : `${HOME}/.agents/skills`;
-    const link = args.project
-      ? `${CWD}/.claude/skills`
-      : `${HOME}/.claude/skills`;
-    return [
+function defaultInstall(args: {
+  name: string;
+  project?: boolean;
+}): InstallResult {
+  const root = args.project
+    ? `${CWD}/.agents/skills`
+    : `${HOME}/.agents/skills`;
+  const link = args.project
+    ? `${CWD}/.claude/skills`
+    : `${HOME}/.claude/skills`;
+  return {
+    installed: [
       { path: `${root}/${args.name}`, kind: "canonical" },
       { path: `${link}/${args.name}`, kind: "symlink" },
-    ];
-  },
-);
+    ],
+    skipped: [],
+  };
+}
+
+const installSkillFn = mock(defaultInstall);
 
 function skillStub(): SkillResource {
   return {
@@ -109,6 +115,7 @@ beforeEach(() => {
   ]) {
     m.mockClear();
   }
+  installSkillFn.mockImplementation(defaultInstall);
   catalogToReturn = [
     { name: "alert-investigation", description: "Investigate an alert" },
     { name: "generate-opal", description: "Core OPAL" },
@@ -128,7 +135,9 @@ describe("skill install — errors", () => {
     await installSkills(context, {}, [], deps);
 
     expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("specify a skill name (or --all)");
+    expect(stderr.join("")).toContain(
+      "no skill name given (pass a name, or --all)",
+    );
     expect(getBundledRepoFn).not.toHaveBeenCalled();
     expect(installSkillFn).not.toHaveBeenCalled();
   });
@@ -157,6 +166,55 @@ describe("skill install — errors", () => {
     expect(stderr.join("")).toContain("Skills not found: nope, nada");
     // Fail fast: nothing is installed when any requested name is unknown.
     expect(installSkillFn).not.toHaveBeenCalled();
+  });
+
+  test("bestEffort warns and leaves the exit code alone", async () => {
+    // How `cli upgrade` calls in: the binary is already swapped, so a skill
+    // problem must not report the whole thing as failed.
+    missingBundled = new Set(["nope"]);
+    const { context, stdout, stderr, getExitCode } = createMockContext();
+    await installSkills(context, {}, ["nope"], {
+      ...deps,
+      bestEffort: true,
+    });
+
+    expect(getExitCode()).toBeUndefined();
+    expect(stderr.join("")).toBe("");
+    expect(stdout.join("")).toContain(
+      "Could not install skills: Skill not found: nope",
+    );
+  });
+});
+
+describe("skill install — unwritable agent dirs", () => {
+  test("reports each skipped dir once, keeps exit 0, and still lists the rest", async () => {
+    // Every skill in the run hits the same unwritable dir, so the warning must
+    // name it once rather than once per skill.
+    installSkillFn.mockImplementation((args: { name: string }) => ({
+      installed: [
+        { path: `${HOME}/.agents/skills/${args.name}`, kind: "canonical" },
+        { path: `${HOME}/.claude/skills/${args.name}`, kind: "symlink" },
+      ],
+      skipped: [
+        {
+          path: `${HOME}/.codex/skills/${args.name}`,
+          reason: `EACCES: permission denied, mkdir '${HOME}/.codex/skills'`,
+        },
+      ],
+    }));
+
+    const { context, stdout, getExitCode } = createMockContext();
+    await installSkills(context, { all: true }, [], deps);
+
+    expect(getExitCode()).toBeUndefined();
+    const out = stdout.join("");
+    expect(out).toContain("Installed 2 skills to ~/.agents/skills:");
+    expect(out).toContain("Symlinked into ~/.claude/skills.");
+    expect(out).toContain(
+      "Skipped 1 agent directory that could not be written",
+    );
+    expect(out).toContain("~/.codex/skills — EACCES: permission denied");
+    expect(out.match(/~\/\.codex\/skills —/g)).toHaveLength(1);
   });
 });
 
