@@ -8,7 +8,7 @@ import {
   test,
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
-import type { TagKeyEntry } from "../../rest/types/tag-keys";
+import type { TagEntry } from "../../rest/types/tags";
 
 const loadConfigFn = mock(() => ({
   customerId: "test-customer",
@@ -19,9 +19,9 @@ const loadConfigFn = mock(() => ({
 let lastRestArgs:
   | { filter?: string; limit?: number; offset?: number; valueLimit?: number }
   | undefined;
-let tagKeysToReturn: TagKeyEntry[];
+let tagsToReturn: TagEntry[];
 
-const listTagKeysFn = mock(
+const listTagsFn = mock(
   (args: {
     filter?: string;
     limit?: number;
@@ -30,8 +30,8 @@ const listTagKeysFn = mock(
   }) => {
     lastRestArgs = args;
     return Promise.resolve({
-      tagKeys: tagKeysToReturn,
-      meta: { totalCount: tagKeysToReturn.length },
+      tags: tagsToReturn,
+      meta: { totalCount: tagsToReturn.length },
     });
   },
 );
@@ -42,7 +42,7 @@ let list: (typeof import("./list"))["list"];
 // process-global in bun and leaks across test files.
 const deps = {
   loadConfig: loadConfigFn,
-  listTagKeys: listTagKeysFn,
+  listTags: listTagsFn,
 } as Parameters<(typeof import("./list"))["list"]>[1];
 
 suppressAnsiColor();
@@ -56,21 +56,21 @@ afterAll(() => {
   mock.restore();
 });
 
-describe("tag-key list", () => {
+describe("tag list", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
-    listTagKeysFn.mockClear();
+    listTagsFn.mockClear();
     lastRestArgs = undefined;
-    tagKeysToReturn = [
+    tagsToReturn = [
       { name: "service.name", values: ["checkout", "cart"] },
       { name: "k8s.namespace", values: ["prod"] },
     ];
   });
 
-  test("emits tag keys as JSON with --json", async () => {
+  test("emits tags as JSON with --json", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { limit: 10, json: true }, deps);
-    const payload = JSON.parse(stdout.join("")) as TagKeyEntry[];
+    const payload = JSON.parse(stdout.join("")) as TagEntry[];
     expect(payload).toHaveLength(2);
     expect(payload[0]!.name).toBe("service.name");
   });
@@ -79,19 +79,19 @@ describe("tag-key list", () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { limit: 10 }, deps);
     const out = stdout.join("");
-    expect(out).toContain("Found 2 tag key(s)");
+    expect(out).toContain("Found 2 tag(s)");
     expect(out).toContain("service.name");
     expect(out).toContain("checkout, cart");
   });
 
-  test("builds a correlation-scoped name filter for the REST listTagKeys", async () => {
+  test("builds a correlation-scoped name filter for the REST listTags", async () => {
     const { context } = createMockContext();
     await list.call(
       context,
       { limit: 5, match: "svc", "value-limit": 3, json: true },
       deps,
     );
-    expect(listTagKeysFn).toHaveBeenCalledTimes(1);
+    expect(listTagsFn).toHaveBeenCalledTimes(1);
     expect(lastRestArgs).toMatchObject({ limit: 5, valueLimit: 3 });
     expect(lastRestArgs?.filter).toContain('kind == "Correlation"');
     expect(lastRestArgs?.filter).toContain(
@@ -99,15 +99,15 @@ describe("tag-key list", () => {
     );
   });
 
-  test("warns when there are no tag keys", async () => {
-    tagKeysToReturn = [];
+  test("warns when there are no tags", async () => {
+    tagsToReturn = [];
     const { context, stdout } = createMockContext();
     await list.call(context, { limit: 10 }, deps);
-    expect(stdout.join("")).toContain("No tag keys found.");
+    expect(stdout.join("")).toContain("No tags found.");
   });
 
   test("exits with code 1 on API error", async () => {
-    listTagKeysFn.mockImplementationOnce(() => {
+    listTagsFn.mockImplementationOnce(() => {
       throw new Error("boom");
     });
     const { context, stderr, getExitCode } = createMockContext();

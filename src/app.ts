@@ -17,7 +17,7 @@ import { metricRoutes } from "./commands/metric/index.js";
 import { monitorRoutes } from "./commands/monitor/index.js";
 import { queryCommand } from "./commands/query.js";
 import { skillRoutes } from "./commands/skill/index.js";
-import { tagKeyRoutes } from "./commands/tag-key/index.js";
+import { tagRoutes } from "./commands/tag/index.js";
 import { tagValueRoutes } from "./commands/tag-value/index.js";
 import { CURRENT_CLI_VERSION } from "./lib/constants.js";
 import { defineRoutes } from "./lib/stricli-wrappers.js";
@@ -28,7 +28,10 @@ export const routes = defineRoutes({
     help: helpCommand,
     auth: authRoutes,
     "tag-value": tagValueRoutes,
-    "tag-key": tagKeyRoutes,
+    tag: tagRoutes,
+    // Pre-rename name for `tag`, kept resolvable so existing scripts and
+    // agent skills don't break. Hidden below; drop once usage dies off.
+    "tag-key": tagRoutes,
     dataset: datasetRoutes,
     metric: metricRoutes,
     query: queryCommand,
@@ -52,6 +55,9 @@ export const routes = defineRoutes({
       "observe is a command-line interface for interacting with Observe Inc. " +
       "It provides commands for configuration, querying datasets, and more.\n\n" +
       "Set OBSERVE_CLI_EXPERIMENTAL=1 to reveal experimental commands. ",
+    hideRoute: {
+      "tag-key": true,
+    },
   },
 });
 

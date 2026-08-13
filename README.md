@@ -42,7 +42,7 @@ observe skill install --all
 | `observe auth profile list`             | List all saved profiles                                 |
 | `observe auth profile use`              | Switch the default profile                              |
 | `observe tag-value list`                | Search tag values                                       |
-| `observe tag-key list`                  | Search tag keys                                         |
+| `observe tag list`                      | Search tags                                             |
 | `observe dataset list`                  | List datasets with optional filtering                   |
 | `observe dataset view`                  | View dataset details and schema                         |
 | `observe metric list`                   | Search and list metrics                                 |

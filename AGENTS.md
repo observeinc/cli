@@ -49,7 +49,7 @@ src/
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
-│   ├── tag-key/        # Tag key commands (list)
+│   ├── tag/            # Tag commands (list); also aliased as `tag-key` (hidden)
 │   ├── tag-value/      # Tag value commands (list)
 │   ├── query.ts        # OPAL query execution
 │   └── help.ts         # Help command
@@ -131,14 +131,14 @@ the `experimental: true` line. The feature lives in `lib/experimental.ts`.
 
 ### REST-Backed List Commands
 
-`dataset list`, `metric list`, `tag-key list`, and `tag-value list` are all
+`dataset list`, `metric list`, `tag list`, and `tag-value list` are all
 backed by REST endpoints:
 
 | Command          | Endpoint                                                             |
 | ---------------- | -------------------------------------------------------------------- |
 | `dataset list`   | REST `/v1/datasets` (`DatasetApi.listDatasets`)                      |
 | `metric list`    | REST `/v1/metrics` (`MetricsApi.listMetrics`)                        |
-| `tag-key list`   | REST `/v1/tags` (`TagsApi.listDatasetTags`, `kind == "Correlation"`) |
+| `tag list`       | REST `/v1/tags` (`TagsApi.listDatasetTags`, `kind == "Correlation"`) |
 | `tag-value list` | REST `/v1/tags/values` (`TagValuesApi.searchTagValues`)              |
 
 Each command's REST helper lives in `src/rest/<resource>/list-<resource>.ts`
@@ -366,7 +366,7 @@ bun run src/bin.ts alert list
 bun run src/bin.ts skill list
 bun run src/bin.ts content host install
 bun run src/bin.ts content kubernetes install
-bun run src/bin.ts tag-key list --match "host"
+bun run src/bin.ts tag list --match "host"
 bun run src/bin.ts tag-value list --match "checkout"
 bun run src/bin.ts docs search "how do I create a monitor"
 bun run src/bin.ts query --input <dataset-id> --pipeline "limit 10"

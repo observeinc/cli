@@ -1,15 +1,15 @@
 import type { Config } from "../../lib/config";
 import { ObserveRestSDK } from "../client";
-import type { TagKeysResponse } from "../types/tag-keys";
+import type { TagsResponse } from "../types/tags";
 
 /**
  * Thin wrapper over the REST `GET /v1/tags` endpoint. Passes the caller-built
  * CEL `filter`, `limit`, and `offset` through and always requests sample
- * values (this helper's contract is "tag keys with their values"). Results are
- * projected into the same `TagKeysResponse` envelope the deprecated KG helper
- * returns; `valueLimit` caps how many sample values each key keeps.
+ * values (this helper's contract is "tags with their values"). Results are
+ * projected into the same `TagsResponse` envelope the deprecated KG helper
+ * returns; `valueLimit` caps how many sample values each tag keeps.
  */
-export async function listTagKeys({
+export async function listTags({
   config,
   filter,
   limit,
@@ -21,7 +21,7 @@ export async function listTagKeys({
   limit: number;
   offset?: number;
   valueLimit?: number;
-}): Promise<TagKeysResponse> {
+}): Promise<TagsResponse> {
   const sdk = new ObserveRestSDK(config);
 
   const response = await sdk.tagsApi.listDatasetTags({
@@ -31,7 +31,7 @@ export async function listTagKeys({
     offset,
   });
 
-  const tagKeys = response.tags.map((tag) => {
+  const tags = response.tags.map((tag) => {
     const allValues = tag.sampleValues ?? [];
     const values =
       typeof valueLimit === "number"
@@ -41,7 +41,7 @@ export async function listTagKeys({
   });
 
   return {
-    tagKeys,
+    tags,
     meta: { totalCount: response.meta.totalCount },
   };
 }

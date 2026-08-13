@@ -1,4 +1,4 @@
-export interface TagKeyEntry {
+export interface TagEntry {
   name: string;
   values: string[];
 }
@@ -7,7 +7,7 @@ export interface Meta {
   totalCount: number;
 }
 
-export interface TagKeysResponse {
-  tagKeys: TagKeyEntry[];
+export interface TagsResponse {
+  tags: TagEntry[];
   meta: Meta;
 }
