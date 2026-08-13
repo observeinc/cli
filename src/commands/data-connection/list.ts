@@ -5,7 +5,7 @@ import { GqlApiError } from "../../gql/gql-request.js";
 import { loadConfig } from "../../lib/config.js";
 
 interface ListConnectionsFlags {
-  name?: string;
+  match?: string;
   moduleId?: string;
 }
 
@@ -24,7 +24,7 @@ export async function list(
   try {
     const config = loadConfigImpl();
     const results = await searchConnections(config, {
-      nameSubstring: flags.name,
+      nameSubstring: flags.match,
       moduleId: flags.moduleId,
     });
     writer.write(JSON.stringify(results, null, 2));
@@ -45,7 +45,7 @@ export const listCommand = defineCommand({
   parameters: {
     positional: { kind: "tuple", parameters: [] },
     flags: {
-      name: {
+      match: {
         kind: "parsed",
         parse: String,
         brief: "Filter connections by name substring",
@@ -57,6 +57,9 @@ export const listCommand = defineCommand({
         brief: "Filter connections by module ID",
         optional: true,
       },
+    },
+    aliases: {
+      m: "match",
     },
   },
   docs: {

@@ -24,6 +24,8 @@ type OutputFormat = "json" | "csv";
 type SortField = "label" | "id" | "kind" | "updatedAt";
 
 interface ListDatasetsFlags {
+  match?: string;
+  /** Deprecated alias for `match`, kept for backwards compatibility. */
   label?: string;
   filter?: string;
   query?: string;
@@ -109,9 +111,13 @@ export async function list(
 
     writer.info("Fetching datasets...");
 
+    // `--label` is the pre-GA name for `--match`; `--match` wins when both
+    // are supplied.
+    const match = flags.match ?? flags.label;
+
     const filter =
       combineFilters([
-        flags.label ? celFuzzyContains("label", flags.label) : undefined,
+        match ? celFuzzyContains("label", match) : undefined,
         correlationTagKey != null && correlationTagValue != null
           ? celHasCorrelationTag(correlationTagKey, correlationTagValue)
           : undefined,
@@ -212,11 +218,18 @@ export const listCommand = defineCommand({
       parameters: [],
     },
     flags: {
+      match: {
+        kind: "parsed",
+        parse: String,
+        brief: "Filter datasets by name substring (case-insensitive)",
+        optional: true,
+      },
       label: {
         kind: "parsed",
         parse: String,
-        brief: "Filter datasets by label (substring match)",
+        brief: "Deprecated alias for --match",
         optional: true,
+        hidden: true,
       },
       filter: {
         kind: "parsed",
@@ -282,6 +295,7 @@ export const listCommand = defineCommand({
       },
     },
     aliases: {
+      m: "match",
       f: "filter",
       q: "query",
       l: "limit",
