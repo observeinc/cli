@@ -1,8 +1,8 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
-import { listTagKeys } from "../../rest/tag-key/list-tag-keys";
-import type { TagKeyEntry } from "../../rest/types/tag-keys";
+import { listTags } from "../../rest/tag/list-tags";
+import type { TagEntry } from "../../rest/types/tags";
 import { celFuzzyContains, combineFilters } from "../../lib/cel";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
@@ -16,7 +16,7 @@ import { renderAsCSV } from "../../lib/formatters/csv";
 
 type OutputFormat = "json" | "csv";
 
-interface ListTagKeysFlags {
+interface ListTagsFlags {
   match?: string;
   limit: number;
   "value-limit"?: number;
@@ -28,12 +28,12 @@ const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 const MIN_LIMIT = 1;
 
-/** Base scope predicate: tag-key search only surfaces correlation tags. */
+/** Base scope predicate: tag search only surfaces correlation tags. */
 const CORRELATION_KIND_FILTER = 'kind == "Correlation"';
 
-const col = createColumnHelper<TagKeyEntry>();
+const col = createColumnHelper<TagEntry>();
 
-const columns: ColumnDef<TagKeyEntry>[] = [
+const columns: ColumnDef<TagEntry>[] = [
   col.accessor((row) => row.name, {
     header: "TAG KEY",
     format: (value) => chalk.yellow(value),
@@ -44,19 +44,19 @@ const columns: ColumnDef<TagKeyEntry>[] = [
   }),
 ];
 
-export interface ListTagKeysDeps {
+export interface ListTagsDeps {
   loadConfig?: typeof loadConfig;
-  listTagKeys?: typeof listTagKeys;
+  listTags?: typeof listTags;
 }
 
 export async function list(
   this: LocalContext,
-  flags: ListTagKeysFlags,
-  deps: ListTagKeysDeps = {},
+  flags: ListTagsFlags,
+  deps: ListTagsDeps = {},
 ): Promise<void> {
   const {
     loadConfig: loadConfigImpl = loadConfig,
-    listTagKeys: listRest = listTagKeys,
+    listTags: listRest = listTags,
   } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
@@ -67,7 +67,7 @@ export async function list(
   try {
     const config = loadConfigImpl();
 
-    writer.info("Searching for tag keys...");
+    writer.info("Searching for tags...");
 
     // Search runs against the REST `/v1/tags` endpoint. Build the CEL filter
     // here (correlation-kind scope AND'd with an optional case-insensitive
@@ -81,25 +81,25 @@ export async function list(
       limit: flags.limit,
       valueLimit: flags["value-limit"],
     });
-    const { tagKeys } = response;
+    const { tags } = response;
 
     if (format === "json") {
-      writer.write(JSON.stringify(tagKeys, null, 2));
+      writer.write(JSON.stringify(tags, null, 2));
       return;
     }
 
     if (format === "csv") {
-      writer.write(renderAsCSV(tagKeys));
+      writer.write(renderAsCSV(tags));
       return;
     }
 
-    if (tagKeys.length === 0) {
-      writer.warn("No tag keys found.");
+    if (tags.length === 0) {
+      writer.warn("No tags found.");
       return;
     }
 
-    writer.write(chalk.green(`Found ${tagKeys.length} tag key(s):\n`));
-    writer.write(formatTable(tagKeys, columns));
+    writer.write(chalk.green(`Found ${tags.length} tag(s):\n`));
+    writer.write(formatTable(tags, columns));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;
@@ -121,19 +121,19 @@ export const listCommand = defineCommand({
       match: {
         kind: "parsed",
         parse: String,
-        brief: "Search tag keys by keyword (case-insensitive substring)",
+        brief: "Search tags by keyword (case-insensitive substring)",
         optional: true,
       },
       limit: {
         kind: "parsed",
         parse: parseLimit,
-        brief: `Maximum number of tag keys to return (${MIN_LIMIT}-${MAX_LIMIT})`,
+        brief: `Maximum number of tags to return (${MIN_LIMIT}-${MAX_LIMIT})`,
         default: String(DEFAULT_LIMIT),
       },
       "value-limit": {
         kind: "parsed",
         parse: parseLimit,
-        brief: `Maximum number of tag values to show per key (${MIN_LIMIT}-${MAX_LIMIT})`,
+        brief: `Maximum number of tag values to show per tag (${MIN_LIMIT}-${MAX_LIMIT})`,
         optional: true,
       },
       format: {
@@ -154,6 +154,6 @@ export const listCommand = defineCommand({
     },
   },
   docs: {
-    brief: "Search for tag keys",
+    brief: "Search for tags",
   },
 });
