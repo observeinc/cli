@@ -79,6 +79,20 @@ describe("tag-value list", () => {
     expect(out).toContain("checkout");
   });
 
+  test("defaults to semantic mode when --match is provided without --mode", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 25, match: "checkout", json: true },
+      deps,
+    );
+    expect(listTagValuesFn).toHaveBeenCalledTimes(1);
+    expect(lastRestArgs).toMatchObject({
+      query: "checkout",
+      mode: TagValuesSearchMode.Semantic,
+    });
+  });
+
   test("maps --match/--mode/--limit onto the REST listTagValues query", async () => {
     const { context } = createMockContext();
     await list.call(

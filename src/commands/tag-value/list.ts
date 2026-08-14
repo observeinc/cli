@@ -77,7 +77,7 @@ export async function list(
       config,
       query: match !== "" ? match : ".*",
       mode:
-        match !== "" && flags.mode === "semantic"
+        match !== "" && flags.mode !== "regex"
           ? TagValuesSearchMode.Semantic
           : TagValuesSearchMode.Regex,
       limit: flags.limit,
