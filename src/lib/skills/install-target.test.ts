@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -8,7 +9,7 @@ import {
   rmSync,
 } from "node:fs";
 import { join } from "node:path";
-import { detectAgents } from "./agents";
+import { detectAgents, type Agent } from "./agents";
 import {
   installSkill,
   slugifyLabel,
@@ -39,21 +40,41 @@ const decode = (path: string) => readFileSync(path, "utf-8");
 
 describe("detectAgents", () => {
   let home: string;
+  let cwd: string;
 
   beforeEach(() => {
     home = tmp("detect");
+    cwd = tmp("detect-repo");
   });
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
   });
 
-  test("detects only agents whose base dir exists", () => {
-    // Claude's base is ~/.claude; opencode's is ~/.config/opencode.
-    mkdirSync(join(home, ".claude"), { recursive: true });
-    mkdirSync(join(home, ".config", "opencode"), { recursive: true });
+  const names = (agents: Agent[]) => agents.map((a) => a.name);
 
-    const names = detectAgents({ home }).map((a) => a.name);
-    expect(names).toEqual(["Claude Code", "opencode"]);
+  test("detects only agents whose skills dir exists", () => {
+    mkdirSync(join(home, ".claude", "skills"), { recursive: true });
+    mkdirSync(join(home, ".config", "opencode", "skills"), { recursive: true });
+    // A config home with no skills dir counts as no agent: creating the dir is
+    // what used to fail outright on a config home the user cannot write.
+    mkdirSync(join(home, ".codex"), { recursive: true });
+
+    expect(names(detectAgents({ home, cwd }))).toEqual([
+      "Claude Code",
+      "opencode",
+    ]);
+  });
+
+  test("project mode detects on the repo-local dir, not the global one", () => {
+    // Both agents are set up globally, but only Claude Code's dir is in the repo.
+    mkdirSync(join(home, ".claude", "skills"), { recursive: true });
+    mkdirSync(join(home, ".roo", "skills"), { recursive: true });
+    mkdirSync(join(cwd, ".claude", "skills"), { recursive: true });
+
+    expect(names(detectAgents({ home, cwd, project: true }))).toEqual([
+      "Claude Code",
+    ]);
   });
 });
 
@@ -63,8 +84,8 @@ describe("installSkill — global", () => {
   beforeEach(() => {
     home = tmp("global");
     // Two detected agents.
-    mkdirSync(join(home, ".claude"), { recursive: true });
-    mkdirSync(join(home, ".cursor"), { recursive: true });
+    mkdirSync(join(home, ".claude", "skills"), { recursive: true });
+    mkdirSync(join(home, ".cursor", "skills"), { recursive: true });
   });
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
@@ -72,19 +93,25 @@ describe("installSkill — global", () => {
 
   test("writes a canonical copy and symlinks it into each detected agent", () => {
     const agents = detectAgents({ home });
-    const paths = installSkill({ name: "demo", files: FILES, agents, home });
+    const { installed, skipped } = installSkill({
+      name: "demo",
+      files: FILES,
+      agents,
+      home,
+    });
 
     const canonical = join(home, ".agents", "skills", "demo");
-    expect(paths[0]).toEqual({ path: canonical, kind: "canonical" });
+    expect(installed[0]).toEqual({ path: canonical, kind: "canonical" });
     expect(decode(join(canonical, "SKILL.md"))).toContain("name: demo");
     expect(decode(join(canonical, "references", "opal.md"))).toBe("# ref\n");
 
     const claudeLink = join(home, ".claude", "skills", "demo");
     const cursorLink = join(home, ".cursor", "skills", "demo");
-    expect(paths.slice(1)).toEqual([
+    expect(installed.slice(1)).toEqual([
       { path: claudeLink, kind: "symlink" },
       { path: cursorLink, kind: "symlink" },
     ]);
+    expect(skipped).toEqual([]);
     // The links are symlinks that resolve to the canonical dir and its files.
     expect(lstatSync(claudeLink).isSymbolicLink()).toBe(true);
     expect(readlinkSync(claudeLink)).toBe(canonical);
@@ -93,22 +120,59 @@ describe("installSkill — global", () => {
 
   test("copies the directory when symlinking is rejected (Windows fallback)", () => {
     const agents = detectAgents({ home });
-    const paths = installSkill({
+    const { installed } = installSkill({
       name: "demo",
       files: FILES,
       agents,
       home,
+      // Windows without developer mode or admin rights, as Node reports it.
       symlink: () => {
-        throw new Error("EPERM");
+        throw Object.assign(new Error("EPERM: operation not permitted"), {
+          code: "EPERM",
+        });
       },
     });
 
     const claudeTarget = join(home, ".claude", "skills", "demo");
-    expect(paths.find((p) => p.path === claudeTarget)?.kind).toBe("copy");
+    expect(installed.find((p) => p.path === claudeTarget)?.kind).toBe("copy");
     // A real directory copy, not a symlink.
     expect(lstatSync(claudeTarget).isSymbolicLink()).toBe(false);
     expect(lstatSync(claudeTarget).isDirectory()).toBe(true);
     expect(decode(join(claudeTarget, "references", "opal.md"))).toBe("# ref\n");
+  });
+
+  test("skips an unwritable agent dir, leaving nothing behind, and installs the rest", () => {
+    // A read-only agent skills dir used to abort the whole run, leaving the
+    // agents after it in the list with nothing. The symlink is what fails here,
+    // and a permission failure earns no copy fallback — that would fail too, so
+    // the reported reason is the symlink's own and the dir is left untouched.
+    const cursorSkills = join(home, ".cursor", "skills");
+    chmodSync(cursorSkills, 0o500);
+    try {
+      const agents = detectAgents({ home });
+      const { installed, skipped } = installSkill({
+        name: "demo",
+        files: FILES,
+        agents,
+        home,
+      });
+
+      const claudeLink = join(home, ".claude", "skills", "demo");
+      expect(installed.map((p) => p.path)).toEqual([
+        join(home, ".agents", "skills", "demo"),
+        claudeLink,
+      ]);
+      expect(lstatSync(claudeLink).isSymbolicLink()).toBe(true);
+
+      expect(skipped).toHaveLength(1);
+      expect(skipped[0]!.path).toBe(join(cursorSkills, "demo"));
+      expect(skipped[0]!.reason).toContain("EACCES");
+      expect(skipped[0]!.reason).toContain("symlink");
+      expect(existsSync(join(cursorSkills, "demo"))).toBe(false);
+    } finally {
+      // Restore write permission so afterEach can remove the temp home.
+      chmodSync(cursorSkills, 0o700);
+    }
   });
 
   test("re-installing rewrites the canonical dir, dropping removed files", () => {
@@ -146,10 +210,11 @@ describe("installSkill — project", () => {
   beforeEach(() => {
     home = tmp("proj-home");
     cwd = tmp("proj-cwd");
-    // Detect Claude (project dir .claude/skills) and Cursor (project dir
-    // .agents/skills, which is the canonical dir itself).
-    mkdirSync(join(home, ".claude"), { recursive: true });
-    mkdirSync(join(home, ".cursor"), { recursive: true });
+    // Claude Code and Cursor are both set up globally; the repo has Claude's
+    // project dir. Cursor's project dir is the canonical `.agents/skills`.
+    mkdirSync(join(home, ".claude", "skills"), { recursive: true });
+    mkdirSync(join(home, ".cursor", "skills"), { recursive: true });
+    mkdirSync(join(cwd, ".claude", "skills"), { recursive: true });
   });
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
@@ -157,8 +222,8 @@ describe("installSkill — project", () => {
   });
 
   test("writes canonical under the repo and skips the agent whose dir is canonical", () => {
-    const agents = detectAgents({ home });
-    const paths = installSkill({
+    const agents = detectAgents({ home, cwd, project: true });
+    const { installed } = installSkill({
       name: "demo",
       files: FILES,
       project: true,
@@ -168,13 +233,13 @@ describe("installSkill — project", () => {
     });
 
     const canonical = join(cwd, ".agents", "skills", "demo");
-    expect(paths[0]).toEqual({ path: canonical, kind: "canonical" });
+    expect(installed[0]).toEqual({ path: canonical, kind: "canonical" });
     expect(decode(join(canonical, "SKILL.md"))).toContain("name: demo");
 
     // Claude's project dir gets a symlink; Cursor's project dir *is* the
     // canonical `.agents/skills`, so it is skipped (no duplicate entry).
     const claudeLink = join(cwd, ".claude", "skills", "demo");
-    expect(paths.slice(1)).toEqual([{ path: claudeLink, kind: "symlink" }]);
+    expect(installed.slice(1)).toEqual([{ path: claudeLink, kind: "symlink" }]);
     expect(lstatSync(claudeLink).isSymbolicLink()).toBe(true);
   });
 });

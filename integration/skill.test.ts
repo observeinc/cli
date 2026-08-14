@@ -73,8 +73,9 @@ describe("skill CLI integration", () => {
 
   test("install writes a bundled skill and symlinks it into a detected agent", async () => {
     await withIntegrationFixture(tenant, async (fixture) => {
-      // Simulate Claude Code being installed by creating its config dir.
-      mkdirSync(join(fixture.tempHome, ".claude"), { recursive: true });
+      // Simulate Claude Code being set up, skills dir and all: install links
+      // into directories that already exist and never creates one itself.
+      mkdirSync(join(fixture.tempHome, ".claude/skills"), { recursive: true });
 
       const result = await fixture.runCli`observe skill install generate-opal`;
       expect(result.exitCode).toBe(0);
@@ -91,6 +92,23 @@ describe("skill CLI integration", () => {
       // Claude Code's skills dir receives a symlink into the canonical copy.
       const link = join(fixture.tempHome, ".claude/skills/generate-opal");
       expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    });
+  });
+
+  test("install leaves a config home with no skills dir alone", async () => {
+    await withIntegrationFixture(tenant, async (fixture) => {
+      // Claude Code's config home only. Creating the skills dir inside it is
+      // what used to fail outright on a config home the user cannot write.
+      mkdirSync(join(fixture.tempHome, ".claude"), { recursive: true });
+
+      const result = await fixture.runCli`observe skill install generate-opal`;
+      expect(result.exitCode).toBe(0);
+      expect(
+        existsSync(
+          join(fixture.tempHome, ".agents/skills/generate-opal/SKILL.md"),
+        ),
+      ).toBe(true);
+      expect(existsSync(join(fixture.tempHome, ".claude/skills"))).toBe(false);
     });
   });
 });

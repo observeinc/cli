@@ -10,6 +10,10 @@
  * `.agents/skills`), no symlink is needed; where the OS rejects symlinks
  * (notably Windows without privilege), the directory is copied instead.
  *
+ * Per-agent targets are best-effort: an agent whose directory cannot be written
+ * is reported as skipped and the rest still install. Only the canonical write is
+ * fatal.
+ *
  * Re-installing rewrites the target directories, so install doubles as update.
  * Filesystem access uses `node:fs` directly; only the symlink call is injectable
  * so tests can exercise the copy fallback.
@@ -29,9 +33,22 @@ export interface InstalledPath {
   kind: "canonical" | "symlink" | "copy";
 }
 
+/** An agent target that could not be written, and why. */
+export interface SkippedTarget {
+  path: string;
+  /** The filesystem error's message. */
+  reason: string;
+}
+
+export interface InstallResult {
+  /** Every path written, canonical first. */
+  installed: InstalledPath[];
+  skipped: SkippedTarget[];
+}
+
 /**
  * Write the skill's files to the canonical location and link it into each
- * detected agent's skills dir. Returns every path written, canonical first.
+ * detected agent's skills dir.
  */
 export function installSkill({
   name,
@@ -52,7 +69,7 @@ export function installSkill({
   cwd?: string;
   /** Symlink implementation; overridden in tests to force the copy fallback. */
   symlink?: (target: string, path: string) => void;
-}): InstalledPath[] {
+}): InstallResult {
   // Guard the directory name before it reaches the destructive writeSkillDir
   // below: an empty or unsafe name would make `join(root, name)` collapse to
   // the skills root (path.join drops "") and rmSync would wipe the whole store,
@@ -71,6 +88,7 @@ export function installSkill({
   const installed: InstalledPath[] = [
     { path: canonicalDir, kind: "canonical" },
   ];
+  const skipped: SkippedTarget[] = [];
 
   // Skip any target that resolves to a path already written — the canonical dir
   // itself, or a dir several agents share (e.g. `.agents/skills` in project
@@ -87,18 +105,44 @@ export function installSkill({
     if (seen.has(key)) continue;
     seen.add(key);
 
-    mkdirSync(dirname(targetDir), { recursive: true });
-    rmSync(targetDir, { recursive: true, force: true });
     try {
-      symlink(canonicalDir, targetDir);
-      installed.push({ path: targetDir, kind: "symlink" });
-    } catch {
-      writeSkillDir(targetDir, files);
-      installed.push({ path: targetDir, kind: "copy" });
+      // No mkdir: an agent is only detected once its skills dir exists.
+      rmSync(targetDir, { recursive: true, force: true });
+      try {
+        symlink(canonicalDir, targetDir);
+        installed.push({ path: targetDir, kind: "symlink" });
+      } catch (symlinkError) {
+        // Any other failure — an unwritable dir, a read-only mount — would
+        // defeat the copy too, so rethrow and report the symlink's own error.
+        if (!symlinksUnsupported(symlinkError)) throw symlinkError;
+        writeSkillDir(targetDir, files);
+        installed.push({ path: targetDir, kind: "copy" });
+      }
+    } catch (error) {
+      // A failed copy can leave part of a skill behind, which an agent would
+      // still read. Leave the agent without it instead.
+      try {
+        rmSync(targetDir, { recursive: true, force: true });
+      } catch {
+        // best-effort
+      }
+      skipped.push({
+        path: targetDir,
+        reason: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
-  return installed;
+  return { installed, skipped };
+}
+
+/**
+ * Whether the OS refuses symlinks outright: Windows without developer mode or
+ * admin rights reports `EPERM`, filesystems without them `ENOSYS`.
+ */
+function symlinksUnsupported(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === "EPERM" || code === "ENOSYS";
 }
 
 function defaultSymlink(target: string, path: string): void {

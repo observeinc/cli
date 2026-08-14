@@ -10,6 +10,7 @@ import {
   installSkill,
   slugifyLabel,
   synthesizeUserSkill,
+  type SkippedTarget,
 } from "../../lib/skills/install-target";
 import { detectAgents } from "../../lib/skills/agents";
 import { skillManifestHash } from "../../lib/skills/hash";
@@ -21,6 +22,7 @@ import {
   listInstalledSkillNames,
   readInstalledSkillFiles,
 } from "../../lib/skills/installed-files";
+import { makeFail, warnSkippedTargets, type PathContext } from "./report";
 
 interface UpdateSkillFlags {
   userDefined?: boolean;
@@ -38,6 +40,8 @@ export interface UpdateSkillDeps {
   listInstalledSkillNames?: (canonicalRoot: string) => string[];
   home?: string;
   cwd?: string;
+  /** Report a failure as a warning and leave the exit code alone. */
+  bestEffort?: boolean;
 }
 
 const USER_DEFINED_UPDATE_LIMIT = 1000;
@@ -72,6 +76,8 @@ export async function updateSkills(
   const cwd = deps.cwd ?? process.cwd();
   const project = flags.project === true;
   const userDefined = flags.userDefined === true;
+  const bestEffort = deps.bestEffort === true;
+  const fail = makeFail({ writer, process, bestEffort });
 
   const canonicalRoot = join(project ? cwd : home, ".agents", "skills");
 
@@ -79,8 +85,16 @@ export async function updateSkills(
   const requested = [...new Set(names)];
   const named = requested.length > 0;
 
+  const paths: PathContext = { home, cwd, project };
+  const agents = detectAgentsImpl(paths);
+
+  const skipped: SkippedTarget[] = [];
+  const report = (updated: string[]) => {
+    printUpdateResult(writer, updated);
+    warnSkippedTargets(writer, skipped, paths);
+  };
+
   try {
-    const agents = detectAgentsImpl({ home });
     const installedNames = new Set(listInstalledNamesImpl(canonicalRoot));
 
     // Fail fast if any requested skill is not installed, before touching anything.
@@ -88,8 +102,7 @@ export async function updateSkills(
       const notInstalled = requested.filter((n) => !installedNames.has(n));
       if (notInstalled.length > 0) {
         const s = notInstalled.length === 1 ? "" : "s";
-        writer.error(`Skill${s} not installed: ${notInstalled.join(", ")}`);
-        process.exitCode = 1;
+        fail(`Skill${s} not installed: ${notInstalled.join(", ")}`);
         return;
       }
     }
@@ -102,7 +115,7 @@ export async function updateSkills(
       const installedFiles = readInstalledImpl(join(canonicalRoot, dirName));
       if (skillManifestHash(installedFiles) === skillManifestHash(currentFiles))
         return false;
-      installSkillImpl({
+      const result = installSkillImpl({
         name: dirName,
         files: currentFiles,
         project,
@@ -110,6 +123,7 @@ export async function updateSkills(
         home,
         cwd,
       });
+      skipped.push(...result.skipped);
       return true;
     }
 
@@ -131,7 +145,7 @@ export async function updateSkills(
           if (match && tryUpdate(name, synthesizeUserSkill(match).files))
             updated.push(name);
         }
-        printUpdateResult(writer, updated);
+        report(updated);
         return;
       }
 
@@ -143,7 +157,7 @@ export async function updateSkills(
         if (tryUpdate(dirName, synthesizeUserSkill(skill).files))
           updated.push(dirName);
       }
-      printUpdateResult(writer, updated);
+      report(updated);
     } else {
       // Fetch the upstream repo manifest once, then check each installed skill against it.
       const repo = await getBundledRepoImpl();
@@ -157,7 +171,7 @@ export async function updateSkills(
           if (currentFiles.size > 0 && tryUpdate(name, currentFiles))
             updated.push(name);
         }
-        printUpdateResult(writer, updated);
+        report(updated);
         return;
       }
 
@@ -168,11 +182,10 @@ export async function updateSkills(
         if (currentFiles.size === 0) continue;
         if (tryUpdate(dirName, currentFiles)) updated.push(dirName);
       }
-      printUpdateResult(writer, updated);
+      report(updated);
     }
   } catch (error) {
-    writer.error(`Error: ${await formatApiError(error)}`);
-    process.exitCode = 1;
+    fail(await formatApiError(error));
   }
 }
 
