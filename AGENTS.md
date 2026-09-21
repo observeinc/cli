@@ -47,6 +47,7 @@ src/
 │   ├── datastream/     # Datastream commands (create, list, view, update)
 │   ├── docs/           # Documentation commands (search)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
+│   ├── instrumentation/ # OpenTelemetry readiness: audit (CI lint, exit codes) (experimental)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
 │   ├── tag/            # Tag commands (list); also aliased as `tag-key` (hidden)
@@ -152,6 +153,92 @@ builds those parameters from user flags such as `--match` and
 layer does not replicate the JS query-util ranked-search scoring engine.
 Backends are injected via each command's `deps` parameter so tests can stub
 them without mutating the global environment.
+
+### OpenTelemetry Support Manifest (`instrumentation`)
+
+`observe instrumentation audit` (non-interactive, CI) assesses each detected application against a bundled
+OpenTelemetry support manifest instead of hand-written rules. The manifest is
+the single source of truth for auto-instrumentation availability, per-signal
+SDK stability, runtime-version support, and per-library version compatibility.
+Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
+
+- **Detection** lives in `src/lib/instrumentation/`:
+  - `detectors/*.ts` — one per ecosystem (Node, Python, Java, .NET, Ruby, PHP,
+    plus marker-only `native.ts` for Go/Rust/Erlang/C++/Perl). Every detector
+    goes through `createCandidate` in `detectors/common.ts`. Recursive source
+    inspection uses `findOwnedProjectFiles`: a nested manifest for the same
+    ecosystem starts a new project boundary, while manifests and source files
+    from other ecosystems do not interfere with polyglot projects. File-name
+    conventions are runnable evidence only inside the owning project boundary.
+    Native applications are executable targets, not arbitrary source trees.
+    `discovery/bazel/` parses a bounded offline Starlark subset for C++, Go,
+    Python, Java, and Rust binary rules, including conventional `*_binary`
+    wrappers. It tracks nearest `MODULE.bazel`/`WORKSPACE` ownership, canonical
+    labels, literal attributes, static discovery completeness, and unevaluated
+    macro diagnostics. Proven `testonly = True` targets are excluded; names are
+    not used to guess whether a target is a test. CMake `add_executable`, Cargo
+    bins, and Go `package main` commands use the same discovery provenance model.
+  - `graph/` — normalized rooted dependency graphs. `uv.lock` and pnpm workspace
+    providers preserve transitive, optional, peer, and development edges;
+    traversal excludes development/test/build edges and retains shortest runtime
+    paths plus immediate parents. npm uses Arborist's virtual lockfile tree in the
+    audit command. CycloneDX JSON is accepted through `--sbom`; `--resolve`
+    explicitly enables locked, offline Cargo, Go, and Maven metadata commands.
+    Every graph reports `resolved-graph`, `partial-graph`, or `inventory-only`
+    completeness and records provider/path provenance.
+  - `lockfiles.ts` — inventory fallback for ecosystems without a graph provider.
+    A resolved version sets `resolvedVersion` + `sourceKind: "lockfile"` and wins
+    over the manifest range. An unparseable lockfile raises
+    `LOCKFILE_UNPARSEABLE` and falls back to declared ranges.
+  - `runtime-version.ts` — runtime version from `.nvmrc`, `.ruby-version`,
+    `.python-version`, `.tool-versions`, `runtime.txt`, or a Dockerfile `FROM`
+    tag when the manifest declares none. Manifest wins, then version file, then
+    Dockerfile. Recorded as `Evidence { kind: "runtime-version" }`.
+  - `findings.ts` — rule table `OTEL001..OTEL021` and `deriveFindings()`. Rule
+    IDs are stable (never renumber); severities are policy and may change.
+  - `baseline.ts` — accepted-findings file (`.observe/instrumentation-baseline.json`),
+    schema version 2, keyed by a JSON tuple of rule, candidate, package, version,
+    and scope. OTEL011 is retired; never reuse its ID.
+  - `formats/sarif.ts`, `formats/github.ts` — SARIF 2.1.0 and GitHub workflow
+    command output for `audit --format`.
+- **Runtime layer** lives in `src/lib/instrumentation/manifest/`:
+  - `schema.ts` — manifest v1/v2 types + strict zod validator (unknown keys fail).
+    V2 supports multiple native/external options with independent ranges,
+    activation metadata, and prerequisites. Do not mix scalar fields and options.
+  - `otel-support-manifest.yaml` — the committed, hand-maintained data file (Bun
+    inlines the YAML import at build; validated by zod at load). Missing
+    `supportedVersions` means unknown, never wildcard support.
+  - `load.ts` — `loadManifest()`, `manifestInfo()` (schemaVersion, generatedAt,
+    sha256, origin) which every result carries, and `setManifestOverride()` for
+    `audit --manifest <file>` and tests. No network I/O.
+  - `version-grammar.ts` — per-ecosystem version matching. The declared spec is
+    expanded to the full range it admits and compared as a set:
+    `in-range` (subset), `overlap` (partial), `out-of-range` (disjoint),
+    `unknown` (unparseable). `normalizeRuntimeVersion()` handles .NET TFMs,
+    legacy Java `1.x`, and version-file prefixes.
+  - `check.ts` / `profile.ts` — `checkCompatibility()` → `CompatibilityProfile`
+    with `packages.supported` / `unsupported` (with `reason`) / `unverified`.
+    `unknown` is never filed as supported. Explicit catalog options are evaluated
+    even for SDK-only runtimes and dependencies classified as `other`. Known
+    option ranges form a union, preserving gaps and per-option setup requirements.
+    Result schema v6 reports normalized options and activation as not assessed.
+    Support is not proof of enablement or telemetry delivery; opt-in is not a failure.
+- **`audit` exit codes**: 0 completed analysis below `--fail-on` (default
+  `error`), 1 findings at the threshold, 2 tool/analysis error (including no
+  candidates). `--fail-on none` cannot suppress analysis errors.
+- **Maintenance**: edit `otel-support-manifest.yaml` by hand to add or update
+  runtimes and packages. There are no offline generation scripts, no evidence
+  file, and no provenance/citation tracking. The schema (zod) validates shape at
+  load; `bun run test:otel-manifest` validates ranges and invariants offline. Do
+  not add hardcoded library lists or language-specific source parsers to the
+  runtime. AI-assisted maintenance uses
+  `.agents/skills/maintain-otel-manifest/SKILL.md` in the current session.
+  Catalog misses produce `OTEL014`; unknown upstream ranges produce `OTEL015`,
+  distinct from unknown application versions.
+- **Review**: PR CI runs credential-free deterministic checks (typecheck, lint,
+  format, `bun test src`). Optional Bugbot guidance is in `.cursor/BUGBOT.md`;
+  installation and failing-check behavior require repository configuration. No
+  auto-merge or autofix.
 
 ### Command Pattern
 

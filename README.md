@@ -81,6 +81,65 @@ export OBSERVE_CLI_EXPERIMENTAL=1
 observe help            # experimental commands now appear, tagged [experimental]
 ```
 
+Assess a project's OpenTelemetry instrumentation compatibility:
+
+```bash
+observe instrumentation audit .
+observe instrumentation audit . --format json
+```
+
+The check is read-only and offline: it evaluates the project against a bundled
+OpenTelemetry support manifest and reports auto-instrumentation availability,
+per-signal SDK stability, runtime-version support, and per-library
+compatibility. Nothing is installed, changed, or sent.
+
+Support can come from external adapters or instrumentation built into libraries.
+The checker combines known version coverage in the existing library table.
+Activation details and setup prerequisites remain in JSON, not the table output.
+Opt-in support still counts as available support. The check does not determine
+whether tracing is enabled or telemetry is delivered. JSON result schema v6 replaces scalar instrumentation metadata with
+`instrumentationOptions` and reports `activationAssessment: "not-assessed"` for
+cataloged libraries. Older scalar catalog entries retain unknown activation metadata.
+
+For CI, use `observe instrumentation audit . --format json --fail-on warning`.
+Exit codes are 0 for a completed audit below the findings threshold, 1 for
+findings at or above it, and 2 for a tool error or failed analysis, including
+no detected applications. `--fail-on none` does not suppress analysis errors.
+An empty or incomplete SBOM cannot erase declared dependencies. Inventory-only
+SBOMs do not establish which dependencies are direct runtime dependencies.
+
+Accepted-finding baselines use schema version 2 and include the evaluated
+version and dependency scope in each key. Regenerate older baselines with
+`observe instrumentation audit . --update-baseline` after reviewing findings.
+This option writes the baseline; ordinary audits are read-only. SARIF and
+GitHub output remain machine-readable during baseline updates.
+The unused `--offline` flag has been removed: the built-in check is always
+offline. `--resolve` explicitly invokes installed native package managers in
+their offline modes; this is not an OS network sandbox.
+
+OTEL011 is retired and must not be reused. Missing catalog entries and unknown
+upstream ranges remain unverified (OTEL014 and OTEL015). Partial version-range
+coverage is reported separately from full support. Unmeasured manifest parse/failure
+counters are omitted rather than inferred from the number of applications.
+
+### Maintaining the Support Catalog
+
+The bundled catalog is a hand-maintained data file
+(`src/lib/instrumentation/manifest/otel-support-manifest.yaml`). A missing
+library or upstream support range is unverified, not proof of missing
+instrumentation or support for every version.
+
+Edit the YAML directly to add or update runtimes and packages. Its shape and
+semver ranges are validated by the schema (zod) at load time and by the unit
+tests:
+
+```bash
+bun run test:otel-manifest
+```
+
+For AI-assisted upstream research when adding or updating entries, use the
+[`maintain-otel-manifest` skill](.agents/skills/maintain-otel-manifest/SKILL.md).
+
 ## Configuration
 
 Credentials are stored in `~/.observe/config.json` with mode `600` (owner-only access). Permissions are automatically enforced on every write.
