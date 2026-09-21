@@ -105,6 +105,33 @@ describe("commandNameFromArgv", () => {
 });
 
 describe("redactArgv", () => {
+  for (const argumentsAfterCommand of [
+    ["audit", "--resolve", "/home/private/project"],
+    ["audit", "--app", "nodejs:private", "/home/private/project"],
+    ["audit", "/home/private/project"],
+    ["audit", "--app=nodejs:private", "--", "-private"],
+    [
+      "audit",
+      "--manifest",
+      "/private/catalog.yml",
+      "--format",
+      "json",
+      "private",
+    ],
+  ])
+    test(`redacts instrumentation values: ${argumentsAfterCommand.join(" ")}`, async () => {
+      const { redactArgv } = await import("./telemetry");
+      const output = redactArgv(["instrumentation", ...argumentsAfterCommand]);
+      expect(output.join(" ")).not.toContain("private");
+      expect(output).toContain("<PROJECT_PATH>");
+    });
+
+  test("project basenames never become telemetry command names", async () => {
+    const { commandNameFromArgv } = await import("./telemetry");
+    expect(commandNameFromArgv(["instrumentation", "audit", "private"])).toBe(
+      "instrumentation.audit",
+    );
+  });
   test("redacts --token value (space-separated)", async () => {
     const { redactArgv } = await import("./telemetry");
     expect(
@@ -117,6 +144,22 @@ describe("redactArgv", () => {
     expect(redactArgv(["auth", "configure", "--token=sk_live_abc123"])).toEqual(
       ["auth", "configure", "--token=<REDACTED>"],
     );
+  });
+
+  test("redacts the positional path for instrumentation audit", async () => {
+    const { redactArgv } = await import("./telemetry");
+    expect(
+      redactArgv(["instrumentation", "audit", "/home/me/secret-repo"]),
+    ).toEqual(["instrumentation", "audit", "<PROJECT_PATH>"]);
+  });
+
+  test("does not treat a flag as the instrumentation audit path", async () => {
+    const { redactArgv } = await import("./telemetry");
+    expect(redactArgv(["instrumentation", "audit", "--json"])).toEqual([
+      "instrumentation",
+      "audit",
+      "--json",
+    ]);
   });
 
   test("leaves sensitive flag at end of argv (no value) unchanged", async () => {
