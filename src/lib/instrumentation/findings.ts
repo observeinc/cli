@@ -34,10 +34,9 @@ export const RULES = {
     severity: "info",
     title: "Library version could not be compared",
   },
-  OTEL014: {
-    severity: "info",
-    title: "Library is absent from the support catalog",
-  },
+  // OTEL014 (library absent from the support catalog) is retired: the audit
+  // assesses only libraries the manifest catalogs and stays silent on unknowns.
+  // Never reuse the ID.
   OTEL015: {
     severity: "info",
     title: "Instrumentation support range is unknown",
@@ -256,19 +255,13 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
   }
 
   for (const pkg of compat.packages.unverified) {
-    if (
-      pkg.unverifiedReason === "catalog-missing" ||
-      pkg.unverifiedReason === "support-range-missing"
-    ) {
-      const missingCatalog = pkg.unverifiedReason === "catalog-missing";
+    if (pkg.unverifiedReason === "support-range-missing") {
       out.push(
         finding({
-          ruleId: missingCatalog ? "OTEL014" : "OTEL015",
+          ruleId: "OTEL015",
           candidate,
           pkg,
-          message: missingCatalog
-            ? `${pkg.name} is absent from the support catalog; instrumentation availability is unverified`
-            : `Instrumentation exists for ${pkg.name}, but some supported library versions are unknown; coverage cannot be confirmed`,
+          message: `Instrumentation exists for ${pkg.name}, but some supported library versions are unknown; coverage cannot be confirmed`,
           fix: "Check the instrumentation's upstream support documentation and source; request a catalog update when evidence is available",
         }),
       );

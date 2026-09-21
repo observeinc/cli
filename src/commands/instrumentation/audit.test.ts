@@ -152,7 +152,7 @@ describe("instrumentation audit command", () => {
       const output = stdout.join("");
       if (format === "json") {
         const result = JSON.parse(output) as AuditReport;
-        expect(result.schemaVersion).toBe("6");
+        expect(result.schemaVersion).toBe("7");
         const mongoFindings = result.findings.filter(
           (finding) => finding.package === "mongo",
         );
@@ -267,7 +267,7 @@ describe("instrumentation audit command", () => {
       createSnapshot: () => snapshot(root, cleanProject),
     });
     const report = JSON.parse(stdout.join("")) as AuditReport;
-    expect(report.schemaVersion).toBe("6");
+    expect(report.schemaVersion).toBe("7");
     expect(report.failed).toBe(false);
     expect(report.manifest.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(getExitCode()).toBe(0);

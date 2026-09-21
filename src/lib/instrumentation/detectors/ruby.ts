@@ -1,10 +1,6 @@
 import { posix } from "node:path";
 import type { ProjectSnapshot } from "../snapshot";
-import {
-  createCandidate,
-  dependencyCategory,
-  projectDirectory,
-} from "./common";
+import { createCandidate, projectDirectory } from "./common";
 
 export function detectRuby(snapshot: ProjectSnapshot) {
   return snapshot.files
@@ -24,7 +20,6 @@ export function detectRuby(snapshot: ProjectSnapshot) {
               {
                 name,
                 version: match[2],
-                category: dependencyCategory(name),
                 scope: "runtime" as const,
                 optional: false,
                 sourceKind: "manifest" as const,

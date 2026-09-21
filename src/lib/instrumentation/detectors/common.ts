@@ -140,44 +140,6 @@ export function detectLockfiles({
     .sort((a, b) => a.path.localeCompare(b.path));
 }
 
-export function dependencyCategory(
-  name: string,
-): DetectedDependency["category"] {
-  const normalized = name.toLowerCase();
-  if (
-    normalized.startsWith("@types/") ||
-    normalized.startsWith("@fastify/") ||
-    /(?:type-provider|-rate-limit|-async-handler|-dropdown|-static|-helmet|-cors|-websocket)(?:-|$)/.test(
-      normalized,
-    )
-  )
-    return "other";
-  if (
-    /otel|opentelemetry/i.test(name) ||
-    /(?:^|[/@-])instrumentation$/.test(normalized)
-  )
-    return "instrumentation";
-  if (/grpc|thrift/i.test(name)) return "web-rpc";
-  if (
-    /express|fastify|nestjs|koa|hapi|django|flask|fastapi|starlette|rails|rack|sinatra|spring|aspnet|laravel|symfony|slim\/slim|guzzle|psr\/http/i.test(
-      name,
-    )
-  )
-    return "web-http";
-  if (
-    /prisma|sequelize|typeorm|mongoose|hibernate|sqlalchemy|entityframework|doctrine|eloquent/i.test(
-      name,
-    )
-  )
-    return "orm";
-  if (/postgres|mysql|pdo|mongo|jdbc|npgsql|sqlite|^pg$|^pg-/i.test(name))
-    return "database";
-  if (/redis|memcache|predis/i.test(name)) return "cache";
-  if (/kafka|rabbit|amqp|sqs|pubsub|sidekiq|celery|bull/i.test(name))
-    return "messaging";
-  return "other";
-}
-
 function asRecord(entries: unknown): Record<string, unknown> {
   return entries != null &&
     typeof entries === "object" &&
@@ -192,7 +154,6 @@ export function namedDependencies(entries: unknown) {
     .map(([name, version]) => ({
       name,
       version,
-      category: dependencyCategory(name),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

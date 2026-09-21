@@ -40,7 +40,7 @@ function assess({
     language: "ruby",
     runtime: "ruby",
     version: "3.3.0",
-    dependencies: [{ name: "dalli", version, category: "other" }],
+    dependencies: [{ name: "dalli", version }],
   });
   return checkCompatibility({ candidate, manifest }).packages;
 }

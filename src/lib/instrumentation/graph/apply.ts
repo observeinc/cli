@@ -1,4 +1,3 @@
-import { dependencyCategory } from "../detectors/common";
 import type { CandidateApplication } from "../types";
 import { runtimeClosure } from "./traverse";
 import type { DependencyGraph } from "./types";
@@ -44,7 +43,6 @@ export function applyGraph({
       optional: item.optional,
       sourceKind: "lockfile",
       purl: item.node.purl,
-      category: dependencyCategory(item.node.name),
       depth: item.depth,
       via: path.slice(1, -1),
       paths: [path],
