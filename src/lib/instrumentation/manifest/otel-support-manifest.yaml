@@ -1,0 +1,1287 @@
+schemaVersion: 1
+generatedAt: 2026-09-21T20:40:00.000Z
+runtimes:
+  cpp:
+    ecosystem: cargo
+    autoInstrumentationSupported: false
+    runtimeMetricsSupported: false
+    sdkStability:
+      traces: stable
+      metrics: stable
+      logs: stable
+      profiles: none
+    packages: []
+  dotnet:
+    ecosystem: nuget
+    supportedRuntimeVersions: ">=8.0.0"
+    autoInstrumentationSupported: true
+    runtimeMetricsSupported: true
+    sdkStability:
+      traces: stable
+      metrics: stable
+      logs: stable
+      profiles: none
+    packages:
+      - name: Grpc.Net.Client
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.GrpcNetClient
+      - name: Microsoft.AspNetCore.App
+        supportedVersions: ">=8.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.AspNetCore
+      - name: Microsoft.Data.SqlClient
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.SqlClient
+      - name: StackExchange.Redis
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.StackExchangeRedis
+  erlang:
+    ecosystem: hex
+    autoInstrumentationSupported: false
+    runtimeMetricsSupported: false
+    sdkStability:
+      traces: stable
+      metrics: development
+      logs: development
+      profiles: none
+    packages: []
+  go:
+    ecosystem: gomod
+    supportedRuntimeVersions: ">=1.23"
+    autoInstrumentationSupported: false
+    runtimeMetricsSupported: false
+    sdkStability:
+      traces: stable
+      metrics: stable
+      logs: release_candidate
+      profiles: none
+    packages: []
+  java:
+    ecosystem: maven
+    supportedRuntimeVersions: ">=8"
+    autoInstrumentationSupported: true
+    runtimeMetricsSupported: true
+    sdkStability:
+      traces: stable
+      metrics: stable
+      logs: stable
+      profiles: development
+    packages:
+      - name: activej-http
+        supportedVersions: ">=6.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: akka-actor_2.11
+        supportedVersions: ">=2.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: akka-actor_2.12
+        supportedVersions: ">=2.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: akka-actor_2.13
+        supportedVersions: ">=2.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: akka-http_2.11
+        supportedVersions: ">=10.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: akka-http_2.12
+        supportedVersions: ">=10.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: akka-http_2.13
+        supportedVersions: ">=10.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: amqp-client
+        supportedVersions: ">=2.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: armeria
+        supportedVersions: ">=1.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: armeria-grpc
+        supportedVersions: ">=1.14.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: async-http-client
+        supportedVersions: ">=1.8.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: avaje-jex
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: aws-core
+        supportedVersions: ">=2.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: aws-java-sdk-core
+        supportedVersions: ">=1.10.33"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: aws-java-sdk-sqs
+        supportedVersions: ">=1.10.33"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: aws-lambda-java-core
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: axis2-jaxws
+        supportedVersions: ">=1.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: azure-core
+        supportedVersions: ">=1.14.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: bedrockruntime
+        supportedVersions: ">=2.25.63"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: c3p0
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: camel-core
+        supportedVersions: ">=2.19.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: cassandra-driver-core
+        supportedVersions: ">=3.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: clickhouse-client
+        supportedVersions: ">=0.5.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: client-java-api
+        supportedVersions: ">=7.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: client-v2
+        supportedVersions: ">=0.6.4"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: commons-dbcp2
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: commons-httpclient
+        supportedVersions: ">=2.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: commons-pool2
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: connect-api
+        supportedVersions: ">=2.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: cxf-rt-frontend-jaxrs
+        supportedVersions: ">=3.2.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: cxf-rt-frontend-jaxws
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: dropwizard-client
+        supportedVersions: <3.0.0
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: dropwizard-views
+        supportedVersions: <3.0.0
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: druid
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: dubbo
+        supportedVersions: ">=2.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: elasticjob-lite-core
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: elasticsearch
+        supportedVersions: ">=5.0.0 <8.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: elasticsearch-java
+        supportedVersions: ">=7.16.0 <7.17.20 || >=8.0.0 <8.10.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: elasticsearch-rest-client
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: finagle-http_2.12
+        supportedVersions: ">=23.11.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: finagle-http_2.13
+        supportedVersions: ">=23.11.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: finatra-http_2.11
+        supportedVersions: ">=2.9.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: finatra-http_2.12
+        supportedVersions: ">=2.9.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: flow-server
+        supportedVersions: ">=2.2.0 <3.0.0 || >=3.1.0 <25.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: geode-core
+        supportedVersions: ">=1.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: google-http-client
+        supportedVersions: ">=1.19.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: grails-web-url-mappings
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: graphql-java
+        supportedVersions: ">=12.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: grizzly-http
+        supportedVersions: ">=2.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: grpc-core
+        supportedVersions: ">=1.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: guava
+        supportedVersions: ">=10.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: gwt-servlet
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: hbase-client
+        supportedVersions: ">=1.0.0 <2.5.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: helidon-webserver
+        supportedVersions: ">=4.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: hibernate-core
+        supportedVersions: ">=3.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: hibernate-reactive-core
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: HikariCP
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: httpasyncclient
+        supportedVersions: ">=4.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: httpclient
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: httpclient5
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: hystrix-core
+        supportedVersions: ">=1.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: influxdb-java
+        supportedVersions: ">=2.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jakarta.faces
+        supportedVersions: ">=2.3.9"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jakarta.jms-api
+        supportedVersions: ">=0.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jakarta.servlet-api
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jakarta.ws.rs-api
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: java-client
+        supportedVersions: ">=2.0.0 <3.0.0 || >=3.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: java-driver-core
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: javalin
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: javax.faces
+        supportedVersions: ">=2.0.7 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: javax.jms-api
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: javax.jws-api
+        supportedVersions: ">=1.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: javax.servlet-api
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: javax.ws.rs-api
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jaxws-api
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jaxws-rt
+        supportedVersions: ">=2.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jboss-logmanager
+        supportedVersions: ">=1.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jedis
+        supportedVersions: ">=1.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jersey-container-servlet
+        supportedVersions: ">=2.0.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jersey-server
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jetty-client
+        supportedVersions: ">=9.2.0 <10.0.0 || >=12.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jetty-server
+        supportedVersions: ">=8.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jfinal
+        supportedVersions: ">=3.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jms-api
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jnats
+        supportedVersions: ">=2.17.2"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jodd-http
+        supportedVersions: ">=4.1.1"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jsf-impl
+        supportedVersions: ">=1.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: jsr311-api
+        supportedVersions: ">=0.5.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: kafka-clients
+        supportedVersions: ">=0.11.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: kafka-streams
+        supportedVersions: ">=0.11.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: kotlinx-coroutines-core
+        supportedVersions: ">=1.0.0 <1.3.8"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: kotlinx-coroutines-core-jvm
+        supportedVersions: ">=1.3.9"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: ktor-client-core
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: ktor-server-core
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: lambda
+        supportedVersions: ">=2.17.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: lettuce
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: lettuce-core
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: libthrift
+        supportedVersions: ">=0.13.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: log4j
+        supportedVersions: ">=1.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: log4j-core
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: logback-classic
+        supportedVersions: ">=0.9.16"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: metrics-core
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: micrometer-core
+        supportedVersions: ">=1.5.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: mongo-java-driver
+        supportedVersions: ">=3.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: mongodb-driver-async
+        supportedVersions: ">=3.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: mongodb-driver-core
+        supportedVersions: ">=3.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: mybatis
+        supportedVersions: ">=3.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: myfaces-impl
+        supportedVersions: ">=1.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: netty
+        supportedVersions: ">=3.8.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: netty-all
+        supportedVersions: ">=4.0.0 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: netty-codec-http
+        supportedVersions: ">=4.0.0 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: okhttp
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: openai-java
+        supportedVersions: ">=1.1.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: openejb-cxf-rs
+        supportedVersions: ">=8.0.1"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: opensearch-java
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: opensearch-rest-client
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: org.restlet
+        supportedVersions: ">=1.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: oshi-core
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: pekko-actor_2.12
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: pekko-actor_2.13
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: pekko-actor_3
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: pekko-http_2.12
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: pekko-http_2.13
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: pekko-http_3
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play_$scalaVersion
+        supportedVersions: ">=2.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play_2.11
+        supportedVersions: ">=2.4.0 <2.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play_2.12
+        supportedVersions: ">=2.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play_2.13
+        supportedVersions: ">=2.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play_3
+        supportedVersions: ">=2.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play-ahc-ws-standalone_2.11
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play-ahc-ws-standalone_2.12
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play-ahc-ws-standalone_2.13
+        supportedVersions: ">=2.0.6"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: play-ahc-ws-standalone_3
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: postgresql
+        supportedVersions: ">=9.4.1207"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: powerjob-worker
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: pulsar-client
+        supportedVersions: ">=2.8.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: quarkus-rest
+        supportedVersions: ">=3.9.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: quarkus-resteasy-reactive
+        supportedVersions: <3.9.0
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: quartz
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: r2dbc-spi
+        supportedVersions: ">=0.9.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: ratpack-core
+        supportedVersions: ">=1.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: reactor-core
+        supportedVersions: ">=3.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: reactor-kafka
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: reactor-netty
+        supportedVersions: ">=0.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: reactor-netty-http
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: rediscala_2.11
+        supportedVersions: ">=1.5.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: rediscala_2.12
+        supportedVersions: ">=1.8.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: rediscala_2.13
+        supportedVersions: ">=1.9.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: redisson
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: rest
+        supportedVersions: ">=5.0.0 <6.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: resteasy-core
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: resteasy-jaxrs
+        supportedVersions: ">=3.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: rocketmq-client
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: rocketmq-client-java
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: rxjava
+        supportedVersions: ">=2.0.6"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: scala-library
+        supportedVersions: ">=2.8.0 <2.12.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: servlet-api
+        supportedVersions: ">=2.2.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: shenyu-web
+        supportedVersions: ">=2.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: sns
+        supportedVersions: ">=2.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: sofa-rpc-all
+        supportedVersions: ">=5.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spark-core
+        supportedVersions: ">=2.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-aop
+        supportedVersions: ">=1.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-batch-core
+        supportedVersions: ">=3.0.0 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-boot-actuator-autoconfigure
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-cloud-aws-sqs
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-cloud-starter-gateway
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-cloud-starter-gateway-server-webflux
+        supportedVersions: ">=4.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-cloud-starter-gateway-server-webmvc
+        supportedVersions: ">=4.3.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-context
+        supportedVersions: ">=3.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-core
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-data-commons
+        supportedVersions: ">=1.8.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-integration-core
+        supportedVersions: ">=4.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-jms
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-kafka
+        supportedVersions: ">=2.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-pulsar
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-rabbit
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-security-config
+        supportedVersions: ">=6.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-web
+        supportedVersions: ">=3.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-webflux
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-webmvc
+        supportedVersions: ">=3.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spring-ws-core
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: spymemcached
+        supportedVersions: ">=2.12.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: sqs
+        supportedVersions: ">=2.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: struts2-core
+        supportedVersions: ">=2.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: tapestry-core
+        supportedVersions: ">=5.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: tapir-pekko-http-server_2.12
+        supportedVersions: ">=1.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: tapir-pekko-http-server_2.13
+        supportedVersions: ">=1.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: tapir-pekko-http-server_3
+        supportedVersions: ">=1.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: tomcat-dbcp
+        supportedVersions: ">=8.0.3"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: tomcat-embed-core
+        supportedVersions: ">=7.0.4"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: tomcat-jasper
+        supportedVersions: ">=7.0.19 <10.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: tomcat-jdbc
+        supportedVersions: ">=8.5.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: transport
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: twilio
+        supportedVersions: <8.0.0
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: ucp
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: undertow-core
+        supportedVersions: ">=1.4.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: vertx-core
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: vertx-kafka-client
+        supportedVersions: ">=3.5.1"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: vertx-redis-client
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: vertx-rx-java2
+        supportedVersions: ">=3.5.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: vertx-sql-client
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: vertx-web
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: vibur-dbcp
+        supportedVersions: ">=11.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: wicket
+        supportedVersions: ">=8.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: xxl-job-core
+        supportedVersions: ">=1.9.2"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: zio_2.12
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: zio_2.13
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: zio_3
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: zio-http_2.12
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: zio-http_2.13
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+      - name: zio-http_3
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-javaagent
+  kotlin:
+    ecosystem: maven
+    autoInstrumentationSupported: false
+    runtimeMetricsSupported: false
+    sdkStability:
+      traces: development
+      metrics: development
+      logs: development
+      profiles: none
+    packages: []
+  nodejs:
+    ecosystem: npm
+    supportedRuntimeVersions: ">=14"
+    autoInstrumentationSupported: true
+    runtimeMetricsSupported: true
+    sdkStability:
+      traces: stable
+      metrics: stable
+      logs: development
+      profiles: none
+    packages:
+      - name: "@grpc/grpc-js"
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-grpc"
+      - name: "@nestjs/core"
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-nestjs-core"
+      - name: "@prisma/client"
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: false
+        instrumentation: "@prisma/instrumentation"
+      - name: amqplib
+        supportedVersions: ">=0.5.5"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-amqplib"
+      - name: express
+        supportedVersions: ">=4.0.0 <6.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-express"
+      - name: fastify
+        supportedVersions: ">=3.0.0"
+        inAutoInstrumentation: false
+        instrumentation: "@fastify/otel"
+      - name: ioredis
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-ioredis"
+      - name: kafkajs
+        supportedVersions: ">=0.3.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-kafkajs"
+      - name: koa
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-koa"
+      - name: mongodb
+        supportedVersions: ">=3.3.0 <7.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-mongodb"
+      - name: mongoose
+        supportedVersions: ">=5.9.7 <9.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-mongoose"
+      - name: mysql2
+        supportedVersions: ">=1.4.2"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-mysql2"
+      - name: pg
+        supportedVersions: ">=8.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-pg"
+      - name: redis
+        supportedVersions: ">=2.6.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-redis"
+  php:
+    ecosystem: composer
+    supportedRuntimeVersions: ">=8.0.0"
+    autoInstrumentationSupported: true
+    runtimeMetricsSupported: false
+    sdkStability:
+      traces: stable
+      metrics: stable
+      logs: stable
+      profiles: none
+    packages:
+      - name: laravel/framework
+        supportedVersions: ">=6.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-laravel
+      - name: slim/slim
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-slim
+      - name: symfony/http-kernel
+        supportedVersions: ">=5.4.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-symfony
+  python:
+    ecosystem: pypi
+    supportedRuntimeVersions: ">=3.8"
+    autoInstrumentationSupported: true
+    runtimeMetricsSupported: true
+    sdkStability:
+      traces: stable
+      metrics: stable
+      logs: development
+      profiles: none
+    packages:
+      - name: celery
+        supportedVersions: ">=4.0.0 <6.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-celery
+      - name: django
+        supportedVersions: ">=1.10"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-django
+      - name: fastapi
+        supportedVersions: ">=0.58.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-fastapi
+      - name: flask
+        supportedVersions: ">=1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-flask
+      - name: grpcio
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-grpc
+      - name: psycopg2
+        supportedVersions: ">=2.7.3"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-psycopg2
+      - name: pymongo
+        supportedVersions: ">=3.1.0 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-pymongo
+      - name: redis
+        supportedVersions: ">=2.6.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-redis
+      - name: requests
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-requests
+      - name: sqlalchemy
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-sqlalchemy
+      - name: starlette
+        supportedVersions: ">=0.13.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-starlette
+  ruby:
+    ecosystem: gems
+    supportedRuntimeVersions: ">=3.3"
+    autoInstrumentationSupported: true
+    runtimeMetricsSupported: false
+    sdkStability:
+      traces: stable
+      metrics: development
+      logs: development
+      profiles: none
+    packages:
+      - name: actionmailer
+        supportedVersions: ">=7.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-action_mailer
+      - name: actionpack
+        supportedVersions: ">=7.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-action_pack
+      - name: actionview
+        supportedVersions: ">=7.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-action_view
+      - name: active_model_serializers
+        supportedVersions: ">=0.10.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-active_model_serializers
+      - name: activejob
+        supportedVersions: ">=7.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-active_job
+      - name: activerecord
+        supportedVersions: ">=7.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-active_record
+      - name: activestorage
+        supportedVersions: ">=7.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-active_storage
+      - name: activesupport
+        supportedVersions: ">=7.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-active_support
+      - name: anthropic
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-anthropic
+      - name: aws-sdk-core
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-aws_sdk
+      - name: bunny
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-bunny
+      - name: concurrent-ruby
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-concurrent_ruby
+      - name: dalli
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: opentelemetry-instrumentation-dalli
+            kind: external
+            supportedVersions: "<=4.1.0"
+            inAutoInstrumentation: true
+            activation: automatic
+          - id: native
+            instrumentation: dalli
+            kind: native
+            supportedVersions: ">=4.2.0"
+            inAutoInstrumentation: false
+            activation: automatic
+      - name: delayed_job
+        supportedVersions: ">=4.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-delayed_job
+      - name: ethon
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-ethon
+      - name: excon
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-excon
+      - name: factory_bot
+        supportedVersions: ">=4.0.0"
+        inAutoInstrumentation: false
+        instrumentation: opentelemetry-instrumentation-factory_bot
+      - name: faraday
+        supportedVersions: ">=1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-faraday
+      - name: grape
+        supportedVersions: ">=1.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-grape
+      - name: graphql
+        supportedVersions: ">=2.0.19"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-graphql
+      - name: grpc
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-grpc
+      - name: gruf
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-gruf
+      - name: http
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-http
+      - name: httpclient
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-http_client
+      - name: httpx
+        supportedVersions: ">=1.7.4"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-httpx
+      - name: koala
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-koala
+      - name: lmdb
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-lmdb
+      - name: logger
+        inAutoInstrumentation: false
+        instrumentation: opentelemetry-instrumentation-logger
+      - name: mongo
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: opentelemetry-instrumentation-mongo
+            kind: external
+            supportedVersions: ">=2.5.0 <=2.22.0"
+            inAutoInstrumentation: true
+            activation: automatic
+          - id: native
+            instrumentation: mongo
+            kind: native
+            supportedVersions: ">=2.23.0"
+            inAutoInstrumentation: false
+            activation: opt-in
+      - name: mysql2
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-mysql2
+      - name: net-http
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-net_http
+      - name: net-ldap
+        supportedVersions: ">=0.17.1"
+        inAutoInstrumentation: false
+        instrumentation: opentelemetry-instrumentation-net_ldap
+      - name: openai
+        supportedVersions: ">=0.35.2"
+        inAutoInstrumentation: false
+        instrumentation: opentelemetry-instrumentation-openai
+      - name: pg
+        supportedVersions: ">1.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-pg
+      - name: que
+        supportedVersions: ">=1.2.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-que
+      - name: racecar
+        supportedVersions: ">=2.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-racecar
+      - name: rack
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-rack
+      - name: rails
+        supportedVersions: ">=7.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-rails
+      - name: rake
+        supportedVersions: ">=0.9.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-rake
+      - name: rdkafka
+        supportedVersions: ">=0.18.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-rdkafka
+      - name: redis
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-redis
+      - name: redis-client
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-redis
+      - name: resque
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-resque
+      - name: rest-client
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-restclient
+      - name: ruby-kafka
+        supportedVersions: ">=0.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-ruby_kafka
+      - name: sidekiq
+        supportedVersions: ">=4.2.10"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-sidekiq
+      - name: sinatra
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-sinatra
+      - name: trilogy
+        supportedVersions: ">=2.11.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-trilogy
+  rust:
+    ecosystem: cargo
+    autoInstrumentationSupported: false
+    runtimeMetricsSupported: false
+    sdkStability:
+      traces: beta
+      metrics: beta
+      logs: beta
+      profiles: none
+    packages: []
+  swift:
+    ecosystem: cargo
+    autoInstrumentationSupported: false
+    runtimeMetricsSupported: false
+    sdkStability:
+      traces: stable
+      metrics: development
+      logs: development
+      profiles: none
+    packages: []
