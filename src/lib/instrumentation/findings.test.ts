@@ -71,7 +71,7 @@ describe("deriveFindings", () => {
     expect(rules).toContain("OTEL003");
   });
 
-  test("OTEL010 out of range, OTEL014 catalog miss, OTEL012 overlap, OTEL013 unverified", () => {
+  test("OTEL010 out of range, OTEL012 overlap, OTEL013 unverified", () => {
     const rules = rulesFor({
       "package.json": JSON.stringify({
         name: "app",
@@ -79,15 +79,14 @@ describe("deriveFindings", () => {
         scripts: { start: "node index.js" },
         dependencies: {
           express: "6.0.0",
-          "my-typeorm-fork": "1.0.0",
           fastify: ">=2 <6",
           koa: "next",
         },
       }),
     });
     expect(rules).toContain("OTEL010");
-    expect(rules).toContain("OTEL014");
     expect(rules).not.toContain("OTEL011");
+    expect(rules).not.toContain("OTEL014");
     expect(rules).toContain("OTEL012");
     expect(rules).toContain("OTEL013");
   });

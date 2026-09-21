@@ -1,10 +1,6 @@
 import { posix } from "node:path";
 import type { ProjectSnapshot } from "../snapshot";
-import {
-  createCandidate,
-  dependencyCategory,
-  projectDirectory,
-} from "./common";
+import { createCandidate, projectDirectory } from "./common";
 
 export function detectDotnet(snapshot: ProjectSnapshot) {
   return snapshot.files
@@ -30,7 +26,6 @@ export function detectDotnet(snapshot: ProjectSnapshot) {
               /<Version>\s*([^<]+)\s*<\/Version>/i
                 .exec(match[2] ?? "")?.[1]
                 ?.trim(),
-            category: dependencyCategory(name),
             scope: "runtime" as const,
             optional: false,
             sourceKind: "manifest" as const,
@@ -68,7 +63,6 @@ export function detectDotnet(snapshot: ProjectSnapshot) {
             ? [
                 {
                   name: "Microsoft.AspNetCore.App",
-                  category: "web-http" as const,
                   scope: "runtime" as const,
                   optional: false,
                   sourceKind: "framework-reference" as const,

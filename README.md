@@ -117,9 +117,10 @@ The unused `--offline` flag has been removed: the built-in check is always
 offline. `--resolve` explicitly invokes installed native package managers in
 their offline modes; this is not an OS network sandbox.
 
-OTEL011 is retired and must not be reused. Missing catalog entries and unknown
-upstream ranges remain unverified (OTEL014 and OTEL015). Partial version-range
-coverage is reported separately from full support. Unmeasured manifest parse/failure
+OTEL011 and OTEL014 are retired and must not be reused. The audit assesses only
+libraries in the support catalog; uncataloged libraries are left unassessed.
+Unknown upstream ranges for a cataloged library remain unverified (OTEL015).
+Partial version-range coverage is reported separately from full support. Unmeasured manifest parse/failure
 counters are omitted rather than inferred from the number of applications.
 
 ### Maintaining the Support Catalog

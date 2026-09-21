@@ -67,16 +67,6 @@ const STARTER_COMPONENTS: Record<string, string[]> = {
   "spring-boot-starter-quartz": ["quartz"],
 };
 
-/** Categories worth instrumenting; an uncovered library in one of these is a gap. */
-const INSTRUMENTABLE_CATEGORIES = new Set<DetectedDependency["category"]>([
-  "web-http",
-  "web-rpc",
-  "orm",
-  "database",
-  "cache",
-  "messaging",
-]);
-
 function normalize(name: string) {
   return name.trim().toLowerCase();
 }
@@ -251,11 +241,6 @@ export function checkCompatibility({
 
   for (const dependency of candidate.dependencies) {
     if (
-      dependency.category === "instrumentation" &&
-      !findPackage(byName, dependency.name)
-    )
-      continue;
-    if (
       dependency.scope != null &&
       !["runtime", "peer", "optional", "unknown"].includes(dependency.scope)
     )
@@ -297,40 +282,22 @@ export function checkCompatibility({
     const pkg = findPackage(byName, dependency.name);
 
     if (pkg == null) {
-      if (
-        !entry.autoInstrumentationSupported ||
-        !INSTRUMENTABLE_CATEGORIES.has(dependency.category)
-      )
-        continue;
-      // A direct, uncataloged dependency is a genuine coverage gap.
+      // The catalog is the authority on what can be assessed; an uncataloged
+      // library is left unassessed rather than guessed at by name. The one
+      // exception is a transitive dependency of a cataloged library: attribute
+      // it to that ancestor as a covered internal instead of dropping it.
       const isDirect = dependency.depth == null || dependency.depth <= 1;
-      if (isDirect) {
-        packages.unverified.push({
-          name: dependency.name,
-          scope: dependency.scope,
-          depth: dependency.depth,
-          via: dependency.via,
-          paths: dependency.paths,
-          declaredVersion,
-          versionSource,
-          versionMatch: "unknown",
-          unverifiedReason: "catalog-missing",
-        });
-        continue;
-      }
-      // A transitive, uncataloged dependency is an internal of whatever pulled it
-      // in. Roll it up under the nearest cataloged ancestor when one exists; the
-      // ancestor's instrumentation already covers it. With no cataloged ancestor
-      // it is an internal of an uncataloged parent and is not an independent gap.
-      const ancestor = nearestCatalogedAncestor(dependency, byName);
-      if (ancestor != null) {
-        const key = normalize(ancestor);
-        let internals = rollups.get(key);
-        if (internals == null) {
-          internals = new Set();
-          rollups.set(key, internals);
+      if (!isDirect) {
+        const ancestor = nearestCatalogedAncestor(dependency, byName);
+        if (ancestor != null) {
+          const key = normalize(ancestor);
+          let internals = rollups.get(key);
+          if (internals == null) {
+            internals = new Set();
+            rollups.set(key, internals);
+          }
+          internals.add(dependency.name);
         }
-        internals.add(dependency.name);
       }
       continue;
     }

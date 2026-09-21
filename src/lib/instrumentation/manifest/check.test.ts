@@ -29,7 +29,6 @@ function candidate({
       name: dependency.name ?? "unknown",
       version: dependency.version,
       resolvedVersion: dependency.resolvedVersion,
-      category: dependency.category ?? "other",
     })),
     testFrameworks: [],
     containerFiles: [],
@@ -47,18 +46,16 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
       candidate: candidate({
         language: "nodejs",
         dependencies: [
-          { name: "pg", version: "8.13.0", category: "database" },
+          { name: "pg", version: "8.13.0" },
           {
             name: "pg-types",
             version: "2.2.0",
-            category: "database",
             depth: 2,
             via: ["pg"],
           },
           {
             name: "postgres-array",
             version: "2.0.0",
-            category: "database",
             depth: 3,
             via: ["pg", "pg-types"],
           },
@@ -80,7 +77,6 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
           {
             name: "obscure-helper",
             version: "1.0.0",
-            category: "orm",
             depth: 3,
             via: ["obscure-orm"],
           },
@@ -98,9 +94,7 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
       candidate: candidate({
         language: "nodejs",
         version: "22",
-        dependencies: [
-          { name: "express", version: "^4.18.0", category: "web-http" },
-        ],
+        dependencies: [{ name: "express", version: "^4.18.0" }],
       }),
       manifest,
     });
@@ -114,9 +108,7 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
     const profile = checkCompatibility({
       candidate: candidate({
         language: "nodejs",
-        dependencies: [
-          { name: "express", version: "6.0.0", category: "web-http" },
-        ],
+        dependencies: [{ name: "express", version: "6.0.0" }],
       }),
       manifest,
     });
@@ -131,9 +123,7 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
     const profile = checkCompatibility({
       candidate: candidate({
         language: "nodejs",
-        dependencies: [
-          { name: "express", version: ">=4 <7", category: "web-http" },
-        ],
+        dependencies: [{ name: "express", version: ">=4 <7" }],
       }),
       manifest,
     });
@@ -152,7 +142,6 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
             name: "express",
             version: "^4.18.0",
             resolvedVersion: "6.0.0",
-            category: "web-http",
           },
         ],
       }),
@@ -169,9 +158,7 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
     const profile = checkCompatibility({
       candidate: candidate({
         language: "nodejs",
-        dependencies: [
-          { name: "express", version: "next", category: "web-http" },
-        ],
+        dependencies: [{ name: "express", version: "next" }],
       }),
       manifest,
     });
@@ -183,21 +170,17 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
     expect(profile.packages.unsupported).toHaveLength(0);
   });
 
-  test("a catalog miss is unverified, not proof of missing instrumentation", () => {
+  test("an uncataloged library is left unassessed, not flagged", () => {
     const profile = checkCompatibility({
       candidate: candidate({
         language: "nodejs",
-        dependencies: [
-          { name: "obscure-orm", version: "1.0.0", category: "orm" },
-        ],
+        dependencies: [{ name: "obscure-orm", version: "1.0.0" }],
       }),
       manifest,
     });
-    const gap = profile.packages.unverified.find(
-      (p) => p.name === "obscure-orm",
-    );
-    expect(gap?.unverifiedReason).toBe("catalog-missing");
+    expect(profile.packages.supported).toHaveLength(0);
     expect(profile.packages.unsupported).toHaveLength(0);
+    expect(profile.packages.unverified).toHaveLength(0);
   });
 
   test.each([undefined, "*"])(
@@ -240,9 +223,7 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
     const profile = checkCompatibility({
       candidate: candidate({
         language: "nodejs",
-        dependencies: [
-          { name: "lodash", version: "4.17.0", category: "other" },
-        ],
+        dependencies: [{ name: "lodash", version: "4.17.0" }],
       }),
       manifest,
     });

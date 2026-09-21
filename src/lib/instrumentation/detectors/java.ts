@@ -3,7 +3,6 @@ import type { ProjectSnapshot } from "../snapshot";
 import type { DependencyScope } from "../types";
 import {
   createCandidate,
-  dependencyCategory,
   findOwnedProjectFiles,
   projectDirectory,
 } from "./common";
@@ -59,7 +58,6 @@ export function detectJava(snapshot: ProjectSnapshot) {
                   version != null && !version.includes("${")
                     ? version
                     : undefined,
-                category: dependencyCategory(name),
                 scope,
                 optional: /<optional>\s*true\s*<\/optional>/.test(block),
                 sourceKind: "manifest" as const,
@@ -79,7 +77,6 @@ export function detectJava(snapshot: ProjectSnapshot) {
               {
                 name,
                 version: match[2],
-                category: dependencyCategory(name),
                 scope: "runtime" as const,
                 optional: false,
                 sourceKind: "manifest" as const,
