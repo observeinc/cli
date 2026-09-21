@@ -233,8 +233,10 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
   not add hardcoded library lists or language-specific source parsers to the
   runtime. AI-assisted maintenance uses
   `.agents/skills/maintain-otel-manifest/SKILL.md` in the current session.
-  Catalog misses produce `OTEL014`; unknown upstream ranges produce `OTEL015`,
-  distinct from unknown application versions.
+  Uncataloged libraries are left unassessed (no per-library finding); the
+  catalog is the sole authority on what can be assessed. Unknown upstream ranges
+  for a cataloged library produce `OTEL015`, distinct from unknown application
+  versions. `OTEL014` (catalog miss) is retired; never reuse the ID.
 - **Review**: PR CI runs credential-free deterministic checks (typecheck, lint,
   format, `bun test src`). Optional Bugbot guidance is in `.cursor/BUGBOT.md`;
   installation and failing-check behavior require repository configuration. No

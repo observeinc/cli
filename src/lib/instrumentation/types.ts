@@ -3,7 +3,7 @@ import type { ManifestInfo } from "./manifest/load";
 import type { GraphCompleteness, GraphProvenance } from "./graph/types";
 import type { ApplicationDiscovery } from "./discovery/types";
 
-export const INSTRUMENTATION_SCHEMA_VERSION = "6" as const;
+export const INSTRUMENTATION_SCHEMA_VERSION = "7" as const;
 
 export type LanguageId =
   | "nodejs"
@@ -105,15 +105,6 @@ export interface DetectedDependency {
   depth?: number;
   via?: string[];
   paths?: string[][];
-  category:
-    | "web-http"
-    | "web-rpc"
-    | "orm"
-    | "database"
-    | "cache"
-    | "messaging"
-    | "instrumentation"
-    | "other";
 }
 
 export interface PackageManager {

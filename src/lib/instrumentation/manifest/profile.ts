@@ -34,10 +34,7 @@ export interface PackageAssessment {
   paths?: string[][];
   supportedVersions?: string;
   versionMatch: VersionMatch;
-  unverifiedReason?:
-    | "catalog-missing"
-    | "support-range-missing"
-    | "application-version-unknown";
+  unverifiedReason?: "support-range-missing" | "application-version-unknown";
   /** Present only for `unsupported` entries. */
   reason?: UnsupportedReason;
   instrumentationOptions?: InstrumentationOptionAssessment[];

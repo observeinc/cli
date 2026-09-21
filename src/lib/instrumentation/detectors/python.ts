@@ -4,7 +4,6 @@ import type { ProjectSnapshot } from "../snapshot";
 import type { DetectedDependency, DependencyScope } from "../types";
 import {
   createCandidate,
-  dependencyCategory,
   detectLockfiles,
   findOwnedProjectFiles,
   projectDirectory,
@@ -18,7 +17,6 @@ function parsePythonDependencies(content: string) {
       : [
           {
             ...requirement,
-            category: dependencyCategory(requirement.name),
             scope: "runtime" as const,
             optional: false,
             sourceKind: "manifest" as const,
@@ -78,7 +76,6 @@ function parseStructuredPythonDependencies(content: string) {
     found.set(`${name}:${scope}:${String(optional)}`, {
       name,
       version: version == null ? undefined : normalizePoetrySpec(version),
-      category: dependencyCategory(name),
       scope,
       optional,
       sourceKind: "manifest",

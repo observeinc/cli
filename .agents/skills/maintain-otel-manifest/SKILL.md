@@ -173,9 +173,10 @@ semver. Verify a specific range before trusting it:
   `options.test.ts` for multi-path/native) that asserts the expected
   `versionMatch` / bucket / activation. This is the only guard against a
   plausible-but-wrong range.
-- Findings map to audit rules: catalog misses produce `OTEL014`; unknown upstream
-  ranges produce `OTEL015`; an opt-in covering option produces `OTEL016`; an
-  out-of-range version produces `OTEL010`; a range that only partly overlaps
-  produces `OTEL012`.
+- Findings map to audit rules: an out-of-range version produces `OTEL010`; a
+  range that only partly overlaps produces `OTEL012`; a cataloged library whose
+  supported range is unknown produces `OTEL015`; an opt-in covering option
+  produces `OTEL016`. Uncataloged libraries are not flagged — the audit assesses
+  only what the catalog covers.
 - A maintainer must still review interpretation, widened ranges, and deletions.
   Support is not proof of enablement or telemetry delivery.

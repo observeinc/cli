@@ -163,15 +163,6 @@ export function detectApplications(snapshot: ProjectSnapshot) {
       enrichBazelCandidate(candidate, ecosystemCandidates),
     ),
   ];
-  const internalPackages = new Set(
-    candidates.map((candidate) => candidate.name.toLowerCase()),
-  );
-  for (const candidate of candidates)
-    candidate.dependencies = candidate.dependencies.map((dependency) =>
-      internalPackages.has(dependency.name.toLowerCase())
-        ? { ...dependency, category: "other" as const }
-        : dependency,
-    );
   candidates.map((candidate) => auditCandidate(snapshot, candidate));
   candidates.sort((a, b) => a.id.localeCompare(b.id));
   const diagnostics: Diagnostic[] = [

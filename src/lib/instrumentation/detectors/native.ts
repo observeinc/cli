@@ -5,7 +5,6 @@ import type { DetectedDependency } from "../types";
 import type { ApplicationDiscoveryProvider } from "../discovery/types";
 import {
   createCandidate,
-  dependencyCategory,
   findOwnedProjectFiles,
   projectDirectory,
 } from "./common";
@@ -151,7 +150,6 @@ function cargoDependencies(parsed: Record<string, unknown>) {
       result.push({
         name,
         version: typeof version === "string" ? version : undefined,
-        category: dependencyCategory(name),
         scope,
         sourceKind: "manifest",
         purl: `pkg:cargo/${name}`,
