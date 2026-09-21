@@ -1,0 +1,456 @@
+import type { CandidateApplication, DetectedDependency } from "../types";
+import {
+  matchVersion,
+  normalizeRuntimeVersion,
+  type VersionMatch,
+} from "./version-grammar";
+import type { OtelSupportManifest, PackageEntry, RuntimeEntry } from "./schema";
+import type {
+  CompatibilityProfile,
+  InstrumentationOptionAssessment,
+  PackageAssessment,
+  RuntimeVersionSupport,
+} from "./profile";
+
+export type {
+  CompatibilityProfile,
+  PackageAssessment,
+  RuntimeVersionSupport,
+  UnsupportedReason,
+} from "./profile";
+
+/**
+ * Dependency aggregators (Spring Boot starters, Spring Cloud starters, BOMs).
+ * These are not instrumented libraries — the agent instruments the concrete
+ * libraries they pull in transitively (e.g. spring-boot-starter-data-jpa brings
+ * hibernate-core + jdbc). They must not be reported as coverage gaps.
+ */
+const AGGREGATOR_PATTERNS = [
+  /^spring-boot-starter(-.*)?$/i,
+  /^spring-cloud-starter(-.*)?$/i,
+  /^spring-boot-dependencies$/i,
+  /-bom$/i,
+];
+
+function isAggregator(name: string) {
+  return AGGREGATOR_PATTERNS.some((pattern) => pattern.test(name.trim()));
+}
+
+/**
+ * Known Spring Boot starters mapped to the concrete instrumented libraries they
+ * pull in transitively. The agent instruments these libraries, not the starter
+ * artifact — so a declared starter is "covered via" whichever of these are in
+ * the manifest. Components not in the manifest are simply dropped.
+ */
+const STARTER_COMPONENTS: Record<string, string[]> = {
+  "spring-boot-starter-web": [
+    "spring-webmvc",
+    "spring-web",
+    "tomcat-embed-core",
+  ],
+  "spring-boot-starter-webflux": [
+    "spring-webflux",
+    "spring-web",
+    "reactor-netty",
+  ],
+  "spring-boot-starter-data-jpa": [
+    "hibernate-core",
+    "spring-data-commons",
+    "jdbc",
+  ],
+  "spring-boot-starter-jdbc": ["jdbc"],
+  "spring-boot-starter-data-r2dbc": ["r2dbc"],
+  "spring-boot-starter-security": ["spring-security-config"],
+  "spring-boot-starter-data-mongodb": ["mongo"],
+  "spring-boot-starter-amqp": ["spring-rabbit"],
+  "spring-boot-starter-batch": ["spring-batch-core"],
+  "spring-boot-starter-quartz": ["quartz"],
+};
+
+/** Categories worth instrumenting; an uncovered library in one of these is a gap. */
+const INSTRUMENTABLE_CATEGORIES = new Set<DetectedDependency["category"]>([
+  "web-http",
+  "web-rpc",
+  "orm",
+  "database",
+  "cache",
+  "messaging",
+]);
+
+function normalize(name: string) {
+  return name.trim().toLowerCase();
+}
+
+const PACKAGE_ALIASES: Record<string, string[]> = {
+  "@grpc/grpc-js": ["grpc-js", "grpc"],
+  grpcio: ["grpcio", "grpc"],
+  redis: ["redis", "redis-py"],
+};
+
+function findPackage(
+  byName: Map<string, RuntimeEntry["packages"][number]>,
+  name: string,
+) {
+  return (
+    byName.get(normalize(name)) ??
+    (PACKAGE_ALIASES[normalize(name)] ?? [])
+      .map((alias) => byName.get(normalize(alias)))
+      .find((entry) => entry != null)
+  );
+}
+
+/**
+ * The nearest ancestor of a transitive dependency that is itself in the catalog,
+ * walking each dependency path from the dependency outward. Returns the ancestor
+ * name as it appears in the graph (so it matches the assessed package's name),
+ * or undefined when no ancestor is cataloged.
+ */
+function nearestCatalogedAncestor(
+  dependency: DetectedDependency,
+  byName: Map<string, RuntimeEntry["packages"][number]>,
+): string | undefined {
+  const chains =
+    dependency.paths != null && dependency.paths.length > 0
+      ? dependency.paths
+      : dependency.via != null
+        ? [dependency.via]
+        : [];
+  for (const chain of chains)
+    for (let index = chain.length - 1; index >= 0; index--) {
+      const ancestor = chain[index];
+      if (ancestor != null && findPackage(byName, ancestor) != null)
+        return ancestor;
+    }
+  return undefined;
+}
+
+const EMPTY_PACKAGES = () => ({
+  supported: [] as PackageAssessment[],
+  unsupported: [] as PackageAssessment[],
+  unverified: [] as PackageAssessment[],
+});
+
+/** An instrumentation option normalized for assessment; the scalar/legacy
+ * fallback fits this shape without an authored activation. */
+type OptionForAssessment = Omit<
+  InstrumentationOptionAssessment,
+  "versionMatch"
+>;
+
+function assessOptions({
+  pkg,
+  ecosystem,
+  declared,
+}: {
+  pkg: PackageEntry;
+  ecosystem: RuntimeEntry["ecosystem"];
+  declared: string | undefined;
+}) {
+  // The scalar/legacy fallback exists only to unify version matching; it carries
+  // no activation (scalar packages have no activation concept), so it is typed
+  // loosely rather than as an authored `InstrumentationOption`.
+  const hasRealOptions = pkg.instrumentationOptions != null;
+  const options: OptionForAssessment[] = pkg.instrumentationOptions ?? [
+    {
+      id: "legacy",
+      instrumentation: pkg.instrumentation,
+      kind: "unknown",
+      supportedVersions: pkg.supportedVersions,
+      inAutoInstrumentation: pkg.inAutoInstrumentation,
+    },
+  ];
+  const assessments: InstrumentationOptionAssessment[] = options.map(
+    (option) => ({
+      ...option,
+      versionMatch: matchVersion({
+        ecosystem,
+        declared,
+        range: option.supportedVersions,
+      }),
+    }),
+  );
+  const ranges = options.flatMap((option) =>
+    option.supportedVersions == null ? [] : [option.supportedVersions],
+  );
+  const supportedVersions =
+    ranges.length === 0 ? undefined : ranges.join(" || ");
+  const combined = matchVersion({
+    ecosystem,
+    declared,
+    range: supportedVersions,
+  });
+  const versionMatch =
+    combined !== "in-range" &&
+    assessments.some((option) => option.versionMatch === "unknown")
+      ? ("unknown" as const)
+      : combined;
+  // Activation is a fact about the covering options — those whose version range
+  // could apply to the scanned version. An automatic covering path means
+  // telemetry flows with no action; otherwise the covered support is opt-in.
+  const covering = assessments.filter(
+    (option) =>
+      option.versionMatch === "in-range" || option.versionMatch === "overlap",
+  );
+  const activation = !hasRealOptions
+    ? undefined
+    : covering.some((option) => option.activation === "automatic")
+      ? ("automatic" as const)
+      : covering.some((option) => option.activation === "opt-in")
+        ? ("opt-in" as const)
+        : undefined;
+  return {
+    assessments,
+    supportedVersions,
+    versionMatch,
+    activation,
+    missingRange: options.some((option) => option.supportedVersions == null),
+  };
+}
+
+/**
+ * Evaluate a detected application against the OpenTelemetry support manifest and
+ * return its compatibility profile: whether auto-instrumentation exists, whether
+ * the runtime version is supported, per-signal SDK maturity, and the detected
+ * libraries partitioned into supported / unsupported / unverified.
+ *
+ * When the runtime is absent from the manifest (no SDK exists), the profile is
+ * `autoInstrumentationSupported: false`, `sdkStability: null`. A runtime with an
+ * SDK but no auto-instrumentation returns populated `sdkStability` and assesses
+ * any explicitly cataloged libraries independently.
+ */
+export function checkCompatibility({
+  candidate,
+  manifest,
+}: {
+  candidate: CandidateApplication;
+  manifest: OtelSupportManifest;
+}): CompatibilityProfile {
+  const runtime = candidate.language.id;
+  const entry: RuntimeEntry | undefined = manifest.runtimes[runtime];
+
+  if (entry == null) {
+    return {
+      runtime,
+      autoInstrumentationSupported: false,
+      runtimeVersionSupported: "unknown",
+      runtimeMetricsSupported: false,
+      sdkStability: null,
+      packages: EMPTY_PACKAGES(),
+    };
+  }
+
+  const runtimeVersionSupported = assessRuntimeVersion(candidate, entry);
+
+  const byName = new Map(
+    entry.packages.map((pkg) => [normalize(pkg.name), pkg]),
+  );
+  const packages = EMPTY_PACKAGES();
+  // Internal sub-packages to attribute to a cataloged ancestor after the pass,
+  // keyed by the normalized ancestor name.
+  const rollups = new Map<string, Set<string>>();
+
+  for (const dependency of candidate.dependencies) {
+    if (
+      dependency.category === "instrumentation" &&
+      !findPackage(byName, dependency.name)
+    )
+      continue;
+    if (
+      dependency.scope != null &&
+      !["runtime", "peer", "optional", "unknown"].includes(dependency.scope)
+    )
+      continue;
+    const runtimeReference =
+      dependency.sourceKind === "framework-reference" &&
+      dependency.resolvedVersion == null &&
+      dependency.version == null;
+    const declaredVersion =
+      dependency.resolvedVersion ??
+      dependency.version ??
+      (runtimeReference ? candidate.language.version : undefined);
+    const versionSource = runtimeReference
+      ? ("runtime" as const)
+      : dependency.resolvedVersion != null
+        ? ("lockfile" as const)
+        : declaredVersion != null
+          ? ("manifest" as const)
+          : undefined;
+
+    // Aggregators (Spring Boot starters, BOMs) are covered via the concrete
+    // libraries they pull in, not by name — never treat them as a gap. Resolve
+    // known starters to the instrumented components present in the manifest.
+    if (isAggregator(dependency.name)) {
+      const components = (STARTER_COMPONENTS[normalize(dependency.name)] ?? [])
+        .filter((component) => byName.has(normalize(component)))
+        .sort();
+      packages.supported.push({
+        name: dependency.name,
+        declaredVersion,
+        versionSource,
+        versionMatch: "unknown",
+        aggregator: true,
+        components,
+      });
+      continue;
+    }
+
+    const pkg = findPackage(byName, dependency.name);
+
+    if (pkg == null) {
+      if (
+        !entry.autoInstrumentationSupported ||
+        !INSTRUMENTABLE_CATEGORIES.has(dependency.category)
+      )
+        continue;
+      // A direct, uncataloged dependency is a genuine coverage gap.
+      const isDirect = dependency.depth == null || dependency.depth <= 1;
+      if (isDirect) {
+        packages.unverified.push({
+          name: dependency.name,
+          scope: dependency.scope,
+          depth: dependency.depth,
+          via: dependency.via,
+          paths: dependency.paths,
+          declaredVersion,
+          versionSource,
+          versionMatch: "unknown",
+          unverifiedReason: "catalog-missing",
+        });
+        continue;
+      }
+      // A transitive, uncataloged dependency is an internal of whatever pulled it
+      // in. Roll it up under the nearest cataloged ancestor when one exists; the
+      // ancestor's instrumentation already covers it. With no cataloged ancestor
+      // it is an internal of an uncataloged parent and is not an independent gap.
+      const ancestor = nearestCatalogedAncestor(dependency, byName);
+      if (ancestor != null) {
+        const key = normalize(ancestor);
+        let internals = rollups.get(key);
+        if (internals == null) {
+          internals = new Set();
+          rollups.set(key, internals);
+        }
+        internals.add(dependency.name);
+      }
+      continue;
+    }
+
+    const options = assessOptions({
+      pkg,
+      ecosystem: entry.ecosystem,
+      declared: declaredVersion,
+    });
+    const versionMatch =
+      pkg.instrumentationOptions == null &&
+      pkg.supportedVersions != null &&
+      runtimeReference
+        ? frameworkReferenceMatch(runtimeVersionSupported)
+        : options.versionMatch;
+    const assessment: PackageAssessment = {
+      name: dependency.name,
+      scope: dependency.scope,
+      declaredVersion,
+      versionSource,
+      supportedVersions: options.supportedVersions,
+      versionMatch,
+      ...(versionMatch === "unknown"
+        ? {
+            unverifiedReason: options.missingRange
+              ? ("support-range-missing" as const)
+              : ("application-version-unknown" as const),
+          }
+        : {}),
+      instrumentationOptions: options.assessments,
+      activation: options.activation,
+      depth: dependency.depth,
+      via: dependency.via,
+      paths: dependency.paths,
+    };
+    // Out-of-range is a proven incompatibility. An overlap is supported for
+    // some admitted versions and is reported as a warning by the rule layer.
+    // An unparseable version is a missing input, not a verdict either way.
+    if (versionMatch === "out-of-range")
+      packages.unsupported.push({ ...assessment, reason: "out-of-range" });
+    else if (versionMatch === "unknown") packages.unverified.push(assessment);
+    else packages.supported.push(assessment);
+  }
+
+  // Attribute rolled-up internals to their cataloged ancestor's assessment.
+  for (const assessment of [
+    ...packages.supported,
+    ...packages.unsupported,
+    ...packages.unverified,
+  ]) {
+    const internals = rollups.get(normalize(assessment.name));
+    if (internals != null && internals.size > 0)
+      assessment.coveredInternals = [...internals].sort();
+  }
+
+  for (const bucket of Object.values(packages))
+    bucket.sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    runtime,
+    autoInstrumentationSupported: entry.autoInstrumentationSupported,
+    runtimeVersionSupported,
+    runtimeMetricsSupported: entry.runtimeMetricsSupported,
+    sdkStability: entry.sdkStability,
+    packages,
+  };
+}
+
+/**
+ * A framework reference (e.g. .NET's implicit `Microsoft.AspNetCore.App`) ships
+ * with the runtime, so its version is the runtime version. Reuse the runtime
+ * verdict instead of reporting it as unverified.
+ */
+function frameworkReferenceMatch(
+  runtimeVersionSupported: RuntimeVersionSupport,
+): VersionMatch {
+  switch (runtimeVersionSupported) {
+    case "yes":
+      return "in-range";
+    case "no":
+      return "out-of-range";
+    case "partial":
+      return "overlap";
+    case "unknown":
+      return "unknown";
+  }
+}
+
+function assessRuntimeVersion(
+  candidate: CandidateApplication,
+  entry: RuntimeEntry,
+): RuntimeVersionSupport {
+  const declared = candidate.language.version;
+  if (declared == null || entry.supportedRuntimeVersions == null)
+    return "unknown";
+  const normalized = normalizeRuntimeVersion(candidate.language.id, declared);
+  if (normalized == null) return "unknown";
+  const match = matchVersion({
+    // .NET multi-targeting (<TargetFrameworks>net6.0;net8.0</TargetFrameworks>)
+    // normalizes to a semver union like "6.0.0 || 8.0.0". The nuget declared
+    // grammar only parses single versions and bracket intervals, so it returns
+    // "unknown" for a union; npm's is the one comparator dialect that parses
+    // `||` natively, so borrow it to evaluate the union. Single-target .NET is
+    // an exact version, handled before this switch, so only the multi-target
+    // case takes the npm branch.
+    ecosystem:
+      candidate.language.id === "dotnet" && normalized.includes(" || ")
+        ? "npm"
+        : entry.ecosystem,
+    declared: normalized,
+    range: entry.supportedRuntimeVersions,
+  });
+  switch (match) {
+    case "in-range":
+      return "yes";
+    case "out-of-range":
+      return "no";
+    case "overlap":
+      return "partial";
+    case "unknown":
+      return "unknown";
+  }
+}
