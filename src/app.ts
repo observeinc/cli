@@ -12,6 +12,7 @@ import { dashboardRoutes } from "./commands/dashboard/index.js";
 import { datasetRoutes } from "./commands/dataset/index.js";
 import { datastreamRoutes } from "./commands/datastream/index.js";
 import { docsRoutes } from "./commands/docs/index.js";
+import { instrumentationRoutes } from "./commands/instrumentation/index.js";
 import { helpCommand } from "./commands/help.js";
 import { ingestTokenRoutes } from "./commands/ingest-token/index.js";
 import { metricRoutes } from "./commands/metric/index.js";
@@ -54,6 +55,7 @@ export const routes = defineRoutes({
     dashboard: dashboardRoutes,
     "source-dataset": sourceDatasetRoutes,
     "storage-integration": storageIntegrationRoutes,
+    instrumentation: instrumentationRoutes,
     cli: cliRoutes,
   },
   defaultCommand: "help",
