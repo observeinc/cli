@@ -214,7 +214,7 @@ describe("instrumentation detection", () => {
       "java/pom.xml":
         "<project><artifactId>orders</artifactId><dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>3.5.0</version></dependency><dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><version>42.7.0</version></dependency></dependencies></project>",
       "dotnet/api.csproj":
-        '<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><TargetFramework>net9.0</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include="Npgsql" Version="9.0.0" /><PackageReference Include="Grpc.Net.Client" Version="2.0.0" /></ItemGroup></Project>',
+        '<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><TargetFramework>net9.0</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include="Npgsql" Version="9.0.0" /><PackageReference Include="Grpc.Net.Client" Version="2.52.0" /></ItemGroup></Project>',
       "dotnet/Program.cs":
         "var app = WebApplication.CreateBuilder(args).Build();",
       "ruby/Gemfile": "gem 'rails', '~> 8.0'\ngem 'sidekiq', '~> 7.0'\n",
@@ -227,7 +227,7 @@ describe("instrumentation detection", () => {
         ?.compatibility?.packages.supported.length;
     expect(supportedCount("python")).toBe(2);
     expect(supportedCount("java")).toBe(2);
-    expect(supportedCount("dotnet")).toBe(2);
+    expect(supportedCount("dotnet")).toBe(3);
     expect(supportedCount("ruby")).toBe(2);
   });
 
