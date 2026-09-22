@@ -303,6 +303,22 @@ describe("checkCompatibility — SDK-only and absent runtimes", () => {
 });
 
 describe("bundled manifest artifact", () => {
+  test("php auto-instrumentation runtime floor is SDK ^8.1", () => {
+    const bundled = loadManifest();
+    expect(
+      checkCompatibility({
+        candidate: candidate({ language: "php", version: "8.1.0" }),
+        manifest: bundled,
+      }).runtimeVersionSupported,
+    ).toBe("yes");
+    expect(
+      checkCompatibility({
+        candidate: candidate({ language: "php", version: "8.0.0" }),
+        manifest: bundled,
+      }).runtimeVersionSupported,
+    ).toBe("no");
+  });
+
   test("covers all twelve runtimes with the expected auto-instrumentation split", () => {
     const bundled = loadManifest();
     const autoInstrumented = [
@@ -375,6 +391,184 @@ describe("bundled manifest artifact", () => {
       ).toBe(coveringId);
     },
   );
+
+  test.each([
+    ["Grpc.Net.Client", "2.52.0", "supported", "in-range"],
+    ["Grpc.Net.Client", "2.51.0", "unsupported", "out-of-range"],
+    ["Grpc.Net.Client", "3.0.0", "unsupported", "out-of-range"],
+    ["StackExchange.Redis", "2.6.122", "supported", "in-range"],
+    ["StackExchange.Redis", "2.6.0", "unsupported", "out-of-range"],
+    ["StackExchange.Redis", "4.0.0", "unsupported", "out-of-range"],
+    ["Microsoft.Data.Sqlite", "8.0.0", "supported", "in-range"],
+    ["Microsoft.Data.Sqlite", "7.0.0", "unsupported", "out-of-range"],
+    ["Microsoft.Data.Sqlite", "12.0.0", "unsupported", "out-of-range"],
+    ["NServiceBus", "9.0.0", "supported", "in-range"],
+    ["NServiceBus", "10.0.0", "unsupported", "out-of-range"],
+    ["NLog", "5.0.0", "supported", "in-range"],
+    ["NLog", "7.0.0", "unsupported", "out-of-range"],
+    ["Confluent.Kafka", "1.4.0", "supported", "in-range"],
+    ["Confluent.Kafka", "3.0.0", "unsupported", "out-of-range"],
+  ] as const)("dotnet %s %s is %s (%s)", (name, version, bucket, match) => {
+    const bundled = loadManifest();
+    const profile = checkCompatibility({
+      candidate: candidate({
+        language: "dotnet",
+        version: "net9.0",
+        dependencies: [{ name, version }],
+      }),
+      manifest: bundled,
+    });
+    const hit = profile.packages[bucket][0];
+    expect(hit?.name).toBe(name);
+    expect(hit?.versionMatch).toBe(match);
+  });
+
+  test.each([
+    [
+      "Elastic.Clients.Elasticsearch",
+      "8.5.0",
+      "supported",
+      "in-range",
+      "automatic",
+      "elasticsearch",
+    ],
+    [
+      "Elastic.Clients.Elasticsearch",
+      "8.12.0",
+      "supported",
+      "in-range",
+      "automatic",
+      "elastic-transport",
+    ],
+    [
+      "Elastic.Clients.Elasticsearch",
+      "7.17.0",
+      "unsupported",
+      "out-of-range",
+      undefined,
+      undefined,
+    ],
+    [
+      "MongoDB.Driver",
+      "2.7.0",
+      "supported",
+      "in-range",
+      "automatic",
+      "contrib",
+    ],
+    ["MongoDB.Driver", "3.7.0", "supported", "in-range", "automatic", "native"],
+    [
+      "MongoDB.Driver",
+      "2.6.0",
+      "unsupported",
+      "out-of-range",
+      undefined,
+      undefined,
+    ],
+  ] as const)(
+    "dotnet %s %s is %s (%s, %s, %s)",
+    (name, version, bucket, versionMatch, activation, coveringId) => {
+      const bundled = loadManifest();
+      const profile = checkCompatibility({
+        candidate: candidate({
+          language: "dotnet",
+          version: "net9.0",
+          dependencies: [{ name, version }],
+        }),
+        manifest: bundled,
+      });
+      const hit = profile.packages[bucket][0];
+      expect(hit?.name).toBe(name);
+      expect(hit?.versionMatch).toBe(versionMatch);
+      expect(hit?.activation).toBe(activation);
+      expect(
+        hit?.instrumentationOptions?.find(
+          (option) => option.versionMatch === "in-range",
+        )?.id,
+      ).toBe(coveringId);
+    },
+  );
+
+  test.each([
+    // Laravel is the union of Composer `^6`…`^13`, so 14 is out of range.
+    ["laravel/framework", "6.0.0", "supported", "in-range"],
+    ["laravel/framework", "13.0.0", "supported", "in-range"],
+    ["laravel/framework", "5.8.0", "unsupported", "out-of-range"],
+    ["laravel/framework", "14.0.0", "unsupported", "out-of-range"],
+    // Slim is Composer `^4`, not an open floor.
+    ["slim/slim", "4.12.0", "supported", "in-range"],
+    ["slim/slim", "3.12.0", "unsupported", "out-of-range"],
+    ["slim/slim", "5.0.0", "unsupported", "out-of-range"],
+    // doctrine/dbal is `^3 || ^4 || ^5`.
+    ["doctrine/dbal", "2.13.0", "unsupported", "out-of-range"],
+    ["doctrine/dbal", "3.0.0", "supported", "in-range"],
+    ["doctrine/dbal", "5.0.0", "supported", "in-range"],
+    ["doctrine/dbal", "6.0.0", "unsupported", "out-of-range"],
+    // mongodb/mongodb is `^1.15 || ^2.0`.
+    ["mongodb/mongodb", "1.14.0", "unsupported", "out-of-range"],
+    ["mongodb/mongodb", "1.15.0", "supported", "in-range"],
+    ["mongodb/mongodb", "2.0.0", "supported", "in-range"],
+    ["mongodb/mongodb", "3.0.0", "unsupported", "out-of-range"],
+    // magento/framework is Composer `^103.0`.
+    ["magento/framework", "103.0.0", "supported", "in-range"],
+    ["magento/framework", "102.0.0", "unsupported", "out-of-range"],
+    ["magento/framework", "104.0.0", "unsupported", "out-of-range"],
+    // Upstream require is `*` — omit the range rather than inventing one.
+    ["openai-php/client", "0.10.0", "unverified", "unknown"],
+    ["symfony/http-kernel", "7.2.0", "unverified", "unknown"],
+  ] as const)("php %s %s is %s (%s)", (name, version, bucket, match) => {
+    const bundled = loadManifest();
+    const profile = checkCompatibility({
+      candidate: candidate({
+        language: "php",
+        version: "8.3.0",
+        dependencies: [{ name, version }],
+      }),
+      manifest: bundled,
+    });
+    const hit = profile.packages[bucket][0];
+    expect(hit?.name).toBe(name);
+    expect(hit?.versionMatch).toBe(match);
+    if (bucket === "unverified")
+      expect(hit?.unverifiedReason).toBe("support-range-missing");
+  });
+
+  test.each([
+    // FastAPI's PEP 440 `~= 0.92` translates to `>=0.92.0 <1.0.0`, not an open
+    // floor — 1.x is out of range.
+    ["fastapi", "0.92.0", "supported", "in-range"],
+    ["fastapi", "0.91.0", "unsupported", "out-of-range"],
+    ["fastapi", "1.0.0", "unsupported", "out-of-range"],
+    // `requests ~= 2.0` translates to `>=2.0.0 <3.0.0`, so a hypothetical 3.x
+    // is out of range rather than an unbounded floor.
+    ["requests", "2.32.0", "supported", "in-range"],
+    ["requests", "3.0.0", "unsupported", "out-of-range"],
+    // SQLAlchemy carries an explicit upper bound of `< 2.1.0`.
+    ["sqlalchemy", "2.0.30", "supported", "in-range"],
+    ["sqlalchemy", "2.1.0", "unsupported", "out-of-range"],
+    // PyMySQL is upper-bound only (`< 2`).
+    ["pymysql", "1.1.1", "supported", "in-range"],
+    ["pymysql", "2.0.0", "unsupported", "out-of-range"],
+    // grpcio's floor moved up to 1.42.0.
+    ["grpcio", "1.42.0", "supported", "in-range"],
+    ["grpcio", "1.40.0", "unsupported", "out-of-range"],
+    // Django's floor moved up to 2.0.
+    ["django", "4.2.0", "supported", "in-range"],
+    ["django", "1.11.0", "unsupported", "out-of-range"],
+  ] as const)("python %s %s is %s (%s)", (name, version, bucket, match) => {
+    const bundled = loadManifest();
+    const profile = checkCompatibility({
+      candidate: candidate({
+        language: "python",
+        version: "3.12.0",
+        dependencies: [{ name, version }],
+      }),
+      manifest: bundled,
+    });
+    const hit = profile.packages[bucket][0];
+    expect(hit?.name).toBe(name);
+    expect(hit?.versionMatch).toBe(match);
+  });
 
   test("rejects unknown keys", () => {
     expect(() =>
