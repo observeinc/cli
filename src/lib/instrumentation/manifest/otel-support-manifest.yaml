@@ -1,5 +1,5 @@
 schemaVersion: 1
-generatedAt: 2026-09-21T20:40:00.000Z
+generatedAt: 2026-09-22T00:40:00.000Z
 runtimes:
   cpp:
     ecosystem: cargo
@@ -22,22 +22,142 @@ runtimes:
       logs: stable
       profiles: none
     packages:
+      - name: Confluent.Kafka
+        supportedVersions: ">=1.4.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: CoreWCF.Primitives
+        supportedVersions: ">=1.8.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: Elastic.Clients.Elasticsearch
+        instrumentationOptions:
+          - id: elasticsearch
+            instrumentation: OpenTelemetry.AutoInstrumentation
+            kind: external
+            supportedVersions: ">=8.0.0 <8.10.0"
+            inAutoInstrumentation: true
+            activation: automatic
+          - id: elastic-transport
+            instrumentation: OpenTelemetry.AutoInstrumentation
+            kind: external
+            supportedVersions: ">=8.10.0"
+            inAutoInstrumentation: true
+            activation: automatic
+      - name: Elastic.Transport
+        supportedVersions: ">=0.4.16"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: GraphQL
+        supportedVersions: ">=7.5.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
       - name: Grpc.Net.Client
-        supportedVersions: ">=2.0.0"
+        supportedVersions: ">=2.52.0 <3.0.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.Instrumentation.GrpcNetClient
+      - name: MassTransit
+        supportedVersions: ">=8.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
       - name: Microsoft.AspNetCore.App
         supportedVersions: ">=8.0.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.Instrumentation.AspNetCore
       - name: Microsoft.Data.SqlClient
-        supportedVersions: ">=1.0.0"
+        supportedVersions: "*"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.Instrumentation.SqlClient
-      - name: StackExchange.Redis
+      - name: Microsoft.Data.Sqlite
+        supportedVersions: ">=8.0.0 <12.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: Microsoft.EntityFrameworkCore
+        supportedVersions: ">=6.0.12"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.EntityFrameworkCore
+      - name: Microsoft.Extensions.Logging
+        supportedVersions: ">=8.0.0 <12.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: MongoDB.Driver
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: OpenTelemetry.AutoInstrumentation
+            kind: external
+            supportedVersions: ">=2.7.0 <3.7.0"
+            inAutoInstrumentation: true
+            activation: automatic
+          - id: native
+            instrumentation: MongoDB.Driver
+            kind: native
+            supportedVersions: ">=3.7.0"
+            inAutoInstrumentation: true
+            activation: automatic
+      - name: MongoDB.Driver.Core
+        supportedVersions: ">=2.7.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: MySql.Data
+        supportedVersions: ">=8.1.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: MySqlConnector
         supportedVersions: ">=2.0.0"
         inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: NLog
+        supportedVersions: ">=5.0.0 <7.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: Npgsql
+        supportedVersions: ">=6.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: NServiceBus
+        supportedVersions: ">=8.0.0 <10.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: Oracle.ManagedDataAccess
+        supportedVersions: ">=23.4.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: Oracle.ManagedDataAccess.Core
+        supportedVersions: ">=23.4.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: Quartz
+        supportedVersions: ">=3.4.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.Quartz
+      - name: RabbitMQ.Client
+        supportedVersions: ">=5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: StackExchange.Redis
+        supportedVersions: ">=2.6.122 <4.0.0"
+        inAutoInstrumentation: true
         instrumentation: OpenTelemetry.Instrumentation.StackExchangeRedis
+      - name: System.Data.Common
+        supportedVersions: ">=4.0.0 <12.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
+      - name: System.Data.SqlClient
+        supportedVersions: ">=4.8.5"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.SqlClient
+      - name: System.Net.Http
+        supportedVersions: "*"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.Http
+      - name: System.ServiceModel.Http
+        supportedVersions: "*"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.Wcf
+      - name: log4net
+        supportedVersions: ">=2.0.13 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.AutoInstrumentation
   erlang:
     ecosystem: hex
     autoInstrumentationSupported: false
@@ -985,7 +1105,7 @@ runtimes:
         instrumentation: "@opentelemetry/instrumentation-redis"
   php:
     ecosystem: composer
-    supportedRuntimeVersions: ">=8.0.0"
+    supportedRuntimeVersions: ">=8.1.0"
     autoInstrumentationSupported: true
     runtimeMetricsSupported: false
     sdkStability:
@@ -994,21 +1114,87 @@ runtimes:
       logs: stable
       profiles: none
     packages:
+      - name: aws/aws-sdk-php
+        supportedVersions: ">=3.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-aws-sdk
+      - name: cakephp/cakephp
+        supportedVersions: ">=4.0.0 <6.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-cakephp
+      - name: codeigniter4/framework
+        supportedVersions: ">=4.3.0 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-codeigniter
+      - name: doctrine/dbal
+        supportedVersions: ">=3.0.0 <6.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-doctrine
+      - name: guzzlehttp/guzzle
+        supportedVersions: ">=7.0.0 <9.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-guzzle
       - name: laravel/framework
-        supportedVersions: ">=6.0.0"
+        supportedVersions: ">=6.0.0 <14.0.0"
         inAutoInstrumentation: true
         instrumentation: open-telemetry/opentelemetry-auto-laravel
+      - name: magento/framework
+        supportedVersions: ">=103.0.0 <104.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-magento2
+      - name: mongodb/mongodb
+        supportedVersions: ">=1.15.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-mongodb
+      - name: openai-php/client
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-openai-php
+      - name: php-http/httplug
+        supportedVersions: ">=2.0.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-http-async
+      - name: psr/cache
+        supportedVersions: ">=1.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-psr6
+      - name: psr/event-dispatcher
+        supportedVersions: ">=1.0.0 <2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-psr14
+      - name: psr/http-client
+        supportedVersions: ">=1.0.0 <2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-psr18
+      - name: psr/http-server-middleware
+        supportedVersions: ">=1.0.0 <2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-psr15
+      - name: psr/log
+        supportedVersions: ">=1.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-psr3
+      - name: psr/simple-cache
+        supportedVersions: ">=1.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-psr16
+      - name: react/http
+        supportedVersions: ">=1.11.0 <2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-reactphp
       - name: slim/slim
-        supportedVersions: ">=4.0.0"
+        supportedVersions: ">=4.0.0 <5.0.0"
         inAutoInstrumentation: true
         instrumentation: open-telemetry/opentelemetry-auto-slim
       - name: symfony/http-kernel
-        supportedVersions: ">=5.4.0"
         inAutoInstrumentation: true
         instrumentation: open-telemetry/opentelemetry-auto-symfony
+      - name: yiisoft/yii2
+        supportedVersions: ">=2.0.13 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: open-telemetry/opentelemetry-auto-yii
   python:
     ecosystem: pypi
-    supportedRuntimeVersions: ">=3.8"
+    supportedRuntimeVersions: ">=3.10"
     autoInstrumentationSupported: true
     runtimeMetricsSupported: true
     sdkStability:
@@ -1017,26 +1203,58 @@ runtimes:
       logs: development
       profiles: none
     packages:
+      - name: asyncpg
+        supportedVersions: ">=0.12.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-asyncpg
+      - name: botocore
+        supportedVersions: ">=1.0.0 <2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-botocore
       - name: celery
         supportedVersions: ">=4.0.0 <6.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-celery
+      - name: confluent-kafka
+        supportedVersions: ">=1.8.2 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-confluent-kafka
       - name: django
-        supportedVersions: ">=1.10"
+        supportedVersions: ">=2.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-django
+      - name: falcon
+        supportedVersions: ">=1.4.1 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-falcon
       - name: fastapi
-        supportedVersions: ">=0.58.0"
+        supportedVersions: ">=0.92.0 <1.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-fastapi
       - name: flask
-        supportedVersions: ">=1.0"
+        supportedVersions: ">=1.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-flask
       - name: grpcio
-        supportedVersions: ">=1.0.0"
+        supportedVersions: ">=1.42.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-grpc
+      - name: httpx
+        supportedVersions: ">=0.18.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-httpx
+      - name: kafka-python
+        supportedVersions: ">=2.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-kafka-python
+      - name: pika
+        supportedVersions: ">=0.12.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-pika
+      - name: psycopg
+        supportedVersions: ">=3.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-psycopg
       - name: psycopg2
         supportedVersions: ">=2.7.3"
         inAutoInstrumentation: true
@@ -1045,22 +1263,38 @@ runtimes:
         supportedVersions: ">=3.1.0 <5.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-pymongo
+      - name: pymysql
+        supportedVersions: "<2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-pymysql
+      - name: pyramid
+        supportedVersions: ">=1.7.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-pyramid
       - name: redis
         supportedVersions: ">=2.6.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-redis
       - name: requests
-        supportedVersions: ">=2.0.0"
+        supportedVersions: ">=2.0.0 <3.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-requests
       - name: sqlalchemy
-        supportedVersions: ">=1.0.0"
+        supportedVersions: ">=1.0.0 <2.1.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-sqlalchemy
       - name: starlette
         supportedVersions: ">=0.13.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-starlette
+      - name: tornado
+        supportedVersions: ">=5.1.1"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-tornado
+      - name: urllib3
+        supportedVersions: ">=1.0.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-urllib3
   ruby:
     ecosystem: gems
     supportedRuntimeVersions: ">=3.3"
