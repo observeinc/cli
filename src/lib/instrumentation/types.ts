@@ -3,7 +3,7 @@ import type { ManifestInfo } from "./manifest/load";
 import type { GraphCompleteness, GraphProvenance } from "./graph/types";
 import type { ApplicationDiscovery } from "./discovery/types";
 
-export const INSTRUMENTATION_SCHEMA_VERSION = "7" as const;
+export const INSTRUMENTATION_SCHEMA_VERSION = "1" as const;
 
 export type LanguageId =
   | "nodejs"
