@@ -1,7 +1,9 @@
 import chalk from "chalk";
-import { MonitorRuleKind } from "../../rest/generated";
+import { MonitorRuleKind, MonitorV2RuleKind } from "../../rest/generated";
 
-export function ruleKindColor(kind: MonitorRuleKind | undefined): string {
+export function ruleKindColor(
+  kind: MonitorRuleKind | MonitorV2RuleKind | undefined,
+): string {
   if (!kind) return chalk.dim("-");
   switch (kind) {
     case MonitorRuleKind.Threshold:

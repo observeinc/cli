@@ -50,13 +50,12 @@ function makeMonitor(
     health: MonitorHealth.Running,
     governorState: null,
     alertState: MonitorAlertState.Never,
-    aiTriagingMode: null,
+    aiTriagingMode: undefined,
     muteState: MonitorMuteState.NotMuted,
     mutedUntil: null,
     muteCount: 0,
     lastErrorTime: null,
     lastAlarmTime: null,
-    lastWarnTime: null,
     managedBy: null,
     ...overrides,
   };
@@ -146,12 +145,10 @@ describe("monitor list — kind filter", () => {
       deps,
     );
     const result = JSON.parse(stdout.join("")) as MonitorResource[];
-    expect(
-      result.every((m) => m.ruleKind !== MonitorRuleKind.Threshold),
-    ).toBe(true);
-    expect(result.some((m) => m.ruleKind === MonitorRuleKind.Count)).toBe(
+    expect(result.every((m) => m.ruleKind !== MonitorRuleKind.Threshold)).toBe(
       true,
     );
+    expect(result.some((m) => m.ruleKind === MonitorRuleKind.Count)).toBe(true);
     expect(result.some((m) => m.ruleKind === MonitorRuleKind.Promote)).toBe(
       true,
     );
@@ -166,7 +163,7 @@ describe("monitor list — disabled filter", () => {
     await list.call(context, { disabled: true, json: true }, deps);
     const result = JSON.parse(stdout.join("")) as MonitorResource[];
     expect(result.length).toBeGreaterThan(0);
-    expect(result.every((m) => m.disabled === true)).toBe(true);
+    expect(result.every((m) => m.disabled)).toBe(true);
   });
 
   test("--no-disabled returns only enabled monitors", async () => {
@@ -185,7 +182,7 @@ describe("monitor list — sorting", () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { sort: "name", json: true }, deps);
     const result = JSON.parse(stdout.join("")) as MonitorResource[];
-    const labels = result.map((m) => m.label ?? "");
+    const labels = result.map((m) => m.label);
     expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)));
   });
 

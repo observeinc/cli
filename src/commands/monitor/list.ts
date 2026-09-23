@@ -67,16 +67,16 @@ function sortMonitors(
   return [...monitors].sort((a, b) => {
     switch (sort) {
       case "id":
-        return Number(a.id ?? 0) - Number(b.id ?? 0);
+        return Number(a.id) - Number(b.id);
       case "name":
-        return (a.label ?? "").localeCompare(b.label ?? "");
+        return a.label.localeCompare(b.label);
       case "kind":
         return (
           (RULE_KIND_ORDER[a.ruleKind ?? ""] ?? 99) -
           (RULE_KIND_ORDER[b.ruleKind ?? ""] ?? 99)
         );
       case "disabled":
-        return Number(a.disabled ?? false) - Number(b.disabled ?? false);
+        return Number(a.disabled) - Number(b.disabled);
     }
   });
 }
@@ -84,10 +84,10 @@ function sortMonitors(
 const col = createColumnHelper<MonitorResource>();
 
 const FIELD_COLUMNS = {
-  id: col.accessor((row) => row.id ?? "-", {
+  id: col.accessor((row) => row.id, {
     header: "ID",
   }),
-  name: col.accessor((row) => row.label ?? "-", {
+  name: col.accessor((row) => row.label, {
     header: "NAME",
   }),
   description: col.accessor((row) => row.description ?? "-", {
@@ -97,7 +97,7 @@ const FIELD_COLUMNS = {
     header: "KIND",
     format: (value) => ruleKindColor(value),
   }),
-  disabled: col.accessor((row) => row.disabled ?? false, {
+  disabled: col.accessor((row) => row.disabled, {
     header: "DISABLED",
     format: (value) => (value ? chalk.yellow("Yes") : chalk.dim("No")),
   }),
@@ -142,9 +142,7 @@ export async function list(
     }
 
     if (flags.disabled != null) {
-      monitors = monitors.filter(
-        (m) => (m.disabled ?? false) === flags.disabled,
-      );
+      monitors = monitors.filter((m) => m.disabled === flags.disabled);
     }
 
     if (flags.sort) {
