@@ -9,7 +9,14 @@ import {
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
-import { MonitorV2RuleKind, type MonitorV2Terse } from "../../rest/generated";
+import {
+  MonitorRuleKind,
+  MonitorRollupStatus,
+  MonitorHealth,
+  MonitorAlertState,
+  MonitorMuteState,
+  type MonitorResource,
+} from "../../rest/generated";
 
 const loadConfigFn = mock(
   (): Config => ({
@@ -19,29 +26,50 @@ const loadConfigFn = mock(
   }),
 );
 
-function monitorTerseStub(
+/** Build a fully-populated MonitorResource. Only id and label need to be provided;
+ *  every other required field defaults to a benign value. */
+function makeMonitor(
   id: string,
-  name: string,
-  overrides: Partial<MonitorV2Terse> = {},
-): MonitorV2Terse {
+  label: string,
+  overrides: Partial<MonitorResource> = {},
+): MonitorResource {
   return {
     id,
-    name,
-    description: "",
+    label,
+    description: null,
     disabled: false,
-    ruleKind: MonitorV2RuleKind.Count,
+    ruleKind: MonitorRuleKind.Count,
+    monitorVersion: "0",
+    createdBy: { id: "" },
+    createdAt: "",
+    updatedBy: { id: "" },
+    updatedAt: "",
+    disabledDetail: null,
+    scheduled: false,
+    rollupStatus: MonitorRollupStatus.Running,
+    health: MonitorHealth.Running,
+    governorState: null,
+    alertState: MonitorAlertState.Never,
+    aiTriagingMode: null,
+    muteState: MonitorMuteState.NotMuted,
+    mutedUntil: null,
+    muteCount: 0,
+    lastErrorTime: null,
+    lastAlarmTime: null,
+    lastWarnTime: null,
+    managedBy: null,
     ...overrides,
   };
 }
 
-const STUB_MONITORS: MonitorV2Terse[] = [
-  monitorTerseStub("1", "Alpha Monitor", { ruleKind: MonitorV2RuleKind.Count }),
-  monitorTerseStub("2", "Beta Monitor", {
-    ruleKind: MonitorV2RuleKind.Threshold,
+const STUB_MONITORS: MonitorResource[] = [
+  makeMonitor("1", "Alpha Monitor", { ruleKind: MonitorRuleKind.Count }),
+  makeMonitor("2", "Beta Monitor", {
+    ruleKind: MonitorRuleKind.Threshold,
     disabled: true,
   }),
-  monitorTerseStub("3", "Gamma Monitor", {
-    ruleKind: MonitorV2RuleKind.Promote,
+  makeMonitor("3", "Gamma Monitor", {
+    ruleKind: MonitorRuleKind.Promote,
   }),
 ];
 
@@ -98,11 +126,11 @@ describe("monitor list — kind filter", () => {
     const { context, stdout } = createMockContext();
     await list.call(
       context,
-      { kind: [MonitorV2RuleKind.Count], json: true },
+      { kind: [MonitorRuleKind.Count], json: true },
       deps,
     );
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
-    expect(result.every((m) => m.ruleKind === MonitorV2RuleKind.Count)).toBe(
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    expect(result.every((m) => m.ruleKind === MonitorRuleKind.Count)).toBe(
       true,
     );
   });
@@ -112,19 +140,19 @@ describe("monitor list — kind filter", () => {
     await list.call(
       context,
       {
-        kind: [MonitorV2RuleKind.Count, MonitorV2RuleKind.Promote],
+        kind: [MonitorRuleKind.Count, MonitorRuleKind.Promote],
         json: true,
       },
       deps,
     );
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
     expect(
-      result.every((m) => m.ruleKind !== MonitorV2RuleKind.Threshold),
+      result.every((m) => m.ruleKind !== MonitorRuleKind.Threshold),
     ).toBe(true);
-    expect(result.some((m) => m.ruleKind === MonitorV2RuleKind.Count)).toBe(
+    expect(result.some((m) => m.ruleKind === MonitorRuleKind.Count)).toBe(
       true,
     );
-    expect(result.some((m) => m.ruleKind === MonitorV2RuleKind.Promote)).toBe(
+    expect(result.some((m) => m.ruleKind === MonitorRuleKind.Promote)).toBe(
       true,
     );
   });
@@ -136,7 +164,7 @@ describe("monitor list — disabled filter", () => {
   test("--disabled returns only disabled monitors", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { disabled: true, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
     expect(result.length).toBeGreaterThan(0);
     expect(result.every((m) => m.disabled === true)).toBe(true);
   });
@@ -144,7 +172,7 @@ describe("monitor list — disabled filter", () => {
   test("--no-disabled returns only enabled monitors", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { disabled: false, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
     expect(result.length).toBeGreaterThan(0);
     expect(result.every((m) => !m.disabled)).toBe(true);
   });
@@ -156,15 +184,15 @@ describe("monitor list — sorting", () => {
   test("--sort name returns monitors in alphabetical order", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { sort: "name", json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
-    const names = result.map((m) => m.name ?? "");
-    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const labels = result.map((m) => m.label ?? "");
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)));
   });
 
   test("--sort id returns monitors in ascending numeric id order", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { sort: "id", json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
     const ids = result.map((m) => Number(m.id));
     expect(ids).toEqual([...ids].sort((a, b) => a - b));
   });
@@ -173,14 +201,14 @@ describe("monitor list — sorting", () => {
 describe("monitor list — output", () => {
   beforeEach(() => listMonitorsFn.mockClear());
 
-  test("JSON output matches MonitorV2Terse shape", async () => {
+  test("JSON output matches MonitorResource shape", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
     expect(result[0]).toMatchObject({
       id: "1",
-      name: "Alpha Monitor",
-      ruleKind: MonitorV2RuleKind.Count,
+      label: "Alpha Monitor",
+      ruleKind: MonitorRuleKind.Count,
       disabled: false,
     });
   });
@@ -199,7 +227,7 @@ describe("monitor list — pagination", () => {
   test("--limit 2 returns only the first 2 results", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { limit: 2, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
     expect(result.length).toBe(2);
     expect(result[0]!.id).toBe("1");
     expect(result[1]!.id).toBe("2");
@@ -208,14 +236,14 @@ describe("monitor list — pagination", () => {
   test("--offset 1 skips the first result", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { offset: 1, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
     expect(result[0]!.id).toBe("2");
   });
 
   test("--limit 2 --offset 1 returns one result starting from index 1", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { limit: 2, offset: 1, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2Terse[];
+    const result = JSON.parse(stdout.join("")) as MonitorResource[];
     expect(result.length).toBe(2);
     expect(result[0]!.id).toBe("2");
     expect(result[1]!.id).toBe("3");
