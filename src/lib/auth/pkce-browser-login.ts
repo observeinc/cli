@@ -12,7 +12,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import * as http from "node:http";
-import { spawn } from "node:child_process";
+import { openBrowser } from "../browser";
 
 export interface PKCEBrowserLoginResult {
   success: boolean;
@@ -33,21 +33,6 @@ function computeCodeChallenge(verifier: string): string {
 
 function generateState(): string {
   return randomBytes(16).toString("base64url");
-}
-
-function openBrowser(url: string): void {
-  const platform = process.platform;
-  const command =
-    platform === "darwin"
-      ? "open"
-      : platform === "win32"
-        ? "start"
-        : "xdg-open";
-  try {
-    spawn(command, [url], { detached: true, stdio: "ignore" }).unref();
-  } catch {
-    // ignore — xdg-open may not be available in headless envs
-  }
 }
 
 async function registerDynamicClient(
