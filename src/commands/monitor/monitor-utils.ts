@@ -1,15 +1,21 @@
 import chalk from "chalk";
-import { MonitorV2RuleKind } from "../../rest/generated";
+import { MonitorRuleKind, type MonitorV2RuleKind } from "../../rest/generated";
 
-export function ruleKindColor(kind: MonitorV2RuleKind | undefined): string {
+export function ruleKindColor(
+  kind: MonitorRuleKind | MonitorV2RuleKind | undefined,
+): string {
   if (!kind) return chalk.dim("-");
   switch (kind) {
-    case MonitorV2RuleKind.Threshold:
+    case MonitorRuleKind.Threshold:
       return chalk.cyan(kind);
-    case MonitorV2RuleKind.Count:
+    case MonitorRuleKind.Count:
       return chalk.green(kind);
-    case MonitorV2RuleKind.Promote:
+    case MonitorRuleKind.Promote:
       return chalk.magenta(kind);
+    case MonitorRuleKind.Anomaly:
+      return chalk.yellow(kind);
+    case MonitorRuleKind.Composite:
+      return chalk.blue(kind);
     default:
       return chalk.dim(kind);
   }
