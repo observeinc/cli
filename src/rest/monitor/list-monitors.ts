@@ -31,16 +31,14 @@ export async function listMonitors({
     // legacy bare-array response (no Observe-Api-Version header). The legacy
     // shape uses `name` instead of `label`; map it so the rest of the command
     // works uniformly regardless of which path was taken.
-    const legacy = (await sdk.monitorApi.listMonitors(
-      params,
-    )) as unknown as Array<{
+    const legacy = (await sdk.monitorApi.listMonitors(params)) as unknown as {
       id?: string;
       name?: string;
       description?: string | null;
       disabled?: boolean;
       ruleKind?: string;
       [key: string]: unknown;
-    }>;
+    }[];
     return legacy.map(
       (m) =>
         ({
