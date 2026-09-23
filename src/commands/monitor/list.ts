@@ -2,7 +2,7 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listMonitors } from "../../rest/monitor/list-monitors";
-import { type MonitorV2Terse, MonitorV2RuleKind } from "../../rest/generated";
+import { type MonitorResource, MonitorRuleKind } from "../../rest/generated";
 import { ruleKindColor } from "./monitor-utils";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
@@ -20,7 +20,7 @@ type SortField = "id" | "name" | "kind" | "disabled";
 
 interface ListMonitorsFlags {
   match?: string;
-  kind?: MonitorV2RuleKind[];
+  kind?: MonitorRuleKind[];
   disabled?: boolean;
   sort?: SortField;
   format?: OutputFormat;
@@ -55,39 +55,39 @@ type FieldName = (typeof AVAILABLE_FIELDS)[number];
 const DEFAULT_FIELDS: FieldName[] = ["id", "name", "ruleKind", "disabled"];
 
 const RULE_KIND_ORDER: Record<string, number> = {
-  [MonitorV2RuleKind.Count]: 0,
-  [MonitorV2RuleKind.Promote]: 1,
-  [MonitorV2RuleKind.Threshold]: 2,
+  [MonitorRuleKind.Count]: 0,
+  [MonitorRuleKind.Promote]: 1,
+  [MonitorRuleKind.Threshold]: 2,
 };
 
 function sortMonitors(
-  monitors: MonitorV2Terse[],
+  monitors: MonitorResource[],
   sort: SortField,
-): MonitorV2Terse[] {
+): MonitorResource[] {
   return [...monitors].sort((a, b) => {
     switch (sort) {
       case "id":
-        return Number(a.id ?? 0) - Number(b.id ?? 0);
+        return Number(a.id) - Number(b.id);
       case "name":
-        return (a.name ?? "").localeCompare(b.name ?? "");
+        return a.label.localeCompare(b.label);
       case "kind":
         return (
           (RULE_KIND_ORDER[a.ruleKind ?? ""] ?? 99) -
           (RULE_KIND_ORDER[b.ruleKind ?? ""] ?? 99)
         );
       case "disabled":
-        return Number(a.disabled ?? false) - Number(b.disabled ?? false);
+        return Number(a.disabled) - Number(b.disabled);
     }
   });
 }
 
-const col = createColumnHelper<MonitorV2Terse>();
+const col = createColumnHelper<MonitorResource>();
 
 const FIELD_COLUMNS = {
-  id: col.accessor((row) => row.id ?? "-", {
+  id: col.accessor((row) => row.id, {
     header: "ID",
   }),
-  name: col.accessor((row) => row.name ?? "-", {
+  name: col.accessor((row) => row.label, {
     header: "NAME",
   }),
   description: col.accessor((row) => row.description ?? "-", {
@@ -97,11 +97,11 @@ const FIELD_COLUMNS = {
     header: "KIND",
     format: (value) => ruleKindColor(value),
   }),
-  disabled: col.accessor((row) => row.disabled ?? false, {
+  disabled: col.accessor((row) => row.disabled, {
     header: "DISABLED",
     format: (value) => (value ? chalk.yellow("Yes") : chalk.dim("No")),
   }),
-} satisfies Record<FieldName, ColumnDef<MonitorV2Terse>>;
+} satisfies Record<FieldName, ColumnDef<MonitorResource>>;
 
 export interface ListMonitorsDeps {
   loadConfig?: typeof loadConfig;
@@ -142,9 +142,7 @@ export async function list(
     }
 
     if (flags.disabled != null) {
-      monitors = monitors.filter(
-        (m) => (m.disabled ?? false) === flags.disabled,
-      );
+      monitors = monitors.filter((m) => m.disabled === flags.disabled);
     }
 
     if (flags.sort) {
@@ -190,9 +188,9 @@ export async function list(
   }
 }
 
-const VALID_KINDS = Object.values(MonitorV2RuleKind);
+const VALID_KINDS = Object.values(MonitorRuleKind);
 
-function parseKind(value: string): MonitorV2RuleKind[] {
+function parseKind(value: string): MonitorRuleKind[] {
   return value.split(",").map((k) => {
     const normalized = VALID_KINDS.find(
       (v) => v.toLowerCase() === k.trim().toLowerCase(),
