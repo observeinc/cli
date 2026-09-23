@@ -7,5 +7,6 @@ export async function listMonitors({
   ...params
 }: { config: Config } & MonitorApiListMonitorsRequest) {
   const sdk = new ObserveRestSDK(config);
-  return sdk.monitorApi.listMonitors(params);
+  const response = await sdk.monitorApi.listMonitors(params);
+  return response.monitors;
 }
