@@ -40,6 +40,41 @@ function candidate({
 
 const manifest = fixtureManifest();
 
+describe("checkCompatibility — package names", () => {
+  const supportedNames = (
+    language: CandidateApplication["language"]["id"],
+    names: string[],
+  ) =>
+    checkCompatibility({
+      candidate: candidate({
+        language,
+        dependencies: names.map((name) => ({
+          name,
+          version: "2.9.9",
+          scope: "runtime",
+        })),
+      }),
+      manifest: loadManifest(),
+    }).packages.supported.map((pkg) => pkg.name);
+
+  test("a catalog alias matches an alternate distribution name", () => {
+    expect(supportedNames("python", ["psycopg2-binary"])).toEqual([
+      "psycopg2-binary",
+    ]);
+  });
+
+  test("PyPI names match regardless of case, '_', '.', or '-'", () => {
+    expect(supportedNames("python", ["Kafka_Python", "PSYCOPG2"])).toEqual([
+      "Kafka_Python",
+      "PSYCOPG2",
+    ]);
+  });
+
+  test("npm names are not PEP 503 normalized", () => {
+    expect(supportedNames("nodejs", ["io_redis"])).toEqual([]);
+  });
+});
+
 describe("checkCompatibility — auto-instrumentation runtimes", () => {
   test("transitive internals roll up under a cataloged parent", () => {
     const profile = checkCompatibility({

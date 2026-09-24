@@ -165,7 +165,14 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
 - **Detection** lives in `src/lib/instrumentation/`:
   - `detectors/*.ts` — one per ecosystem (Node, Python, Java, .NET, Ruby, PHP,
     plus marker-only `native.ts` for Go/Rust/Erlang/C++/Perl). Every detector
-    goes through `createCandidate` in `detectors/common.ts`. Recursive source
+    goes through `createCandidate` in `detectors/common.ts`. A candidate needs
+    build evidence that it runs: .NET test projects (`Microsoft.NET.Test.Sdk`,
+    `IsTestProject`) and class libraries are skipped; Gradle build logic
+    (`kotlin-dsl`, `java-gradle-plugin`) is skipped, and library modules
+    (`java-library`, `micronaut.library`) count only with a `main`. Java
+    frameworks are matched on coordinates, never on prose. Ruby gems in
+    development/test groups and Gradle `compileOnly`/annotation processors are
+    not runtime dependencies. Recursive source
     inspection uses `findOwnedProjectFiles`: a nested manifest for the same
     ecosystem starts a new project boundary, while manifests and source files
     from other ecosystems do not interfere with polyglot projects. File-name
@@ -241,7 +248,9 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
   runtime. AI-assisted maintenance uses
   `.agents/skills/maintain-otel-manifest/SKILL.md` in the current session.
   Uncataloged libraries are left unassessed (no per-library finding); the
-  catalog is the sole authority on what can be assessed. Unknown upstream ranges
+  catalog is the sole authority on what can be assessed. Name matching is
+  per ecosystem (PyPI per PEP 503) plus each entry's `aliases`; do not add
+  alias tables in code. Unknown upstream ranges
   for a cataloged library produce `OTEL015`, distinct from unknown application
   versions. `OTEL014` (catalog miss) is retired; never reuse the ID.
 - **Review**: PR CI runs credential-free deterministic checks (typecheck, lint,

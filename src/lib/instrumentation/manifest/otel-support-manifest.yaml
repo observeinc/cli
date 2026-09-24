@@ -1256,6 +1256,7 @@ runtimes:
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-psycopg
       - name: psycopg2
+        aliases: [psycopg2-binary]
         supportedVersions: ">=2.7.3"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-psycopg2

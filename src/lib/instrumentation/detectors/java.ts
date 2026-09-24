@@ -67,17 +67,17 @@ export function detectJava(snapshot: ProjectSnapshot) {
       });
       const gradleDependencies = [
         ...content.matchAll(
-          /(?:implementation|api|runtimeOnly|compileOnly)\s*\(?["'][^:"']+:([^:"']+)(?::([^"']+))?["']/g,
+          /\b(implementation|api|runtimeOnly|compileOnly|compileOnlyApi|annotationProcessor|kapt|testImplementation|testRuntimeOnly|testCompileOnly)\s*\(?\s*["'][^:"']+:([^:"']+)(?::([^"']+))?["']/g,
         ),
       ].flatMap((match) => {
-        const name = match[1];
+        const [, configuration = "", name, version] = match;
         return name == null
           ? []
           : [
               {
                 name,
-                version: match[2],
-                scope: "runtime" as const,
+                version,
+                scope: gradleScope(configuration),
                 optional: false,
                 sourceKind: "manifest" as const,
                 purl: `pkg:maven/`,
@@ -92,9 +92,10 @@ export function detectJava(snapshot: ProjectSnapshot) {
           ]),
         ).values(),
       ].sort((left, right) => left.name.localeCompare(right.name));
-      const frameworks = ["spring-boot", "quarkus", "micronaut"].filter(
-        (name) => content.toLowerCase().includes(name),
-      );
+      if (isGradleBuildLogic(content)) return null;
+      const frameworks = FRAMEWORK_COORDINATES.filter(([, pattern]) =>
+        pattern.test(content),
+      ).map(([name]) => name);
       const projectFiles = findOwnedProjectFiles(snapshot.files, directory, [
         "pom.xml",
         "build.gradle",
@@ -107,7 +108,8 @@ export function detectJava(snapshot: ProjectSnapshot) {
             file.content ?? "",
           ),
       );
-      if (frameworks.length === 0 && !hasEntrypoint) return null;
+      if (!hasEntrypoint && (frameworks.length === 0 || isLibrary(content)))
+        return null;
       return createCandidate({
         directory,
         idSuffix: posix.basename(manifest.path),
@@ -127,6 +129,52 @@ export function detectJava(snapshot: ProjectSnapshot) {
       });
     })
     .filter((candidate) => candidate != null);
+}
+
+/**
+ * Framework coordinates (group IDs, artifact prefixes, plugin IDs, version
+ * catalog accessors). Matched case-sensitively against build files so prose
+ * such as `description = "Built in Micronaut"` is not evidence.
+ */
+const FRAMEWORK_COORDINATES: [string, RegExp][] = [
+  ["spring-boot", /org\.springframework\.boot|spring-boot-/],
+  ["quarkus", /io\.quarkus|quarkus-/],
+  ["micronaut", /io\.micronaut|\bmicronaut[.-]/],
+];
+
+/** A Gradle build that produces build logic (convention plugins), not an app. */
+function isGradleBuildLogic(content: string) {
+  return /`kotlin-dsl`|["']kotlin-dsl["']|\bjava-gradle-plugin\b/.test(content);
+}
+
+/**
+ * A module that declares itself a library and applies no application plugin.
+ * Framework dependencies alone do not make it runnable; it still counts when
+ * its own sources contain a main entry point.
+ */
+function isLibrary(content: string) {
+  return (
+    /\bjava-library\b|\bmicronaut[.-]library\b/.test(content) &&
+    !/\bmicronaut[.-]application\b|org\.springframework\.boot|io\.quarkus|["'`]application["'`]|^\s*application\s*$/m.test(
+      content,
+    )
+  );
+}
+
+/**
+ * Gradle configurations by whether the dependency is on the runtime classpath.
+ * `compileOnly` and annotation processors are the Gradle counterparts of
+ * Maven's `provided` scope: present at build time only.
+ */
+function gradleScope(configuration: string): DependencyScope {
+  if (configuration.startsWith("test")) return "test";
+  if (
+    configuration.startsWith("compileOnly") ||
+    configuration === "annotationProcessor" ||
+    configuration === "kapt"
+  )
+    return "build";
+  return "runtime";
 }
 
 /** `<properties>` from a pom.xml as a name → value map. */
@@ -157,9 +205,14 @@ function javaVersion(content: string, properties: Map<string, string>) {
     const value = properties.get(key);
     if (value != null && /^\d/.test(value)) return value;
   }
-  const gradle =
+  const toolchain =
     /JavaLanguageVersion\.of\(\s*(\d+)\s*\)/.exec(content)?.[1] ??
-    /JavaVersion\.VERSION_(\d+)(?:_(\d+))?/.exec(content)?.[1] ??
-    /sourceCompatibility\s*=?\s*['"]?(\d+(?:\.\d+)?)/.exec(content)?.[1];
-  return gradle ?? undefined;
+    /jvmToolchain\(\s*(\d+)\s*\)/.exec(content)?.[1];
+  if (toolchain != null) return toolchain;
+  // VERSION_1_8 is the legacy spelling of Java 8; keep it as "1.8" so the
+  // runtime normalizer maps it to 8 rather than reading a bare "1".
+  const constant = /JavaVersion\.VERSION_(\d+)(?:_(\d+))?/.exec(content);
+  if (constant?.[1] != null)
+    return constant[2] == null ? constant[1] : `${constant[1]}.${constant[2]}`;
+  return /sourceCompatibility\s*=?\s*['"]?(\d+(?:\.\d+)?)/.exec(content)?.[1];
 }
