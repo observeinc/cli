@@ -8,6 +8,7 @@ import {
   findOwnedProjectFiles,
   projectDirectory,
 } from "./common";
+import { fileAt } from "../file-index";
 
 export const nativeApplicationProvider: ApplicationDiscoveryProvider = {
   id: "native-static",
@@ -106,7 +107,7 @@ function detectRust(snapshot: ProjectSnapshot) {
       const directory = projectDirectory(manifest.path);
       const mainPath =
         directory === "." ? "src/main.rs" : `${directory}/src/main.rs`;
-      const hasMain = snapshot.files.some((file) => file.path === mainPath);
+      const hasMain = fileAt(snapshot.files, mainPath) != null;
       const bins = Array.isArray(parsed.bin) ? parsed.bin : [];
       if (!hasMain && bins.length === 0) return [];
       return [

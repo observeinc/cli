@@ -1,6 +1,7 @@
 import { posix } from "node:path";
 import type { ProjectSnapshot } from "../snapshot";
 import { createCandidate, projectDirectory } from "./common";
+import { fileAt, joinPath } from "../file-index";
 
 export function detectDotnet(snapshot: ProjectSnapshot) {
   return snapshot.files
@@ -38,11 +39,7 @@ export function detectDotnet(snapshot: ProjectSnapshot) {
         : /Worker/i.test(content)
           ? "worker-service"
           : undefined;
-      const program = snapshot.files.find(
-        (file) =>
-          file.path ===
-          (directory === "." ? "Program.cs" : `${directory}/Program.cs`),
-      );
+      const program = fileAt(snapshot.files, joinPath(directory, "Program.cs"));
       return createCandidate({
         directory,
         idSuffix: posix.basename(manifest.path, ".csproj"),

@@ -103,8 +103,18 @@ cataloged libraries. Older scalar catalog entries retain unknown activation meta
 
 For CI, use `observe instrumentation audit . --format json --fail-on warning`.
 Exit codes are 0 for a completed audit below the findings threshold, 1 for
-findings at or above it, and 2 for a tool error or failed analysis, including
-no detected applications. `--fail-on none` does not suppress analysis errors.
+findings at or above it, and 2 for a tool error: an unreadable path or
+manifest, an incomplete scan, or no detected applications. `--fail-on none`
+does not suppress tool errors. A problem confined to one application, such as
+conflicting lockfiles, is reported as an OTEL030 finding for that application
+and the rest of the project is still assessed. Runtimes that have an
+OpenTelemetry SDK but no auto-instrumentation (Go, Rust, C++) are reported as
+OTEL004.
+
+The scan skips hidden directories and common build/dependency output
+(`node_modules`, `target`, `dist`, ...). Skip other directories with
+`--exclude <dir>` (repeatable, relative to the project). Source files are read
+only when a detector inspects them.
 An empty or incomplete SBOM cannot erase declared dependencies. Inventory-only
 SBOMs do not establish which dependencies are direct runtime dependencies.
 

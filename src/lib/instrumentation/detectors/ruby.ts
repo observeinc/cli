@@ -1,6 +1,7 @@
 import { posix } from "node:path";
 import type { ProjectSnapshot } from "../snapshot";
 import { createCandidate, projectDirectory } from "./common";
+import { fileAt, joinPath } from "../file-index";
 
 export function detectRuby(snapshot: ProjectSnapshot) {
   return snapshot.files
@@ -27,10 +28,9 @@ export function detectRuby(snapshot: ProjectSnapshot) {
               },
             ];
       });
-      const lockfile = snapshot.files.find(
-        (file) =>
-          file.path ===
-          (directory === "." ? "Gemfile.lock" : `${directory}/Gemfile.lock`),
+      const lockfile = fileAt(
+        snapshot.files,
+        joinPath(directory, "Gemfile.lock"),
       );
       const rails = dependencies.find(
         (dependency) => dependency.name === "rails",
@@ -38,11 +38,8 @@ export function detectRuby(snapshot: ProjectSnapshot) {
       const rack = dependencies.some(
         (dependency) => dependency.name === "rack",
       );
-      const hasEntrypoint = snapshot.files.some((file) =>
-        [
-          directory === "." ? "config.ru" : `${directory}/config.ru`,
-          directory === "." ? "bin/rails" : `${directory}/bin/rails`,
-        ].includes(file.path),
+      const hasEntrypoint = ["config.ru", "bin/rails"].some(
+        (path) => fileAt(snapshot.files, joinPath(directory, path)) != null,
       );
       if (!rails && !rack && !hasEntrypoint) return null;
       return createCandidate({
