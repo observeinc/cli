@@ -62,6 +62,11 @@ Each runtime entry:
 Each package entry (scalar form — the common case):
 
 - `name` — the instrumented library, named in its own ecosystem.
+- `aliases` — optional list of other distribution names the instrumentation
+  also accepts for the same importable library (e.g. `psycopg2-binary` for
+  `psycopg2`, from upstream `_instruments_any`). Add one only with upstream
+  evidence. PyPI names are already compared per PEP 503, so never add case or
+  `-`/`_`/`.` spelling variants as aliases.
 - `supportedVersions` — semver comparator range; OMIT when the upstream range is
   unknown. Omission means unknown, never wildcard.
 - `inAutoInstrumentation` — optional boolean (covered by the zero-code bundle).

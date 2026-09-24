@@ -51,6 +51,11 @@ const packageEntrySchema = z
   .object({
     /** The instrumented library, named in its own ecosystem. */
     name: z.string().min(1),
+    /**
+     * Other distribution names for the same importable library that the
+     * instrumentation also accepts (e.g. `psycopg2-binary` for `psycopg2`).
+     */
+    aliases: z.array(z.string().min(1)).min(1).optional(),
     /** Supported version range in semver comparator syntax; absent when unknown. */
     supportedVersions: z.string().min(1).optional(),
     /** Whether the library is covered by the zero-code / meta-package bundle. */
