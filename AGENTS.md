@@ -196,9 +196,7 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     Dockerfile. Recorded as `Evidence { kind: "runtime-version" }`.
   - `findings.ts` — rule table `OTEL001..OTEL021` and `deriveFindings()`. Rule
     IDs are stable (never renumber); severities are policy and may change.
-  - `baseline.ts` — accepted-findings file (`.observe/instrumentation-baseline.json`),
-    schema version 2, keyed by a JSON tuple of rule, candidate, package, version,
-    and scope. OTEL011 is retired; never reuse its ID.
+    OTEL011 and OTEL014 are retired; never reuse their IDs.
   - `formats/sarif.ts`, `formats/github.ts` — SARIF 2.1.0 and GitHub workflow
     command output for `audit --format`.
 - **Runtime layer** lives in `src/lib/instrumentation/manifest/`:
