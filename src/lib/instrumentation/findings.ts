@@ -1,5 +1,6 @@
 import type {
   CandidateApplication,
+  Diagnostic,
   DiagnosticSeverity,
   InstrumentationResult,
 } from "./types";
@@ -21,6 +22,10 @@ export const RULES = {
   OTEL003: {
     severity: "warning",
     title: "Runtime version cannot be confirmed as supported",
+  },
+  OTEL004: {
+    severity: "warning",
+    title: "Runtime has no OpenTelemetry auto-instrumentation",
   },
   OTEL010: {
     severity: "warning",
@@ -48,6 +53,10 @@ export const RULES = {
   OTEL021: {
     severity: "info",
     title: "Runtime metrics are unavailable for this runtime",
+  },
+  OTEL030: {
+    severity: "error",
+    title: "Application analysis is incomplete",
   },
 } as const satisfies Record<
   string,
@@ -136,10 +145,33 @@ export function deriveFindings(
   );
 }
 
+/** Fix hints for analysis errors whose remedy is known. */
+const ANALYSIS_FIXES: Partial<Record<Diagnostic["code"], string>> = {
+  MULTIPLE_LOCKFILES:
+    "Keep only the lockfile of the package manager the project uses",
+  PACKAGE_MANAGER_CONFLICT:
+    "Commit the lockfile for the declared packageManager, or correct packageManager",
+};
+
 function candidateFindings(candidate: CandidateApplication): Finding[] {
-  const compat = candidate.compatibility;
-  if (compat == null) return [];
   const out: Finding[] = [];
+  // An error confined to one application must not abort the whole audit, but
+  // it does mean this application's verdict rests on doubtful evidence.
+  for (const diagnostic of candidate.diagnostics)
+    if (diagnostic.severity === "error")
+      out.push(
+        finding({
+          ruleId: "OTEL030",
+          candidate,
+          message: `${diagnostic.code}: ${diagnostic.message}`,
+          fix:
+            ANALYSIS_FIXES[diagnostic.code] ??
+            "Resolve the reported problem so the application can be assessed",
+        }),
+      );
+
+  const compat = candidate.compatibility;
+  if (compat == null) return out;
   const runtime = candidate.language.id;
   const version = candidate.language.version;
 
@@ -154,6 +186,16 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
     );
     return out;
   }
+
+  if (!compat.autoInstrumentationSupported)
+    out.push(
+      finding({
+        ruleId: "OTEL004",
+        candidate,
+        message: `OpenTelemetry has no auto-instrumentation for ${runtime}; telemetry requires manual instrumentation with the SDK`,
+        fix: `Instrument the application with the OpenTelemetry ${runtime} SDK and its instrumentation libraries`,
+      }),
+    );
 
   if (compat.runtimeVersionSupported === "no")
     out.push(

@@ -172,7 +172,30 @@ describe("instrumentation audit command", () => {
     },
   );
 
-  test("candidate error diagnostics force a failed result", async () => {
+  test("a candidate error diagnostic is an OTEL030 finding, not a tool error", async () => {
+    const root = tempRoot();
+    const graph = dependencyGraph();
+    graph.diagnostics.push({
+      code: "METADATA_UNREADABLE",
+      severity: "error",
+      message: "Cannot analyze dependency metadata",
+    });
+    const { context, getExitCode, stdout } = createMockContext({ cwd: root });
+    await audit.call(context, { format: "json" }, ".", {
+      createSnapshot: () => snapshot(root, cleanProject),
+      buildNpmGraph: async () => graph,
+    });
+    expect(getExitCode()).toBe(1);
+    const report = JSON.parse(stdout.join("")) as AuditReport;
+    expect(report.failed).toBe(true);
+    const analysis = report.findings.find(
+      (finding) => finding.ruleId === "OTEL030",
+    );
+    expect(analysis?.severity).toBe("error");
+    expect(analysis?.message).toContain("METADATA_UNREADABLE");
+  });
+
+  test("--fail-on none reports a candidate error without failing", async () => {
     const root = tempRoot();
     const graph = dependencyGraph();
     graph.diagnostics.push({
@@ -185,8 +208,43 @@ describe("instrumentation audit command", () => {
       createSnapshot: () => snapshot(root, cleanProject),
       buildNpmGraph: async () => graph,
     });
-    expect(getExitCode()).toBe(2);
-    expect((JSON.parse(stdout.join("")) as AuditReport).failed).toBe(true);
+    expect(getExitCode()).toBe(0);
+    const report = JSON.parse(stdout.join("")) as AuditReport;
+    expect(report.failed).toBe(false);
+    expect(report.findings.map((finding) => finding.ruleId)).toContain(
+      "OTEL030",
+    );
+  });
+
+  test("one candidate's analysis error does not stop the others", async () => {
+    const root = tempRoot();
+    const { context, getExitCode, stdout } = createMockContext({ cwd: root });
+    await audit.call(context, { format: "json" }, ".", {
+      createSnapshot: () =>
+        snapshot(root, {
+          "web/package.json": JSON.stringify({
+            name: "web",
+            scripts: { start: "node index.js" },
+            dependencies: { express: "4.18.2" },
+          }),
+          "web/package-lock.json": JSON.stringify({
+            lockfileVersion: 3,
+            packages: {},
+          }),
+          "web/yarn.lock": "# yarn lockfile v1\n",
+          "api/package.json": brokenProject["package.json"],
+        }),
+    });
+    expect(getExitCode()).toBe(1);
+    const report = JSON.parse(stdout.join("")) as AuditReport;
+    expect(report.candidates.map((candidate) => candidate.path).sort()).toEqual(
+      ["api", "web"],
+    );
+    const rules = report.findings.map(
+      (finding) => `${finding.candidateId} ${finding.ruleId}`,
+    );
+    expect(rules).toContain("nodejs:web OTEL030");
+    expect(rules).toContain("nodejs:api OTEL002");
   });
 
   test.each(["table", "json"] as const)(
@@ -269,6 +327,24 @@ describe("instrumentation audit command", () => {
     expect(JSON.parse(stderr.join("")).error.message).toContain(
       "Candidate not found",
     );
+  });
+
+  test("passes --exclude through to the snapshot", async () => {
+    const root = tempRoot();
+    let excluded: readonly string[] | undefined;
+    const { context } = createMockContext({ cwd: root });
+    await audit.call(
+      context,
+      { format: "json", exclude: ["legacy", "tools/gen"] },
+      ".",
+      {
+        createSnapshot: (options) => {
+          excluded = options.exclude;
+          return snapshot(root, cleanProject);
+        },
+      },
+    );
+    expect(excluded).toEqual(["legacy", "tools/gen"]);
   });
 
   test("exits 2 when the scan is incomplete", async () => {

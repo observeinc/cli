@@ -17,6 +17,7 @@ import { pnpmLockProvider } from "./graph/providers/pnpm-lock";
 import { selectGraph } from "./graph/provider";
 import { applyGraph } from "./graph/apply";
 import { bazelApplicationProvider } from "./discovery/bazel/provider";
+import { fileAt } from "./file-index";
 
 /** Lockfiles each runtime's detector may find beside its manifest. */
 const LOCKFILES_BY_LANGUAGE: Partial<Record<LanguageId, string[]>> = {
@@ -97,7 +98,7 @@ function inheritNodeRuntimeVersion(
     parts.pop();
     const path =
       parts.length === 0 ? "package.json" : `${parts.join("/")}/package.json`;
-    const manifest = snapshot.files.find((file) => file.path === path);
+    const manifest = fileAt(snapshot.files, path);
     if (manifest?.content == null) continue;
     try {
       const json = JSON.parse(manifest.content) as {

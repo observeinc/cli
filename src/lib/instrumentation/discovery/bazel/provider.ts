@@ -13,6 +13,7 @@ import {
   parseBazelRuleCalls,
   type BazelLiteral,
 } from "./parser";
+import { nearestAncestorFile } from "../../file-index";
 import { createDiskBzlLoader, type BzlLoader } from "./labels";
 import { buildMacroFamilyMap, resolveCallRule, type Family } from "./macros";
 
@@ -293,24 +294,6 @@ function inheritedRuntimeVersion({
     }
     default:
       return undefined;
-  }
-}
-
-function nearestAncestorFile(
-  files: SnapshotFile[],
-  directory: string,
-  basenames: string[],
-) {
-  const parts = directory === "." ? [] : directory.split("/");
-  for (;;) {
-    const parent = parts.length === 0 ? "." : parts.join("/");
-    for (const basename of basenames) {
-      const path = parent === "." ? basename : `${parent}/${basename}`;
-      const file = files.find((candidate) => candidate.path === path);
-      if (file != null) return file;
-    }
-    if (parts.length === 0) return null;
-    parts.pop();
   }
 }
 

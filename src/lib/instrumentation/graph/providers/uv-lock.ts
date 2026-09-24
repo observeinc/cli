@@ -2,6 +2,8 @@ import { posix } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { runtimeClosure } from "../traverse";
 import type { DependencyGraphProvider, GraphBuildInput } from "../provider";
+import { parseSnapshotFile, type SnapshotFile } from "../../snapshot";
+import { nearestAncestorFile } from "../../file-index";
 import {
   packageId,
   type DependencyEdge,
@@ -69,13 +71,8 @@ export function buildUvGraph({
 }: GraphBuildInput): DependencyGraph | null {
   const lock = findLock(candidate.path, snapshot.files);
   if (lock?.content == null) return null;
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = parseToml(lock.content);
-  } catch {
-    return null;
-  }
-  if (!Array.isArray(parsed.package)) return null;
+  const parsed = parseSnapshotFile(lock, "toml", parseToml);
+  if (parsed == null || !Array.isArray(parsed.package)) return null;
 
   const nodes = new Map<string, PackageNode>();
   const rawById = new Map<string, Record<string, unknown>>();
@@ -286,17 +283,6 @@ function findRoot({
   return nameMatches.length === 1 ? (nameMatches[0]?.id ?? null) : null;
 }
 
-function findLock(
-  candidatePath: string,
-  files: { path: string; content?: string }[],
-) {
-  const parts = candidatePath === "." ? [] : candidatePath.split("/");
-  for (;;) {
-    const directory = parts.length === 0 ? "." : parts.join("/");
-    const path = directory === "." ? "uv.lock" : `${directory}/uv.lock`;
-    const lock = files.find((file) => file.path === path);
-    if (lock != null) return lock;
-    if (parts.length === 0) return null;
-    parts.pop();
-  }
+function findLock(candidatePath: string, files: SnapshotFile[]) {
+  return nearestAncestorFile(files, candidatePath, ["uv.lock"]);
 }

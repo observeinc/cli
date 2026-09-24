@@ -1,12 +1,7 @@
-import {
-  lstatSync,
-  readFileSync,
-  readdirSync,
-  realpathSync,
-  statSync,
-} from "node:fs";
+import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { Diagnostic } from "./types";
+import { filesUnder } from "./file-index";
 
 /** Counters describing how completely a project tree was scanned. */
 export interface ScanCompleteness {
@@ -78,6 +73,12 @@ const TEXT_EXTENSIONS = new Set([
 export interface SnapshotFile {
   path: string;
   size: number;
+  /**
+   * UTF-8 text, or undefined for binary, oversized, or unreadable files.
+   * Metadata (manifests, lockfiles, build files) is read during the scan;
+   * other source files are read on first access, so a large tree costs only
+   * its file list until a detector inspects a source file.
+   */
   content?: string;
 }
 
@@ -102,14 +103,65 @@ function isInsideRoot(root: string, path: string) {
   );
 }
 
+/** Decode file bytes as text; undefined when the prefix contains a NUL byte. */
+function decodeText(bytes: Buffer) {
+  return bytes.subarray(0, 8_192).includes(0)
+    ? undefined
+    : bytes.toString("utf8");
+}
+
+/** A snapshot file whose content is read from disk on first access. */
+function lazyTextFile(path: string, size: number, absolutePath: string) {
+  let loaded = false;
+  let content: string | undefined;
+  const file: SnapshotFile = { path, size };
+  Object.defineProperty(file, "content", {
+    enumerable: true,
+    get() {
+      if (!loaded) {
+        loaded = true;
+        try {
+          content = decodeText(readFileSync(absolutePath));
+        } catch {
+          content = undefined;
+        }
+      }
+      return content;
+    },
+  });
+  return file;
+}
+
+/** Normalize `--exclude` entries to root-relative POSIX directory prefixes. */
+function normalizeExcludes(root: string, excludes: readonly string[]) {
+  return excludes.map((exclude) => {
+    const absolute = resolve(root, exclude);
+    if (!isInsideRoot(root, absolute))
+      throw new Error(`Excluded path is outside the project: ${exclude}`);
+    return relative(root, absolute).split(sep).join("/");
+  });
+}
+
+function isExcluded(relativePath: string, excludes: readonly string[]) {
+  return excludes.some(
+    (exclude) =>
+      exclude === "" ||
+      relativePath === exclude ||
+      relativePath.startsWith(`${exclude}/`),
+  );
+}
+
 export function createProjectSnapshot({
   targetPath,
-  maxFiles = 200_000,
-  maxDirectories = 100_000,
+  exclude = [],
+  maxFiles = 1_000_000,
+  maxDirectories = 500_000,
   maxTextBytes = 512 * 1024,
   maxMetadataBytes = 25 * 1024 * 1024,
 }: {
   targetPath: string;
+  /** Directories (relative to the target) to leave out of the scan. */
+  exclude?: readonly string[];
   maxFiles?: number;
   maxDirectories?: number;
   maxTextBytes?: number;
@@ -120,6 +172,7 @@ export function createProjectSnapshot({
   if (!statSync(root).isDirectory()) {
     throw new Error(`Project path is not a directory: ${targetPath}`);
   }
+  const excludes = normalizeExcludes(root, exclude);
 
   const files: SnapshotFile[] = [];
   const diagnostics: Diagnostic[] = [];
@@ -156,6 +209,9 @@ export function createProjectSnapshot({
     for (const entry of entries) {
       if (files.length >= maxFiles) break;
       if (entry.isSymbolicLink()) continue;
+      // Hidden directories (.git, .idea, .claude/worktrees, ...) hold tooling
+      // state and checkout copies, not applications.
+      if (entry.isDirectory() && entry.name.startsWith(".")) continue;
       if (
         entry.isDirectory() &&
         IGNORED_DIRECTORIES.has(entry.name) &&
@@ -175,7 +231,8 @@ export function createProjectSnapshot({
 
       const absolutePath = resolve(directory, entry.name);
       if (!isInsideRoot(root, absolutePath)) continue;
-      if (lstatSync(absolutePath).isSymbolicLink()) continue;
+      const relativePath = relative(root, absolutePath).split(sep).join("/");
+      if (isExcluded(relativePath, excludes)) continue;
 
       if (entry.isDirectory()) {
         directories.push(absolutePath);
@@ -184,7 +241,6 @@ export function createProjectSnapshot({
       if (!entry.isFile()) continue;
       completeness.filesSeen++;
 
-      const relativePath = relative(root, absolutePath).split(sep).join("/");
       let size: number;
       try {
         size = statSync(absolutePath).size;
@@ -192,35 +248,36 @@ export function createProjectSnapshot({
         completeness.unreadableFiles++;
         continue;
       }
-      const snapshotFile: SnapshotFile = { path: relativePath, size };
       const basename = relativePath.slice(relativePath.lastIndexOf("/") + 1);
       if (isManifestName(basename)) completeness.manifestsSeen++;
       if (isLockfileName(basename)) completeness.lockfilesSeen++;
       const metadata = isMetadataName(basename);
-      const readLimit = metadata ? maxMetadataBytes : maxTextBytes;
-      if (
-        size <= readLimit &&
-        (metadata || TEXT_EXTENSIONS.has(extension(relativePath)))
-      ) {
+      if (!metadata) {
+        files.push(
+          size <= maxTextBytes && TEXT_EXTENSIONS.has(extension(relativePath))
+            ? lazyTextFile(relativePath, size, absolutePath)
+            : { path: relativePath, size },
+        );
+        continue;
+      }
+      const snapshotFile: SnapshotFile = { path: relativePath, size };
+      if (size <= maxMetadataBytes) {
         let bytes: Buffer;
         try {
           bytes = readFileSync(absolutePath);
         } catch {
           completeness.unreadableFiles++;
-          if (metadata)
-            diagnostics.push({
-              code: "METADATA_UNREADABLE",
-              severity: "error",
-              message: `Could not read metadata file: ${relativePath}`,
-              path: relativePath,
-            });
+          diagnostics.push({
+            code: "METADATA_UNREADABLE",
+            severity: "error",
+            message: `Could not read metadata file: ${relativePath}`,
+            path: relativePath,
+          });
           files.push(snapshotFile);
           continue;
         }
-        if (!bytes.subarray(0, 8_192).includes(0)) {
-          snapshotFile.content = bytes.toString("utf8");
-        }
-      } else if (size > readLimit && metadata) {
+        snapshotFile.content = decodeText(bytes);
+      } else {
         completeness.filesSkippedBySize++;
         diagnostics.push({
           code: "METADATA_TOO_LARGE",
@@ -241,7 +298,7 @@ export function createProjectSnapshot({
     diagnostics.push({
       code: "SCAN_LIMIT_REACHED",
       severity: "warning",
-      message: "Stopped after reaching a scan limit",
+      message: `Stopped after reaching a scan limit (${String(maxFiles)} files or ${String(maxDirectories)} directories); audit a subdirectory or pass --exclude for directories without applications`,
     });
   }
 
@@ -321,8 +378,35 @@ function isMetadataName(name: string) {
 
 export function filesBelow(snapshot: ProjectSnapshot, directory: string) {
   if (directory === ".") return snapshot.files;
-  const prefix = `${directory}/`;
-  return snapshot.files.filter(
-    (file) => file.path === directory || file.path.startsWith(prefix),
-  );
+  return filesUnder(snapshot.files, directory);
+}
+
+const parsedContents = new WeakMap<object, Map<string, unknown>>();
+
+/**
+ * Parse a snapshot file's content once per parser key and share the result.
+ * Workspace lockfiles are read by every member application; parsing a large
+ * pnpm or uv lockfile per member dominated the audit of a monorepo. Callers
+ * must treat the returned value as read-only. A parser that throws caches
+ * `undefined`.
+ */
+export function parseSnapshotFile<T>(
+  file: Pick<SnapshotFile, "content">,
+  key: string,
+  parse: (content: string) => T,
+): T | undefined {
+  let cache = parsedContents.get(file);
+  if (cache == null) {
+    cache = new Map();
+    parsedContents.set(file, cache);
+  }
+  if (cache.has(key)) return cache.get(key) as T | undefined;
+  let value: T | undefined;
+  try {
+    value = file.content == null ? undefined : parse(file.content);
+  } catch {
+    value = undefined;
+  }
+  cache.set(key, value);
+  return value;
 }
