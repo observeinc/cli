@@ -1,6 +1,8 @@
 import { posix } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { DependencyGraphProvider, GraphBuildInput } from "../provider";
+import { parseSnapshotFile, type SnapshotFile } from "../../snapshot";
+import { nearestAncestorFile } from "../../file-index";
 import {
   packageId,
   type DependencyEdge,
@@ -41,12 +43,9 @@ export function buildPnpmGraph({
 }: GraphBuildInput): DependencyGraph | null {
   const lock = findLock(candidate.path, snapshot.files);
   if (lock?.content == null) return null;
-  let root: Record<string, unknown> | null;
-  try {
-    root = asRecord(parseYaml(lock.content));
-  } catch {
-    return null;
-  }
+  const root = asRecord(
+    parseSnapshotFile(lock, "yaml", (content) => parseYaml(content) as unknown),
+  );
   const importers = asRecord(root?.importers);
   if (root == null || importers == null) return null;
   const lockDirectory =
@@ -321,18 +320,6 @@ function parsePackageKey(key: string) {
     : { name: normalize(match[1]), version: cleanVersion(match[2]) };
 }
 
-function findLock(
-  candidatePath: string,
-  files: { path: string; content?: string }[],
-) {
-  const parts = candidatePath === "." ? [] : candidatePath.split("/");
-  for (;;) {
-    const directory = parts.length === 0 ? "." : parts.join("/");
-    const path =
-      directory === "." ? "pnpm-lock.yaml" : `${directory}/pnpm-lock.yaml`;
-    const lock = files.find((file) => file.path === path);
-    if (lock != null) return lock;
-    if (parts.length === 0) return null;
-    parts.pop();
-  }
+function findLock(candidatePath: string, files: SnapshotFile[]) {
+  return nearestAncestorFile(files, candidatePath, ["pnpm-lock.yaml"]);
 }

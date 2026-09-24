@@ -280,10 +280,7 @@ export function renderAudit({
   if (findings.length === 0) {
     const analysisFailed =
       candidates.length === 0 ||
-      [
-        ...result.diagnostics,
-        ...candidates.flatMap((candidate) => candidate.diagnostics),
-      ].some((diagnostic) => diagnostic.severity === "error");
+      result.diagnostics.some((diagnostic) => diagnostic.severity === "error");
     lines.push(
       analysisFailed
         ? red("Analysis incomplete; no clean verdict")

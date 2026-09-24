@@ -6,6 +6,7 @@ import {
   safeJson,
   scopedDependencies,
 } from "./common";
+import { fileAt, joinPath } from "../file-index";
 
 const FRAMEWORKS = [
   "laravel/framework",
@@ -54,21 +55,12 @@ export function detectPhp(snapshot: ProjectSnapshot) {
             dependency.scope === "runtime" && dependency.name === name,
         ),
       );
-      const entrypoint = snapshot.files.find((file) =>
-        [
-          directory === "."
-            ? "public/index.php"
-            : `${directory}/public/index.php`,
-          directory === "." ? "index.php" : `${directory}/index.php`,
-          directory === "." ? "artisan" : `${directory}/artisan`,
-        ].includes(file.path),
-      );
+      const entrypoint = ["public/index.php", "index.php", "artisan"]
+        .map((path) => fileAt(snapshot.files, joinPath(directory, path)))
+        .find((file) => file != null);
       if (frameworks.length === 0 && entrypoint == null) return [];
-      const lockfile = snapshot.files.some(
-        (file) =>
-          file.path ===
-          (directory === "." ? "composer.lock" : `${directory}/composer.lock`),
-      );
+      const lockfile =
+        fileAt(snapshot.files, joinPath(directory, "composer.lock")) != null;
       return [
         createCandidate({
           directory,

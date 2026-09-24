@@ -49,6 +49,22 @@ describe("deriveFindings", () => {
     expect(rules).toEqual(["OTEL001"]);
   });
 
+  test("OTEL004 for an SDK-only runtime", () => {
+    const rules = rulesFor({
+      "go.mod": "module example.com/svc\n\ngo 1.24\n",
+      "main.go": "package main\n\nfunc main() {}\n",
+    });
+    expect(rules).toEqual(["OTEL004"]);
+  });
+
+  test("OTEL004 is not raised for an auto-instrumentable runtime", () => {
+    const rules = rulesFor({
+      Gemfile: "gem 'rails', '~> 8.0'\n",
+      ".ruby-version": "3.3.0\n",
+    });
+    expect(rules).not.toContain("OTEL004");
+  });
+
   test("OTEL002 for a runtime version below the supported range", () => {
     const rules = rulesFor({
       "package.json": JSON.stringify({

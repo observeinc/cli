@@ -1,5 +1,6 @@
 import { dirname, posix } from "node:path";
 import type { SnapshotFile } from "../snapshot";
+import { directoryContains, filesIn, filesUnder } from "../file-index";
 import type {
   CandidateApplication,
   DetectedDependency,
@@ -73,11 +74,7 @@ export function createCandidate({
 }
 
 export function findLocalFiles(files: SnapshotFile[], directory: string) {
-  const prefix = directory === "." ? "" : `${directory}/`;
-  return files.filter((file) => {
-    if (!file.path.startsWith(prefix)) return false;
-    return !file.path.slice(prefix.length).includes("/");
-  });
+  return filesIn(files, directory);
 }
 
 /**
@@ -92,32 +89,9 @@ export function findOwnedProjectFiles(
   boundaryBasenames: readonly string[],
 ) {
   const boundaries = new Set(boundaryBasenames);
-  const prefix = directory === "." ? "" : `${directory}/`;
-  const nestedRoots = files
-    .filter((file) => {
-      if (!boundaries.has(posix.basename(file.path))) return false;
-      const nested = projectDirectory(file.path);
-      return (
-        nested !== directory && (directory === "." || nested.startsWith(prefix))
-      );
-    })
-    .map((file) => projectDirectory(file.path))
-    .filter(
-      (nested, index, all) =>
-        !all.some(
-          (parent, parentIndex) =>
-            parentIndex !== index &&
-            parent !== nested &&
-            nested.startsWith(`${parent}/`),
-        ),
-    );
-
-  return files.filter((file) => {
-    if (directory !== "." && !file.path.startsWith(prefix)) return false;
-    return !nestedRoots.some(
-      (nested) => file.path === nested || file.path.startsWith(`${nested}/`),
-    );
-  });
+  return filesUnder(files, directory, (nested) =>
+    directoryContains(files, nested, boundaries),
+  );
 }
 
 export function detectLockfiles({

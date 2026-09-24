@@ -7,6 +7,7 @@ import {
   type DependencyGraph,
   type PackageNode,
 } from "../types";
+import { fileAt } from "../../file-index";
 
 interface ArboristEdge {
   name: string;
@@ -28,14 +29,13 @@ export const npmArboristProvider = {
   supports({ candidate, snapshot }: GraphBuildInput) {
     return (
       candidate.language.id === "nodejs" &&
-      snapshot.files.some(
-        (file) => file.path === local(candidate.path, "package-lock.json"),
-      )
+      fileAt(snapshot.files, local(candidate.path, "package-lock.json")) != null
     );
   },
   async build({ candidate, snapshot }: GraphBuildInput) {
-    const lock = snapshot.files.find(
-      (file) => file.path === local(candidate.path, "package-lock.json"),
+    const lock = fileAt(
+      snapshot.files,
+      local(candidate.path, "package-lock.json"),
     );
     if (lock == null) return null;
     try {

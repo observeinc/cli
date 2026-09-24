@@ -194,7 +194,7 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     `.python-version`, `.tool-versions`, `runtime.txt`, or a Dockerfile `FROM`
     tag when the manifest declares none. Manifest wins, then version file, then
     Dockerfile. Recorded as `Evidence { kind: "runtime-version" }`.
-  - `findings.ts` — rule table `OTEL001..OTEL021` and `deriveFindings()`. Rule
+  - `findings.ts` — rule table `OTEL001..OTEL030` and `deriveFindings()`. Rule
     IDs are stable (never renumber); severities are policy and may change.
     OTEL011 and OTEL014 are retired; never reuse their IDs.
   - `formats/sarif.ts`, `formats/github.ts` — SARIF 2.1.0 and GitHub workflow
@@ -222,8 +222,17 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     Result schema v6 reports normalized options and activation as not assessed.
     Support is not proof of enablement or telemetry delivery; opt-in is not a failure.
 - **`audit` exit codes**: 0 completed analysis below `--fail-on` (default
-  `error`), 1 findings at the threshold, 2 tool/analysis error (including no
-  candidates). `--fail-on none` cannot suppress analysis errors.
+  `error`), 1 findings at the threshold, 2 tool error: unreadable path or
+  manifest, project-level error diagnostic (incomplete scan, unreadable
+  metadata), or no candidates. `--fail-on none` cannot suppress tool errors.
+  A candidate's own error diagnostics become OTEL030 findings so one broken
+  application never hides the verdicts for the rest of a monorepo.
+- **Scanning** (`snapshot.ts`): hidden directories and `IGNORED_DIRECTORIES`
+  are skipped; `--exclude` adds root-relative directories. Metadata files are
+  read during the walk; other text files are read lazily on first `content`
+  access. Per-candidate path lookups go through `file-index.ts` (memoized per
+  file array) and shared lockfiles are parsed once via `parseSnapshotFile`;
+  never add a linear `snapshot.files` scan inside a per-candidate loop.
 - **Maintenance**: edit `otel-support-manifest.yaml` by hand to add or update
   runtimes and packages. There are no offline generation scripts, no evidence
   file, and no provenance/citation tracking. The schema (zod) validates shape at

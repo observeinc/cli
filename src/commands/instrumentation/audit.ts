@@ -43,6 +43,7 @@ interface AuditFlags {
   manifest?: string;
   sbom?: string;
   resolve?: boolean;
+  exclude?: readonly string[];
 }
 
 export interface AuditDeps {
@@ -51,7 +52,13 @@ export interface AuditDeps {
   resolveNativeGraph?: typeof resolveNative;
 }
 
-/** Exit codes: 0 clean, 1 findings at or above --fail-on, 2 tool error. */
+/**
+ * Exit codes: 0 clean, 1 findings at or above --fail-on, 2 tool error. A tool
+ * error is anything that prevents a trustworthy verdict for the project as a
+ * whole: an unreadable path or manifest, an incomplete scan, or no detected
+ * application. A problem confined to one application is reported as a finding
+ * (OTEL030) so the rest of the project is still assessed.
+ */
 export const AUDIT_EXIT = { clean: 0, findings: 1, error: 2 } as const;
 
 /** JSON shape emitted by `--format json`. */
@@ -90,7 +97,10 @@ export async function audit(
         loadManifestFile(resolve(process.cwd(), flags.manifest)),
       );
 
-    const snapshot = createSnapshot({ targetPath: root });
+    const snapshot = createSnapshot({
+      targetPath: root,
+      exclude: flags.exclude ?? [],
+    });
     const incomplete = snapshot.diagnostics.find((diagnostic) =>
       [
         "SCAN_LIMIT_REACHED",
@@ -155,10 +165,7 @@ export async function audit(
 
     const analysisFailed =
       candidates.length === 0 ||
-      [
-        ...diagnostics,
-        ...candidates.flatMap((candidate) => candidate.diagnostics),
-      ].some((diagnostic) => diagnostic.severity === "error");
+      diagnostics.some((diagnostic) => diagnostic.severity === "error");
 
     const failed = analysisFailed || hasFindingAtOrAbove(findings, failOn);
 
@@ -261,6 +268,14 @@ export const auditCommand = defineCommand({
         brief: "Use installed native package managers in locked offline mode",
         optional: true,
       },
+      exclude: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "Directory (relative to the project) to skip; repeat for multiple",
+        optional: true,
+        variadic: true,
+      },
     },
     aliases: {},
   },
@@ -268,7 +283,7 @@ export const auditCommand = defineCommand({
     brief: "Audit OpenTelemetry instrumentation compatibility (CI-friendly)",
     fullDescription:
       "Non-interactive compatibility check for every application in a project, in the style of\n" +
-      "`npm audit`. Emits rule-based findings (OTEL001..OTEL021) with a fix hint each, and exits\n" +
+      "`npm audit`. Emits rule-based findings (OTEL001..OTEL030) with a fix hint each, and exits\n" +
       "0 (clean), 1 (findings at or above --fail-on), or 2 (tool error). Output formats: table,\n" +
       "json, sarif (GitHub code scanning), github (annotations).\n" +
       "Read-only and offline; nothing is installed, changed, or sent.",
