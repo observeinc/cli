@@ -24,7 +24,6 @@ const SENSITIVE_FLAGS = new Set([
   "--key",
   "--api-key",
   "--gql-token",
-  "--service-name",
 ]);
 
 /**
@@ -75,6 +74,7 @@ export function redactArgv(argv: string[]): string[] {
 
 function redactInstrumentationArgv(argv: string[]) {
   const valueFlags = new Set([
+    "--exclude",
     "--app",
     "--manifest",
     "--sbom",

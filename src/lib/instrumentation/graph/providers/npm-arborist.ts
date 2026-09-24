@@ -20,6 +20,8 @@ interface ArboristNode {
   version?: string;
   location: string;
   isLink?: boolean;
+  /** For a link, the package it points at (a workspace or `file:` package). */
+  target?: ArboristNode | null;
   edgesOut: Map<string, ArboristEdge>;
   inventory: Map<string, ArboristNode>;
 }
@@ -65,8 +67,19 @@ function fromArborist(tree: ArboristNode, path: string): DependencyGraph {
   const nodes = new Map<string, PackageNode>();
   const idByLocation = new Map<string, string>();
   const inventory = [...tree.inventory.values()];
+  // A workspace or `file:` dependency is a Link at node_modules/<name> whose
+  // target is the real package; the Link itself has no outgoing edges. Treat
+  // the link and its target as one node so traversal continues into the
+  // target's dependencies.
+  const linkTargets = new Set(
+    inventory.flatMap((raw) =>
+      raw.isLink && raw.target != null ? [raw.target.location] : [],
+    ),
+  );
   for (const raw of [tree, ...inventory]) {
-    const source = raw.isLink
+    if (raw.isLink && raw.target != null) continue;
+    const workspace = Boolean(raw.isLink) || linkTargets.has(raw.location);
+    const source = workspace
       ? { kind: "workspace" as const, location: raw.location }
       : { kind: "registry" as const };
     const id = packageId({
@@ -84,11 +97,17 @@ function fromArborist(tree: ArboristNode, path: string): DependencyGraph {
         ? `pkg:npm/${encodeURIComponent(raw.name)}@${raw.version}`
         : undefined,
       source,
-      workspace: Boolean(raw.isLink),
+      workspace,
     });
   }
+  for (const raw of inventory)
+    if (raw.isLink && raw.target != null) {
+      const target = idByLocation.get(raw.target.location);
+      if (target != null) idByLocation.set(raw.location, target);
+    }
   const edges: DependencyEdge[] = [];
   for (const raw of [tree, ...inventory]) {
+    if (raw.isLink && raw.target != null) continue;
     const from = idByLocation.get(raw.location);
     if (from == null) continue;
     for (const edge of raw.edgesOut.values()) {

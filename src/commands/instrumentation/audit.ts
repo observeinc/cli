@@ -116,13 +116,30 @@ export async function audit(
       : detection.candidates;
     if (flags.app && candidates.length === 0)
       throw new Error(`Candidate not found: ${flags.app}`);
+    // An explicit SBOM is the graph for its candidate; building the lockfile
+    // or native graph first would only stack a second graph's diagnostics
+    // and provenance under it.
+    const sbomCandidate = flags.sbom == null ? null : candidates[0];
+    if (
+      flags.sbom != null &&
+      (candidates.length !== 1 || sbomCandidate == null)
+    )
+      throw new Error(
+        "--sbom requires exactly one selected candidate; pass --app <id>",
+      );
     for (const candidate of candidates) {
       let graph =
-        candidate.dependencyGraph == null
-          ? await buildNpmGraph({ candidate, snapshot })
-          : null;
-      if (graph == null && flags.resolve)
-        graph = resolveNativeGraph({ candidate, snapshot });
+        candidate === sbomCandidate && flags.sbom != null
+          ? loadCycloneDx(resolve(process.cwd(), flags.sbom))
+          : candidate.dependencyGraph == null
+            ? await buildNpmGraph({ candidate, snapshot })
+            : null;
+      if (graph == null && flags.resolve) {
+        const resolution = resolveNativeGraph({ candidate, snapshot });
+        graph = resolution?.graph ?? null;
+        if (resolution?.diagnostic != null)
+          candidate.diagnostics.push(resolution.diagnostic);
+      }
       if (graph != null) {
         applyGraph({ candidate, graph });
         candidate.compatibility = checkCompatibility({
@@ -130,21 +147,6 @@ export async function audit(
           manifest: loadManifest(),
         });
       }
-    }
-    if (flags.sbom) {
-      const candidate = candidates[0];
-      if (candidates.length !== 1 || candidate == null)
-        throw new Error(
-          "--sbom requires exactly one selected candidate; pass --app <id>",
-        );
-      applyGraph({
-        candidate,
-        graph: loadCycloneDx(resolve(process.cwd(), flags.sbom)),
-      });
-      candidate.compatibility = checkCompatibility({
-        candidate,
-        manifest: loadManifest(),
-      });
     }
 
     // MULTIPLE_CANDIDATES is irrelevant here: audit evaluates every candidate.
@@ -283,7 +285,7 @@ export const auditCommand = defineCommand({
     brief: "Audit OpenTelemetry instrumentation compatibility (CI-friendly)",
     fullDescription:
       "Non-interactive compatibility check for every application in a project, in the style of\n" +
-      "`npm audit`. Emits rule-based findings (OTEL001..OTEL030) with a fix hint each, and exits\n" +
+      "`npm audit`. Emits rule-based findings (OTEL001..OTEL031) with a fix hint each, and exits\n" +
       "0 (clean), 1 (findings at or above --fail-on), or 2 (tool error). Output formats: table,\n" +
       "json, sarif (GitHub code scanning), github (annotations).\n" +
       "Read-only and offline; nothing is installed, changed, or sent.",

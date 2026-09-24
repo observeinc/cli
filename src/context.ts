@@ -4,7 +4,7 @@ import type { Span } from "./lib/telemetry.js";
 import { setCommandSpanName } from "./lib/telemetry.js";
 
 export interface LocalContext extends CommandContext {
-  readonly process: NodeJS.Process & { cwd(): string };
+  readonly process: NodeJS.Process;
   readonly writer: Writer;
 }
 

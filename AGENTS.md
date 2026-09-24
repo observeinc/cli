@@ -189,8 +189,14 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     providers preserve transitive, optional, peer, and development edges;
     traversal excludes development/test/build edges and retains shortest runtime
     paths plus immediate parents. npm uses Arborist's virtual lockfile tree in the
-    audit command. CycloneDX JSON is accepted through `--sbom`; `--resolve`
-    explicitly enables locked, offline Cargo, Go, and Maven metadata commands.
+    audit command; workspace and `file:` Links are collapsed onto their target
+    package so its dependencies are traversed. CycloneDX JSON is accepted
+    through `--sbom` and replaces the lockfile graph for that candidate;
+    `--resolve` explicitly enables locked, offline Cargo, Go, and Maven
+    metadata commands. `resolveNative()` returns a graph or a
+    `RESOLVE_FAILED`/`RESOLVE_UNSUPPORTED` diagnostic, never a silent null.
+    Partial graphs resolve a declared range to the graph's shallowest node of
+    the same name rather than assessing the library twice.
     Every graph reports `resolved-graph`, `partial-graph`, or `inventory-only`
     completeness and records provider/path provenance.
   - `lockfiles.ts` — inventory fallback for ecosystems without a graph provider.
@@ -201,7 +207,7 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     `.python-version`, `.tool-versions`, `runtime.txt`, or a Dockerfile `FROM`
     tag when the manifest declares none. Manifest wins, then version file, then
     Dockerfile. Recorded as `Evidence { kind: "runtime-version" }`.
-  - `findings.ts` — rule table `OTEL001..OTEL030` and `deriveFindings()`. Rule
+  - `findings.ts` — rule table `OTEL001..OTEL031` and `deriveFindings()`. Rule
     IDs are stable (never renumber); severities are policy and may change.
     OTEL011 and OTEL014 are retired; never reuse their IDs.
   - `formats/sarif.ts`, `formats/github.ts` — SARIF 2.1.0 and GitHub workflow

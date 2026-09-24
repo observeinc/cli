@@ -65,6 +65,39 @@ describe("deriveFindings", () => {
     expect(rules).not.toContain("OTEL004");
   });
 
+  test("OTEL031 when no dependency graph backs the assessment", () => {
+    const rules = rulesFor({
+      Gemfile: "gem 'rails', '~> 8.0'\n",
+      ".ruby-version": "3.3.0\n",
+    });
+    expect(rules).toContain("OTEL031");
+  });
+
+  test("OTEL031 is not raised when a dependency graph was applied", () => {
+    const detection = detectApplications(
+      snapshot({
+        "pyproject.toml":
+          '[project]\nname = "app"\ndependencies = ["flask>=3"]\n[project.scripts]\napp = "app:main"\n',
+        "uv.lock": [
+          "version = 1",
+          "[[package]]",
+          'name = "app"',
+          'version = "0.1.0"',
+          'source = { editable = "." }',
+          'dependencies = [{ name = "flask" }]',
+          "[[package]]",
+          'name = "flask"',
+          'version = "3.0.3"',
+          'source = { registry = "https://pypi.org/simple" }',
+        ].join("\n"),
+      }),
+    );
+    expect(detection.candidates[0]?.dependencyGraph).toBeDefined();
+    expect(
+      deriveFindings(detection).map((finding) => finding.ruleId),
+    ).not.toContain("OTEL031");
+  });
+
   test("OTEL002 for a runtime version below the supported range", () => {
     const rules = rulesFor({
       "package.json": JSON.stringify({
