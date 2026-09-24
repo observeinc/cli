@@ -108,11 +108,6 @@ no detected applications. `--fail-on none` does not suppress analysis errors.
 An empty or incomplete SBOM cannot erase declared dependencies. Inventory-only
 SBOMs do not establish which dependencies are direct runtime dependencies.
 
-Accepted-finding baselines use schema version 2 and include the evaluated
-version and dependency scope in each key. Regenerate older baselines with
-`observe instrumentation audit . --update-baseline` after reviewing findings.
-This option writes the baseline; ordinary audits are read-only. SARIF and
-GitHub output remain machine-readable during baseline updates.
 The unused `--offline` flag has been removed: the built-in check is always
 offline. `--resolve` explicitly invokes installed native package managers in
 their offline modes; this is not an OS network sandbox.

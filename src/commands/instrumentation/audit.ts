@@ -20,12 +20,6 @@ import {
   hasFindingAtOrAbove,
   type Finding,
 } from "../../lib/instrumentation/findings";
-import {
-  DEFAULT_BASELINE_PATH,
-  applyBaseline,
-  loadBaseline,
-  writeBaseline,
-} from "../../lib/instrumentation/baseline";
 import { toSarif } from "../../lib/instrumentation/formats/sarif";
 import { toGithubAnnotations } from "../../lib/instrumentation/formats/github";
 import { loadCycloneDx } from "../../lib/instrumentation/graph/providers/cyclonedx";
@@ -45,8 +39,6 @@ type FailOn = (typeof FAIL_ON)[number];
 interface AuditFlags {
   format?: AuditFormat;
   "fail-on"?: FailOn;
-  baseline?: string;
-  "update-baseline"?: boolean;
   app?: string;
   manifest?: string;
   sbom?: string;
@@ -65,7 +57,6 @@ export const AUDIT_EXIT = { clean: 0, findings: 1, error: 2 } as const;
 /** JSON shape emitted by `--format json`. */
 export interface AuditReport extends InstrumentationResult {
   findings: Finding[];
-  suppressed: Finding[];
   failOn: FailOn;
   failed: boolean;
 }
@@ -160,11 +151,7 @@ export async function audit(
       selection: flags.app ?? null,
     };
 
-    const all = deriveFindings(result);
-    const baselinePath = resolve(
-      snapshot.root,
-      flags.baseline ?? DEFAULT_BASELINE_PATH,
-    );
+    const findings = deriveFindings(result);
 
     const analysisFailed =
       candidates.length === 0 ||
@@ -173,46 +160,13 @@ export async function audit(
         ...candidates.flatMap((candidate) => candidate.diagnostics),
       ].some((diagnostic) => diagnostic.severity === "error");
 
-    if (flags["update-baseline"] && analysisFailed)
-      throw new Error("Cannot update baseline: application analysis failed");
-
-    if (flags["update-baseline"]) {
-      const baseline = writeBaseline(baselinePath, all);
-      if (format === "sarif")
-        writer.write(
-          JSON.stringify(
-            toSarif({
-              findings: [],
-              root: snapshot.root,
-              manifestSha256: result.manifest.sha256,
-            }),
-            null,
-            2,
-          ),
-        );
-      else if (format === "github") writer.write(toGithubAnnotations([]));
-      else
-        writer.write(
-          format === "json"
-            ? JSON.stringify({ baseline: baselinePath, ...baseline }, null, 2)
-            : `Wrote ${String(baseline.findings.length)} finding(s) to ${baselinePath}`,
-        );
-      process.exitCode = AUDIT_EXIT.clean;
-      return;
-    }
-
-    const { active, suppressed } = applyBaseline(
-      all,
-      loadBaseline(baselinePath),
-    );
-    const failed = analysisFailed || hasFindingAtOrAbove(active, failOn);
+    const failed = analysisFailed || hasFindingAtOrAbove(findings, failOn);
 
     switch (format) {
       case "json": {
         const report: AuditReport = {
           ...result,
-          findings: active,
-          suppressed,
+          findings,
           failOn,
           failed,
         };
@@ -223,7 +177,7 @@ export async function audit(
         writer.write(
           JSON.stringify(
             toSarif({
-              findings: active,
+              findings,
               root: snapshot.root,
               manifestSha256: result.manifest.sha256,
             }),
@@ -233,12 +187,10 @@ export async function audit(
         );
         break;
       case "github":
-        writer.write(toGithubAnnotations(active));
+        writer.write(toGithubAnnotations(findings));
         break;
       case "table":
-        writer.write(
-          renderAudit({ result, candidates, findings: active, suppressed }),
-        );
+        writer.write(renderAudit({ result, candidates, findings }));
         break;
     }
     process.exitCode = analysisFailed
@@ -285,17 +237,6 @@ export const auditCommand = defineCommand({
         brief: "Lowest severity that produces exit code 1 (default: error)",
         optional: true,
       },
-      baseline: {
-        kind: "parsed",
-        parse: String,
-        brief: `Baseline file of accepted findings (default: ${DEFAULT_BASELINE_PATH})`,
-        optional: true,
-      },
-      "update-baseline": {
-        kind: "boolean",
-        brief: "Write the current findings to the baseline and exit 0",
-        optional: true,
-      },
       app: {
         kind: "parsed",
         parse: String,
@@ -327,9 +268,9 @@ export const auditCommand = defineCommand({
     brief: "Audit OpenTelemetry instrumentation compatibility (CI-friendly)",
     fullDescription:
       "Non-interactive compatibility check for every application in a project, in the style of\n" +
-      "`npm audit`. Emits rule-based findings (OTEL001..OTEL021) with a fix hint each, honours a\n" +
-      "baseline of accepted findings, and exits 0 (clean), 1 (findings at or above --fail-on), or\n" +
-      "2 (tool error). Output formats: table, json, sarif (GitHub code scanning), github (annotations).\n" +
+      "`npm audit`. Emits rule-based findings (OTEL001..OTEL021) with a fix hint each, and exits\n" +
+      "0 (clean), 1 (findings at or above --fail-on), or 2 (tool error). Output formats: table,\n" +
+      "json, sarif (GitHub code scanning), github (annotations).\n" +
       "Read-only and offline; nothing is installed, changed, or sent.",
   },
 });

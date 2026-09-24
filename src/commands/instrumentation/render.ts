@@ -249,12 +249,10 @@ export function renderAudit({
   result,
   candidates,
   findings,
-  suppressed,
 }: {
   result: InstrumentationResult;
   candidates: CandidateApplication[];
   findings: Finding[];
-  suppressed: Finding[];
 }) {
   const lines = [
     `${bold("OpenTelemetry instrumentation audit")}  ${muted(safeTerminalText(result.root))}`,
@@ -311,9 +309,6 @@ export function renderAudit({
       );
     }
   }
-  if (suppressed.length > 0)
-    lines.push(muted(`${suppressed.length} finding(s) suppressed by baseline`));
-
   if (result.diagnostics.length > 0) {
     lines.push("", bold("Diagnostics"));
     for (const diagnostic of result.diagnostics)
