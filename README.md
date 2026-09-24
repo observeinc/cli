@@ -120,7 +120,12 @@ SBOMs do not establish which dependencies are direct runtime dependencies.
 
 The unused `--offline` flag has been removed: the built-in check is always
 offline. `--resolve` explicitly invokes installed native package managers in
-their offline modes; this is not an OS network sandbox.
+their offline modes (Cargo, Go, and Maven via a pinned
+`maven-dependency-plugin` 3.8.1); this is not an OS network sandbox. When a
+resolver cannot run or fails, the application carries a `RESOLVE_FAILED`
+diagnostic with the reason. Without a dependency graph (a `package-lock.json`,
+`pnpm-lock.yaml`, `uv.lock`, `--sbom`, or `--resolve`), only declared
+dependencies are assessed and the application gets an OTEL031 info finding.
 
 OTEL011 and OTEL014 are retired and must not be reused. The audit assesses only
 libraries in the support catalog; uncataloged libraries are left unassessed.

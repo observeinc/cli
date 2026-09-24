@@ -58,6 +58,10 @@ export const RULES = {
     severity: "error",
     title: "Application analysis is incomplete",
   },
+  OTEL031: {
+    severity: "info",
+    title: "Transitive dependencies were not assessed",
+  },
 } as const satisfies Record<
   string,
   { severity: DiagnosticSeverity; title: string }
@@ -311,6 +315,21 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
       }),
     );
   }
+
+  // Without a dependency graph only the declared libraries were looked up, so
+  // an instrumented library pulled in transitively (Npgsql under
+  // Npgsql.EntityFrameworkCore.PostgreSQL) goes unreported. Say so rather than
+  // let a short supported list read as complete coverage.
+  if (compat.autoInstrumentationSupported && candidate.dependencyGraph == null)
+    out.push(
+      finding({
+        ruleId: "OTEL031",
+        candidate,
+        message:
+          "Only declared dependencies were assessed; libraries pulled in transitively were not checked",
+        fix: "Commit a package-lock.json, pnpm-lock.yaml, or uv.lock, pass --sbom with a CycloneDX file, or use --resolve for Maven",
+      }),
+    );
 
   if (compat.autoInstrumentationSupported && !compat.runtimeMetricsSupported)
     out.push(

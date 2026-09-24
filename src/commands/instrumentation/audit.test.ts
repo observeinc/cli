@@ -477,13 +477,40 @@ describe("instrumentation audit command", () => {
       {
         createSnapshot: () => snapshot(root, cleanProject),
         buildNpmGraph: async () => null,
-        resolveNativeGraph: () => dependencyGraph("native-test"),
+        resolveNativeGraph: () => ({ graph: dependencyGraph("native-test") }),
       },
     );
     const report = JSON.parse(stdout.join("")) as AuditReport;
     expect(report.candidates[0]?.dependencyGraph?.provenance.provider).toBe(
       "native-test",
     );
+  });
+
+  test("--resolve reports why a native resolver produced no graph", async () => {
+    const root = tempRoot();
+    const { context, stdout } = createMockContext({ cwd: root });
+    await audit.call(
+      context,
+      { format: "json", resolve: true, "fail-on": "none" },
+      ".",
+      {
+        createSnapshot: () => snapshot(root, cleanProject),
+        buildNpmGraph: async () => null,
+        resolveNativeGraph: () => ({
+          graph: null,
+          diagnostic: {
+            code: "RESOLVE_FAILED",
+            severity: "warning",
+            message: "--resolve: go list exited 1",
+          },
+        }),
+      },
+    );
+    const report = JSON.parse(stdout.join("")) as AuditReport;
+    expect(report.candidates[0]?.diagnostics.map((d) => d.code)).toContain(
+      "RESOLVE_FAILED",
+    );
+    expect(report.candidates[0]?.dependencyGraph).toBeUndefined();
   });
 
   test("--sbom replaces dependencies with the selected CycloneDX graph", async () => {
@@ -518,13 +545,16 @@ describe("instrumentation audit command", () => {
       ".",
       {
         createSnapshot: () => snapshot(root, cleanProject),
-        buildNpmGraph: async () => null,
+        buildNpmGraph: async () => {
+          throw new Error("the SBOM candidate must not build a lockfile graph");
+        },
       },
     );
     const report = JSON.parse(stdout.join("")) as AuditReport;
     expect(report.candidates[0]?.dependencyGraph?.provenance.provider).toBe(
       "cyclonedx",
     );
+    expect(report.candidates[0]?.lockfiles).toEqual([sbom]);
   });
 
   test("a rootless empty SBOM cannot erase declared dependencies", async () => {

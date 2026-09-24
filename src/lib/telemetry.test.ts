@@ -132,6 +132,8 @@ describe("redactArgv", () => {
     ["audit", "--app", "nodejs:private", "/home/private/project"],
     ["audit", "/home/private/project"],
     ["audit", "--app=nodejs:private", "--", "-private"],
+    ["audit", "--exclude", "private/legacy", "/home/private/project"],
+    ["audit", "--exclude=private/legacy", "/home/private/project"],
     [
       "audit",
       "--manifest",

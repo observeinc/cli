@@ -20,8 +20,18 @@ function normalize(name: string) {
   return name.toLowerCase();
 }
 
+/**
+ * A resolved version without its peer-dependency suffix: `(react@18.0.0)` in
+ * lockfile v6+, `_react@18.0.0` in v5. Semver never contains `_`, so the v5
+ * suffix is only stripped from versions that start with a digit (never from
+ * `link:`/`file:` paths).
+ */
 function cleanVersion(raw: string) {
-  return raw.replace(/^npm:/, "").replace(/^\//, "").replace(/\(.*$/, "");
+  const version = raw
+    .replace(/^npm:/, "")
+    .replace(/^\//, "")
+    .replace(/\(.*$/, "");
+  return /^\d/.test(version) ? version.replace(/_.*$/, "") : version;
 }
 
 export const pnpmLockProvider: DependencyGraphProvider = {
@@ -312,9 +322,11 @@ function addImporterEdges({
 
 function parsePackageKey(key: string) {
   const cleaned = key.replace(/^\//, "").replace(/\(.*$/, "");
+  // v5 keys are `/name/version[_peers]`; try that shape first, because a v5
+  // peer suffix (`_react@18.0.0`) contains the `@` the v6+ form splits on.
   const match =
-    /^((?:@[^/]+\/)?[^@]+)@(.+)$/.exec(cleaned) ??
-    /^((?:@[^/]+\/)?[^/]+)\/(.+)$/.exec(cleaned);
+    /^((?:@[^/]+\/)?[^/@]+)\/(\d[^/]*)$/.exec(cleaned) ??
+    /^((?:@[^/]+\/)?[^@]+)@(.+)$/.exec(cleaned);
   return match?.[1] == null || match[2] == null
     ? null
     : { name: normalize(match[1]), version: cleanVersion(match[2]) };
