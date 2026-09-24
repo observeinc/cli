@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
@@ -178,19 +172,7 @@ describe("instrumentation audit command", () => {
     },
   );
 
-  test("baseline updates cannot accept an unsuccessful analysis", async () => {
-    const root = tempRoot();
-    const { context, getExitCode } = createMockContext({ cwd: root });
-    await audit.call(context, { "update-baseline": true }, ".", {
-      createSnapshot: () => snapshot(root, {}),
-    });
-    expect(getExitCode()).toBe(2);
-    expect(
-      existsSync(join(root, ".observe/instrumentation-baseline.json")),
-    ).toBe(false);
-  });
-
-  test("candidate error diagnostics override findings suppression", async () => {
+  test("candidate error diagnostics force a failed result", async () => {
     const root = tempRoot();
     const graph = dependencyGraph();
     graph.diagnostics.push({
@@ -228,23 +210,6 @@ describe("instrumentation audit command", () => {
     await audit.call(context, {}, "nonexistent");
     expect(getExitCode()).toBe(2);
   });
-
-  test.each(["sarif", "github"] as const)(
-    "baseline update preserves %s output",
-    async (format) => {
-      const root = tempRoot();
-      const { context, getExitCode, stdout } = createMockContext({ cwd: root });
-      await audit.call(context, { format, "update-baseline": true }, ".", {
-        createSnapshot: () => snapshot(root, brokenProject),
-      });
-      expect(getExitCode()).toBe(0);
-      expect(stdout.join("")).not.toContain("Wrote");
-      if (format === "sarif")
-        expect(
-          (JSON.parse(stdout.join("")) as { version: string }).version,
-        ).toBe("2.1.0");
-    },
-  );
 
   test("experimental refusal uses tool-error exit code", async () => {
     const previous = process.env.OBSERVE_CLI_EXPERIMENTAL;
@@ -323,34 +288,6 @@ describe("instrumentation audit command", () => {
     expect(JSON.parse(stderr.join("")).error.message).toContain(
       "Incomplete scan",
     );
-  });
-
-  test("baseline suppresses accepted findings", async () => {
-    const root = tempRoot();
-    const first = createMockContext({ cwd: root });
-    await audit.call(
-      first.context,
-      { format: "json", "update-baseline": true },
-      ".",
-      { createSnapshot: () => snapshot(root, brokenProject) },
-    );
-    expect(first.getExitCode()).toBe(0);
-    const baseline = JSON.parse(
-      readFileSync(
-        join(root, ".observe/instrumentation-baseline.json"),
-        "utf8",
-      ),
-    ) as { findings: string[] };
-    expect(baseline.findings.length).toBeGreaterThan(0);
-
-    const second = createMockContext({ cwd: root });
-    await audit.call(second.context, { format: "json" }, ".", {
-      createSnapshot: () => snapshot(root, brokenProject),
-    });
-    const report = JSON.parse(second.stdout.join("")) as AuditReport;
-    expect(report.findings).toHaveLength(0);
-    expect(report.suppressed.length).toBeGreaterThan(0);
-    expect(second.getExitCode()).toBe(0);
   });
 
   test("sarif output lists one rule per rule id and one result per finding", async () => {

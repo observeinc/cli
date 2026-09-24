@@ -76,7 +76,6 @@ export function redactArgv(argv: string[]): string[] {
 function redactInstrumentationArgv(argv: string[]) {
   const valueFlags = new Set([
     "--app",
-    "--baseline",
     "--manifest",
     "--sbom",
     "--format",

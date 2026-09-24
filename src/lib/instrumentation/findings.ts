@@ -6,8 +6,8 @@ import type {
 import type { PackageAssessment } from "./manifest/profile";
 
 /**
- * Stable rule identifiers. Scripts and baselines key on these, so an ID is
- * never reused or renumbered once shipped. Severity is policy and may change.
+ * Stable rule identifiers. Scripts and downstream consumers key on these, so an
+ * ID is never reused or renumbered once shipped. Severity is policy and may change.
  */
 export const RULES = {
   OTEL001: {
@@ -76,17 +76,6 @@ export const SEVERITY_ORDER: Record<DiagnosticSeverity, number> = {
   warning: 1,
   error: 2,
 };
-
-/** Stable key for baseline suppression. */
-export function findingKey(finding: Finding) {
-  return JSON.stringify([
-    finding.ruleId,
-    finding.candidateId,
-    finding.package ?? "",
-    finding.version ?? "",
-    finding.scope ?? "",
-  ]);
-}
 
 function finding({
   ruleId,
