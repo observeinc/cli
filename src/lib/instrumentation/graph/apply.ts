@@ -16,12 +16,35 @@ export function applyGraph({
   >();
   const preserveDeclared =
     closure.length === 0 || graph.completeness !== "resolved-graph";
-  if (preserveDeclared)
-    for (const dependency of candidate.dependencies)
+  if (preserveDeclared) {
+    // A declared range and the graph's resolved node for the same library
+    // must merge into one dependency, not be assessed twice. The closure is
+    // ordered by depth, so the first match is the shallowest (direct) node.
+    const shallowest = new Map<string, string>();
+    for (const item of closure) {
+      const name = item.node.name.toLowerCase();
+      if (item.node.version != null && !shallowest.has(name))
+        shallowest.set(name, item.node.version);
+    }
+    for (const declared of candidate.dependencies) {
+      const resolved =
+        declared.resolvedVersion == null
+          ? shallowest.get(declared.name.toLowerCase())
+          : undefined;
+      const dependency =
+        resolved == null
+          ? declared
+          : {
+              ...declared,
+              resolvedVersion: resolved,
+              sourceKind: "lockfile" as const,
+            };
       dependencies.set(
         `${dependency.name.toLowerCase()}@${dependency.resolvedVersion ?? dependency.version ?? "unknown"}`,
         dependency,
       );
+    }
+  }
   for (const item of closure) {
     const path = item.path.map((id) => graph.nodes.get(id)?.name ?? id);
     const key = `${item.node.name.toLowerCase()}@${item.node.version ?? "unknown"}`;

@@ -9,6 +9,8 @@ export interface NativeRunResult {
   stdout: string;
   stderr: string;
   status: number;
+  /** Why the process could not run or finish (not installed, timed out). */
+  error?: string;
 }
 
 /** Run one allowlisted resolver without a shell, network, or repository writes. */
@@ -47,10 +49,21 @@ export function runNativeResolver({
     throw new Error(
       `${executable} modified the project while resolving dependencies`,
     );
+  const code =
+    result.error != null && "code" in result.error
+      ? String(result.error.code)
+      : undefined;
+  const error =
+    code === "ENOENT"
+      ? `${executable} is not installed or not on PATH`
+      : code === "ETIMEDOUT"
+        ? `timed out after ${String(timeoutMs / 1000)}s`
+        : result.error?.message;
   return {
     stdout: typeof result.stdout === "string" ? result.stdout : "",
     stderr: typeof result.stderr === "string" ? result.stderr : "",
     status: result.status ?? 1,
+    ...(error == null ? {} : { error }),
   };
 }
 

@@ -1,6 +1,8 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
-import type { CandidateApplication } from "../types";
+import type { CandidateApplication, Diagnostic } from "../types";
 import type { ProjectSnapshot } from "../snapshot";
 import {
   packageId,
@@ -8,7 +10,55 @@ import {
   type PackageNode,
   type DependencyEdge,
 } from "./types";
-import { runNativeResolver } from "./native-runner";
+import { runNativeResolver, type NativeRunResult } from "./native-runner";
+
+/**
+ * Outcome of `--resolve` for one candidate: a graph, or the reason there is
+ * none. Callers surface the reason instead of silently falling back to the
+ * declared dependencies.
+ */
+export type NativeResolution =
+  | { graph: DependencyGraph; diagnostic?: undefined }
+  | { graph: null; diagnostic: Diagnostic };
+
+/** Pinned so `-DoutputType=json` (added in 3.7.0) is always available. */
+export const MAVEN_DEPENDENCY_PLUGIN =
+  "org.apache.maven.plugins:maven-dependency-plugin:3.8.1";
+
+function failure(
+  tool: string,
+  message: string,
+  severity: Diagnostic["severity"] = "warning",
+): NativeResolution {
+  return {
+    graph: null,
+    diagnostic: {
+      code: severity === "info" ? "RESOLVE_UNSUPPORTED" : "RESOLVE_FAILED",
+      severity,
+      message: `--resolve: ${tool} ${message}; assessed declared dependencies only`,
+    },
+  };
+}
+
+/** Why a resolver run produced nothing usable, in one line. */
+function runFailure(tool: string, result: NativeRunResult, hint: string) {
+  if (result.error != null)
+    return failure(tool, `could not run (${result.error})`);
+  const detail = result.stderr
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  return failure(
+    tool,
+    `exited ${String(result.status)}${detail == null ? "" : `: ${detail.slice(0, 200)}`}. ${hint}`,
+  );
+}
+
+function resolved(graph: DependencyGraph | null, tool: string) {
+  return graph == null
+    ? failure(tool, "output could not be parsed as a dependency graph")
+    : { graph };
+}
 
 const cargoMetadata = z.object({
   packages: z.array(
@@ -83,7 +133,7 @@ export function resolveNative({
   candidate: CandidateApplication;
   snapshot: ProjectSnapshot;
   run?: typeof runNativeResolver;
-}): DependencyGraph | null {
+}): NativeResolution | null {
   switch (candidate.language.id) {
     case "rust":
       return cargoGraph(candidate, snapshot, run);
@@ -107,9 +157,14 @@ function cargoGraph(
     args: ["metadata", "--locked", "--offline", "--format-version", "1"],
     cwd,
   });
-  if (result.status !== 0) return null;
+  if (result.status !== 0)
+    return runFailure(
+      "cargo metadata",
+      result,
+      "Commit Cargo.lock and fetch dependencies (cargo fetch) so offline resolution succeeds",
+    );
   const parsed = cargoMetadata.safeParse(parseJson(result.stdout));
-  if (!parsed.success) return null;
+  if (!parsed.success) return resolved(null, "cargo metadata");
   const metadata = parsed.data;
   const nodes = new Map<string, PackageNode>();
   const idMap = new Map<string, string>();
@@ -163,9 +218,12 @@ function cargoGraph(
   );
   const rootId = metadata.resolve?.root ?? metadata.workspace_members[0];
   const root = rootId == null ? undefined : idMap.get(rootId);
-  return root
-    ? graph("cargo-metadata", "Cargo.toml", root, nodes, edges, "cargo")
-    : null;
+  return resolved(
+    root
+      ? graph("cargo-metadata", "Cargo.toml", root, nodes, edges, "cargo")
+      : null,
+    "cargo metadata",
+  );
 }
 
 function goGraph(
@@ -179,9 +237,14 @@ function goGraph(
     args: ["list", "-mod=readonly", "-deps", "-json", "."],
     cwd,
   });
-  if (result.status !== 0) return null;
+  if (result.status !== 0)
+    return runFailure(
+      "go list",
+      result,
+      "Download modules into the module cache (go mod download) so offline resolution succeeds",
+    );
   const parsed = z.array(goPackage).safeParse(parseJsonStream(result.stdout));
-  if (!parsed.success) return null;
+  if (!parsed.success) return resolved(null, "go list");
   const packages = parsed.data;
   const nodes = new Map<string, PackageNode>();
   const ids = new Map<string, string>();
@@ -216,7 +279,10 @@ function goGraph(
   );
   const main = packages.find((pkg) => pkg.Name === "main");
   const root = main == null ? undefined : ids.get(main.ImportPath);
-  return root ? graph("go-list", "go.mod", root, nodes, edges, "go") : null;
+  return resolved(
+    root ? graph("go-list", "go.mod", root, nodes, edges, "go") : null,
+    "go list",
+  );
 }
 
 function mavenGraph(
@@ -227,28 +293,55 @@ function mavenGraph(
   const manifest = candidate.evidence.find((item) =>
     item.path.endsWith("pom.xml"),
   );
-  if (manifest == null) return null;
+  if (manifest == null)
+    return failure(
+      "resolution",
+      "supports Maven projects only, not Gradle",
+      "info",
+    );
   const cwd = dirname(join(snapshot.root, manifest.path));
-  const result = run({
-    executable: "mvn",
-    args: [
-      "--offline",
-      "dependency:tree",
-      "-DoutputType=json",
-      "-DoutputFile=/dev/stdout",
-      "-DappendOutput=false",
-    ],
-    cwd,
+  // The tree goes to a file outside the project: stdout mixes in Maven's log,
+  // and /dev/stdout does not exist on Windows. Appending keeps one tree per
+  // reactor module instead of letting each module overwrite the last.
+  const outputDirectory = mkdtempSync(join(tmpdir(), "observe-mvn-tree-"));
+  const outputFile = join(outputDirectory, "tree.json");
+  let output: string;
+  try {
+    const result = run({
+      executable: "mvn",
+      args: [
+        "--offline",
+        "--batch-mode",
+        "--quiet",
+        `${MAVEN_DEPENDENCY_PLUGIN}:tree`,
+        "-DoutputType=json",
+        `-DoutputFile=${outputFile}`,
+        "-DappendOutput=true",
+      ],
+      cwd,
+    });
+    if (result.status !== 0)
+      return runFailure(
+        "mvn dependency:tree",
+        result,
+        `Offline resolution needs every dependency and ${MAVEN_DEPENDENCY_PLUGIN} in the local repository (run the same command once without --offline)`,
+      );
+    try {
+      output = readFileSync(outputFile, "utf8");
+    } catch {
+      return failure("mvn dependency:tree", "wrote no dependency tree");
+    }
+  } finally {
+    rmSync(outputDirectory, { recursive: true, force: true });
+  }
+  const trees = (parseJsonStream(output) ?? []).flatMap((tree) => {
+    const parsed = mavenNode.safeParse(tree);
+    return parsed.success ? [parsed.data] : [];
   });
-  if (result.status !== 0) return null;
-  const start = result.stdout.indexOf("{");
-  const end = result.stdout.lastIndexOf("}");
-  if (start < 0 || end < start) return null;
-  const parsed = mavenNode.safeParse(
-    parseJson(result.stdout.slice(start, end + 1)),
-  );
-  if (!parsed.success) return null;
-  const rootNode = parsed.data;
+  const selected =
+    trees.find((tree) => tree.artifactId === candidate.name) ?? trees[0];
+  if (selected == null) return resolved(null, "mvn dependency:tree");
+  const rootNode = selected;
   const nodes = new Map<string, PackageNode>();
   const edges: DependencyEdge[] = [];
   const visit = (raw: MavenNode, parent?: string) => {
@@ -284,13 +377,9 @@ function mavenGraph(
     return id;
   };
   const root = visit(rootNode);
-  return graph(
-    "maven-dependency-tree",
-    manifest.path,
-    root,
-    nodes,
-    edges,
-    "mvn",
+  return resolved(
+    graph("maven-dependency-tree", manifest.path, root, nodes, edges, "mvn"),
+    "mvn dependency:tree",
   );
 }
 

@@ -57,7 +57,9 @@ export type DiagnosticCode =
   | "SCAN_LIMIT_REACHED"
   | "DYNAMIC_TARGET_NAME"
   | "COMPUTED_TESTONLY"
-  | "AMBIGUOUS_BUILD_PACKAGE";
+  | "AMBIGUOUS_BUILD_PACKAGE"
+  | "RESOLVE_FAILED"
+  | "RESOLVE_UNSUPPORTED";
 
 export type DependencyScope =
   | "runtime"
