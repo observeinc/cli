@@ -36,6 +36,7 @@ function detectGo(snapshot: ProjectSnapshot) {
       const directory = projectDirectory(manifest.path);
       const content = manifest.content ?? "";
       const version = /^go\s+(\d+(?:\.\d+){1,2})/m.exec(content)?.[1];
+      const modulePath = /^module\s+(\S+)/m.exec(content)?.[1];
       // Go currently has no package compatibility matrix in the support
       // manifest, so module dependencies cannot affect the verdict.
       const mains = findOwnedProjectFiles(snapshot.files, directory, [
@@ -56,9 +57,11 @@ function detectGo(snapshot: ProjectSnapshot) {
       // application; the module root is not an application unless it has main.
       const runnableDirectories = mainDirectories.filter((mainDirectory) => {
         const relative =
-          directory === "."
-            ? mainDirectory
-            : mainDirectory.slice(directory.length + 1);
+          mainDirectory === directory
+            ? "."
+            : directory === "."
+              ? mainDirectory
+              : mainDirectory.slice(directory.length + 1);
         return (
           relative === "." ||
           relative.startsWith("cmd/") ||
@@ -69,7 +72,10 @@ function detectGo(snapshot: ProjectSnapshot) {
       return runnableDirectories.map((mainDirectory) =>
         createCandidate({
           directory: mainDirectory,
-          name: posix.basename(mainDirectory),
+          name:
+            mainDirectory === "."
+              ? posix.basename(modulePath ?? snapshot.root)
+              : posix.basename(mainDirectory),
           language: "go",
           runtime: "go",
           version,

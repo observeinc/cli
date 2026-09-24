@@ -67,26 +67,34 @@ const STARTER_COMPONENTS: Record<string, string[]> = {
   "spring-boot-starter-quartz": ["quartz"],
 };
 
-function normalize(name: string) {
-  return name.trim().toLowerCase();
+interface PackageIndex {
+  ecosystem: RuntimeEntry["ecosystem"];
+  byName: Map<string, PackageEntry>;
 }
 
-const PACKAGE_ALIASES: Record<string, string[]> = {
-  "@grpc/grpc-js": ["grpc-js", "grpc"],
-  grpcio: ["grpcio", "grpc"],
-  redis: ["redis", "redis-py"],
-};
+/**
+ * Package names as the ecosystem compares them. PyPI names are
+ * case-insensitive and treat runs of `-`, `_`, and `.` as equal (PEP 503), so
+ * `confluent_kafka` and `Confluent-Kafka` are one distribution.
+ */
+function nameKey(ecosystem: RuntimeEntry["ecosystem"], name: string) {
+  const lower = name.trim().toLowerCase();
+  return ecosystem === "pypi" ? lower.replace(/[-_.]+/g, "-") : lower;
+}
 
-function findPackage(
-  byName: Map<string, RuntimeEntry["packages"][number]>,
-  name: string,
-) {
-  return (
-    byName.get(normalize(name)) ??
-    (PACKAGE_ALIASES[normalize(name)] ?? [])
-      .map((alias) => byName.get(normalize(alias)))
-      .find((entry) => entry != null)
-  );
+/** Index cataloged packages by name and by every declared alias. */
+function indexPackages(entry: RuntimeEntry): PackageIndex {
+  const byName = new Map<string, PackageEntry>();
+  for (const pkg of entry.packages)
+    for (const name of [pkg.name, ...(pkg.aliases ?? [])]) {
+      const key = nameKey(entry.ecosystem, name);
+      if (!byName.has(key)) byName.set(key, pkg);
+    }
+  return { ecosystem: entry.ecosystem, byName };
+}
+
+function findPackage(index: PackageIndex, name: string) {
+  return index.byName.get(nameKey(index.ecosystem, name));
 }
 
 /**
@@ -97,7 +105,7 @@ function findPackage(
  */
 function nearestCatalogedAncestor(
   dependency: DetectedDependency,
-  byName: Map<string, RuntimeEntry["packages"][number]>,
+  index: PackageIndex,
 ): string | undefined {
   const chains =
     dependency.paths != null && dependency.paths.length > 0
@@ -106,9 +114,9 @@ function nearestCatalogedAncestor(
         ? [dependency.via]
         : [];
   for (const chain of chains)
-    for (let index = chain.length - 1; index >= 0; index--) {
-      const ancestor = chain[index];
-      if (ancestor != null && findPackage(byName, ancestor) != null)
+    for (let position = chain.length - 1; position >= 0; position--) {
+      const ancestor = chain[position];
+      if (ancestor != null && findPackage(index, ancestor) != null)
         return ancestor;
     }
   return undefined;
@@ -231,9 +239,8 @@ export function checkCompatibility({
 
   const runtimeVersionSupported = assessRuntimeVersion(candidate, entry);
 
-  const byName = new Map(
-    entry.packages.map((pkg) => [normalize(pkg.name), pkg]),
-  );
+  const index = indexPackages(entry);
+  const key = (name: string) => nameKey(entry.ecosystem, name);
   const packages = EMPTY_PACKAGES();
   // Internal sub-packages to attribute to a cataloged ancestor after the pass,
   // keyed by the normalized ancestor name.
@@ -265,8 +272,8 @@ export function checkCompatibility({
     // libraries they pull in, not by name — never treat them as a gap. Resolve
     // known starters to the instrumented components present in the manifest.
     if (isAggregator(dependency.name)) {
-      const components = (STARTER_COMPONENTS[normalize(dependency.name)] ?? [])
-        .filter((component) => byName.has(normalize(component)))
+      const components = (STARTER_COMPONENTS[key(dependency.name)] ?? [])
+        .filter((component) => findPackage(index, component) != null)
         .sort();
       packages.supported.push({
         name: dependency.name,
@@ -279,7 +286,7 @@ export function checkCompatibility({
       continue;
     }
 
-    const pkg = findPackage(byName, dependency.name);
+    const pkg = findPackage(index, dependency.name);
 
     if (pkg == null) {
       // The catalog is the authority on what can be assessed; an uncataloged
@@ -288,13 +295,12 @@ export function checkCompatibility({
       // it to that ancestor as a covered internal instead of dropping it.
       const isDirect = dependency.depth == null || dependency.depth <= 1;
       if (!isDirect) {
-        const ancestor = nearestCatalogedAncestor(dependency, byName);
+        const ancestor = nearestCatalogedAncestor(dependency, index);
         if (ancestor != null) {
-          const key = normalize(ancestor);
-          let internals = rollups.get(key);
+          let internals = rollups.get(key(ancestor));
           if (internals == null) {
             internals = new Set();
-            rollups.set(key, internals);
+            rollups.set(key(ancestor), internals);
           }
           internals.add(dependency.name);
         }
@@ -348,7 +354,7 @@ export function checkCompatibility({
     ...packages.unsupported,
     ...packages.unverified,
   ]) {
-    const internals = rollups.get(normalize(assessment.name));
+    const internals = rollups.get(key(assessment.name));
     if (internals != null && internals.size > 0)
       assessment.coveredInternals = [...internals].sort();
   }

@@ -6,9 +6,10 @@ import { fileAt, joinPath } from "../file-index";
 export function detectDotnet(snapshot: ProjectSnapshot) {
   return snapshot.files
     .filter((file) => file.path.endsWith(".csproj"))
-    .map((manifest) => {
+    .flatMap((manifest) => {
       const directory = projectDirectory(manifest.path);
       const content = manifest.content ?? "";
+      if (isTestProject(content)) return [];
       // Match the whole <PackageReference> tag, then pull Include/Version out of
       // its attributes so attribute order and spacing don't drop the version.
       const packages = [
@@ -40,7 +41,8 @@ export function detectDotnet(snapshot: ProjectSnapshot) {
           ? "worker-service"
           : undefined;
       const program = fileAt(snapshot.files, joinPath(directory, "Program.cs"));
-      return createCandidate({
+      if (!isRunnable(content, program != null)) return [];
+      const candidate = createCandidate({
         directory,
         idSuffix: posix.basename(manifest.path, ".csproj"),
         name: posix.basename(manifest.path, ".csproj"),
@@ -71,5 +73,29 @@ export function detectDotnet(snapshot: ProjectSnapshot) {
         ],
         evidence: [{ kind: "manifest", path: manifest.path }],
       });
+      return [candidate];
     });
+}
+
+/** A test project, per MSBuild: it runs under a test host, not as a service. */
+function isTestProject(content: string) {
+  return (
+    /<IsTestProject>\s*true\s*<\/IsTestProject>/i.test(content) ||
+    /<PackageReference\b[^>]*Include=["']Microsoft\.NET\.Test\.Sdk["']/i.test(
+      content,
+    )
+  );
+}
+
+/**
+ * Whether the project builds something that runs: a Web or Worker SDK
+ * project, an explicit executable `OutputType`, or a `Program.cs` entry
+ * point. A plain `Microsoft.NET.Sdk` project without these is a class library.
+ */
+function isRunnable(content: string, hasProgram: boolean) {
+  return (
+    hasProgram ||
+    /Sdk=["']Microsoft\.NET\.Sdk\.(?:Web|Worker)["']/i.test(content) ||
+    /<OutputType>\s*(?:Exe|WinExe)\s*<\/OutputType>/i.test(content)
+  );
 }

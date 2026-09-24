@@ -372,6 +372,49 @@ describe("instrumentation detection", () => {
     ).toBe("4.19.2");
   });
 
+  test("Gemfile groups set dependency scope and keep every constraint", () => {
+    const root = fixture({
+      Gemfile: [
+        "source 'https://rubygems.org'",
+        "gem 'rails', '>= 7.1', '< 8'",
+        "gem 'pg' # database",
+        "group :development, :test do",
+        "  gem 'rspec-rails'",
+        "  platforms :mri do",
+        "    gem 'debug'",
+        "  end",
+        "  gem 'factory_bot', '~> 6.0'",
+        "end",
+        "group :test do",
+        "  gem 'capybara'",
+        "end",
+        "gem 'rubocop', require: false, group: :development",
+        "gem 'puma', groups: [:default, :production]",
+        "gem 'redis'",
+      ].join("\n"),
+    });
+    const candidate = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates[0]!;
+    const byName = Object.fromEntries(
+      candidate.dependencies.map((dependency) => [
+        dependency.name,
+        [dependency.scope, dependency.version],
+      ]),
+    );
+    expect(byName).toEqual({
+      capybara: ["test", undefined],
+      debug: ["development", undefined],
+      factory_bot: ["development", "~> 6.0"],
+      pg: ["runtime", undefined],
+      puma: ["runtime", undefined],
+      rails: ["runtime", ">= 7.1, < 8"],
+      redis: ["runtime", undefined],
+      "rspec-rails": ["development", undefined],
+      rubocop: ["development", undefined],
+    });
+  });
+
   test("Gemfile.lock resolves gem versions", () => {
     const root = fixture({
       Gemfile: "gem 'rails', '~> 7.1'\ngem 'pg'\n",
@@ -666,6 +709,132 @@ describe("instrumentation detection", () => {
     expect(candidates.map((candidate) => candidate.id)).toEqual([
       "java:child:pom.xml",
     ]);
+  });
+
+  test.each([
+    ["java { sourceCompatibility = JavaVersion.VERSION_1_8 }", "1.8"],
+    ["java { sourceCompatibility = JavaVersion.VERSION_17 }", "17"],
+    ["kotlin { jvmToolchain(21) }", "21"],
+  ])("reads the Gradle Java version from %s", (config, version) => {
+    const root = fixture({
+      "build.gradle": `plugins { id 'java' }\n${config}\n`,
+      "src/main/java/x/App.java":
+        "package x; public class App { public static void main(String[] a) {} }\n",
+    });
+    const candidate = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates[0]!;
+    expect(candidate.language.version).toBe(version);
+    expect(candidate.compatibility!.runtimeVersionSupported).toBe("yes");
+  });
+
+  test("Gradle configurations map to dependency scopes", () => {
+    const root = fixture({
+      "build.gradle": [
+        "plugins { id 'java' }",
+        "dependencies {",
+        "  implementation 'com.squareup.okhttp3:okhttp:4.12.0'",
+        "  runtimeOnly 'org.postgresql:postgresql:42.7.3'",
+        "  compileOnly 'jakarta.servlet:jakarta.servlet-api:6.0.0'",
+        "  annotationProcessor 'org.projectlombok:lombok:1.18.30'",
+        "  testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'",
+        "}",
+      ].join("\n"),
+      "src/main/java/x/App.java":
+        "package x; public class App { public static void main(String[] a) {} }\n",
+    });
+    const candidate = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates[0]!;
+    expect(
+      Object.fromEntries(
+        candidate.dependencies.map((dependency) => [
+          dependency.name,
+          dependency.scope,
+        ]),
+      ),
+    ).toEqual({
+      "jakarta.servlet-api": "build",
+      "junit-jupiter": "test",
+      lombok: "build",
+      okhttp: "runtime",
+      postgresql: "runtime",
+    });
+  });
+
+  test("skips .NET test projects and class libraries", () => {
+    const root = fixture({
+      "Api/Api.csproj":
+        '<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>',
+      "Worker/Worker.csproj":
+        '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>',
+      "Api.Tests/Api.Tests.csproj":
+        '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" /></ItemGroup></Project>',
+      "Api.Specs/Api.Specs.csproj":
+        '<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>',
+      "Shared/Shared.csproj":
+        '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>',
+    });
+    expect(
+      detectApplications(createProjectSnapshot({ targetPath: root }))
+        .candidates.map((candidate) => candidate.path)
+        .sort(),
+    ).toEqual(["Api", "Worker"]);
+  });
+
+  test("skips Gradle build logic, aggregators, and library modules", () => {
+    const root = fixture({
+      "settings.gradle.kts": 'include("service", "service-api")\n',
+      "build.gradle.kts":
+        'plugins { base }\ndescription = "Backend built in Micronaut"\n',
+      "gradle/plugins/common/build.gradle.kts":
+        "plugins { `kotlin-dsl` }\ndependencies { implementation(libs.gradle.plugin.micronaut) }\n",
+      "service-api/build.gradle.kts":
+        "plugins { alias(libs.plugins.micronaut.library) }\ndependencies { implementation(mn.micronaut.http) }\n",
+      "service/build.gradle.kts":
+        "plugins { alias(libs.plugins.micronaut.application) }\n",
+    });
+    expect(
+      detectApplications(
+        createProjectSnapshot({ targetPath: root }),
+      ).candidates.map((candidate) => candidate.path),
+    ).toEqual(["service"]);
+  });
+
+  test("a library module with its own main is still an application", () => {
+    const root = fixture({
+      "build.gradle": "plugins { id 'java-library' }\n",
+      "src/main/java/x/Tool.java":
+        "package x; public class Tool { public static void main(String[] a) {} }\n",
+    });
+    expect(
+      detectApplications(createProjectSnapshot({ targetPath: root }))
+        .candidates,
+    ).toHaveLength(1);
+  });
+
+  test("detects a Go module in a subdirectory with main at its root", () => {
+    const root = fixture({
+      "svc/go.mod": "module example.com/org/svc\n\ngo 1.24\n",
+      "svc/main.go": "package main\nfunc main() {}\n",
+    });
+    const candidates = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates.filter((candidate) => candidate.language.id === "go");
+    expect(
+      candidates.map((candidate) => [candidate.id, candidate.name]),
+    ).toEqual([["go:svc", "svc"]]);
+  });
+
+  test("names a root Go module after its module path", () => {
+    const root = fixture({
+      "go.mod": "module github.com/acme/agent\n\ngo 1.24\n",
+      "main.go": "package main\nfunc main() {}\n",
+    });
+    const candidate = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates[0]!;
+    expect(candidate.name).toBe("agent");
   });
 
   test("does not claim Go commands owned by a nested module", () => {
