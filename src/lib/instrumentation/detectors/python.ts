@@ -126,11 +126,7 @@ function normalizePoetrySpec(spec: string) {
   if (caret != null) {
     const [, major, minor, patch] = caret;
     const floor = `${major}.${minor ?? "0"}.${patch ?? "0"}`;
-    const ceiling =
-      major !== "0" || minor == null
-        ? `${Number(major) + 1}.0.0`
-        : `0.${Number(minor) + 1}.0`;
-    return `>=${floor},<${ceiling}`;
+    return `>=${floor},<${poetryCaretCeiling(major, minor, patch)}`;
   }
   const tilde = /^~(\d+)\.(\d+)(?:\.(\d+))?$/.exec(spec.trim());
   if (tilde != null) {
@@ -138,6 +134,21 @@ function normalizePoetrySpec(spec: string) {
     return `>=${major}.${minor}.${patch ?? "0"},<${major}.${Number(minor) + 1}.0`;
   }
   return spec.trim();
+}
+
+/**
+ * Poetry caret upper bound: bump the left-most non-zero component and zero
+ * everything to its right (^1.2.3 → <2.0.0, ^0.2.3 → <0.3.0, ^0.0.3 → <0.0.4).
+ * When every written component is zero, bump the least significant one written
+ * instead (^0 → <1.0.0, ^0.0 → <0.1.0, ^0.0.0 → <0.0.1).
+ */
+function poetryCaretCeiling(major?: string, minor?: string, patch?: string) {
+  if (Number(major ?? 0) > 0) return `${Number(major) + 1}.0.0`;
+  if (Number(minor ?? 0) > 0) return `0.${Number(minor) + 1}.0`;
+  if (Number(patch ?? 0) > 0) return `0.0.${Number(patch) + 1}`;
+  if (patch != null) return "0.0.1";
+  if (minor != null) return "0.1.0";
+  return "1.0.0";
 }
 
 export function detectPython(snapshot: ProjectSnapshot) {
