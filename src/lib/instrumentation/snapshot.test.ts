@@ -37,6 +37,25 @@ describe("createProjectSnapshot", () => {
     expect(paths(root)).toEqual([".nvmrc", "package.json"]);
   });
 
+  test("skips the Go module cache (name@version dirs) but keeps real source", () => {
+    const root = fixture({
+      "src/app/go.mod": "module example.com/app\n\ngo 1.23\n",
+      "src/app/main.go": "package main\nfunc main() {}\n",
+      // Go writes each extracted cache module as <module>@<version> (including
+      // pseudo-versions); these are downloaded dependencies, not applications.
+      "pkg/mod/github.com/foo/bar@v1.2.3/go.mod": "module github.com/foo/bar\n",
+      "pkg/mod/github.com/foo/bar@v1.2.3/cmd/tool/main.go":
+        "package main\nfunc main() {}\n",
+      "pkg/mod/golang.org/x/net@v0.0.0-20250102033503-faa5f7b0171c/go.mod":
+        "module golang.org/x/net\n",
+    });
+    const files = paths(root);
+    expect(files).toContain("src/app/go.mod");
+    expect(files).toContain("src/app/main.go");
+    // Nothing from an extracted name@version cache module is scanned.
+    expect(files.filter((path) => path.startsWith("pkg/mod/"))).toEqual([]);
+  });
+
   test("excludes directories relative to the project", () => {
     const root = fixture({
       "app/package.json": "{}",

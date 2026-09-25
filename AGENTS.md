@@ -253,7 +253,10 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
   A candidate's own error diagnostics become OTEL030 findings so one broken
   application never hides the verdicts for the rest of a monorepo.
 - **Scanning** (`snapshot.ts`): hidden directories and `IGNORED_DIRECTORIES`
-  are skipped; `--exclude` adds root-relative directories. Metadata files are
+  are skipped, as is the Go module cache — directories named `<module>@<version>`
+  (matched by the `@v<digit>` marker) are downloaded dependencies, not the
+  project's applications, wherever the cache (`GOMODCACHE`/`$GOPATH/pkg/mod`)
+  lives. `--exclude` adds root-relative directories. Metadata files are
   read during the walk; other text files are read lazily on first `content`
   access. Per-candidate path lookups go through `file-index.ts` (memoized per
   file array) and shared lockfiles are parsed once via `parseSnapshotFile`;
