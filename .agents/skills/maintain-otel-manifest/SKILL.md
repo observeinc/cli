@@ -195,6 +195,18 @@ semver. Verify a specific range before trusting it:
   (verify it). Exclude community and vendor packages and anything that is not
   a library you wire in (standalone exporters, host metrics). Confirm module
   paths from each instrumentation's `go.mod`.
+- .NET: the catalog has two sources. Zero-code coverage is the
+  `OpenTelemetry.AutoInstrumentation` supported-instrumentations list (the
+  agent) plus the `OpenTelemetry.Instrumentation.*` contrib packages. Native,
+  opt-in coverage comes from first-party SDKs that emit `ActivitySource` traces
+  themselves — enumerate `data/registry/instrumentation-dotnet-*.yml` and
+  catalog the `isNative: true` families the agent does not carry (e.g. the Azure
+  SDK, opt-in via the `Azure.Experimental.EnableActivitySource` switch, sources
+  `Azure.*`; AWS). Model these `kind: native`, `activation: opt-in`. A pass that
+  reads only the agent list misses this whole class. Version floors are per
+  package (each SDK adopted tracing at its own version) and are rarely in the
+  registry — research each from its SDK docs, and omit `supportedVersions` when
+  no floor is stated.
 
 ## Validation and correctness
 

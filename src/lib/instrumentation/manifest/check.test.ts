@@ -567,6 +567,32 @@ describe("bundled manifest artifact", () => {
       undefined,
       undefined,
     ],
+    // Azure SDK Track 2 libraries: native ActivitySource tracing, opt-in.
+    [
+      "Microsoft.Azure.Cosmos",
+      "3.44.0",
+      "supported",
+      "in-range",
+      "opt-in",
+      "native",
+    ],
+    [
+      "Microsoft.Azure.Cosmos",
+      "3.35.0",
+      "unsupported",
+      "out-of-range",
+      undefined,
+      undefined,
+    ],
+    [
+      "Azure.Messaging.EventHubs",
+      "5.11.5",
+      "supported",
+      "in-range",
+      "opt-in",
+      "native",
+    ],
+    ["Azure.Storage.Blobs", "12.22.0", "supported", "in-range", "opt-in", "native"],
   ] as const)(
     "dotnet %s %s is %s (%s, %s, %s)",
     (name, version, bucket, versionMatch, activation, coveringId) => {
