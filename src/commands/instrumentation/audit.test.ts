@@ -329,6 +329,28 @@ describe("instrumentation audit command", () => {
     );
   });
 
+  test("table output presents Go as SDK-only with instrumentation available", async () => {
+    const root = tempRoot();
+    const { context, stdout } = createMockContext({ cwd: root });
+    await audit.call(context, { format: "table" }, ".", {
+      createSnapshot: () =>
+        snapshot(root, {
+          "go.mod":
+            "module example.com/svc\n\ngo 1.25\n\nrequire google.golang.org/grpc v1.70.0\n",
+          "main.go": "package main\n\nfunc main() {}\n",
+        }),
+    });
+    const output = stdout.join("");
+    expect(output).toContain("code-based auto-instrumentation only");
+    expect(output).toContain("1 with instrumentation available");
+    expect(output).toContain("✓ supported");
+    // The runtime banner conveys "manual"; it is not repeated on each row.
+    expect(output).not.toContain("manual wiring");
+    expect(output).not.toContain("1/1 supported");
+    // Runtime metrics render as a plain "manual", not a verbose package path.
+    expect(output).not.toContain("instrumentation/runtime");
+  });
+
   test("passes --exclude through to the snapshot", async () => {
     const root = tempRoot();
     let excluded: readonly string[] | undefined;

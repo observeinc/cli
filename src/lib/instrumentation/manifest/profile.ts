@@ -43,7 +43,7 @@ export interface PackageAssessment {
    * `supported` packages that carry explicit `instrumentationOptions`; absent
    * for scalar/legacy packages, which have no activation concept.
    */
-  activation?: "automatic" | "opt-in";
+  activation?: "automatic" | "opt-in" | "manual";
   /**
    * Set when the dependency is a dependency aggregator (a Spring Boot starter,
    * a BOM, etc.) rather than an instrumented library. Coverage comes from the

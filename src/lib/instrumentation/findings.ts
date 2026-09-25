@@ -25,7 +25,7 @@ export const RULES = {
   },
   OTEL004: {
     severity: "warning",
-    title: "Runtime has no OpenTelemetry auto-instrumentation",
+    title: "Runtime has no OpenTelemetry zero-code instrumentation",
   },
   OTEL010: {
     severity: "warning",
@@ -49,6 +49,10 @@ export const RULES = {
   OTEL016: {
     severity: "info",
     title: "Native instrumentation is disabled by default",
+  },
+  OTEL017: {
+    severity: "info",
+    title: "Library instrumentation must be wired in manually",
   },
   OTEL021: {
     severity: "info",
@@ -191,15 +195,19 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
     return out;
   }
 
-  if (!compat.autoInstrumentationSupported)
+  if (!compat.autoInstrumentationSupported) {
+    // One finding per application: every library on an SDK-only runtime is
+    // manual. The per-library instrumentation packages are shown in the table,
+    // so the finding stays a single line instead of repeating them here.
     out.push(
       finding({
         ruleId: "OTEL004",
         candidate,
-        message: `OpenTelemetry has no auto-instrumentation for ${runtime}; telemetry requires manual instrumentation with the SDK`,
+        message: `OpenTelemetry has no zero-code instrumentation for ${runtime}; instrument with the ${runtime} SDK and instrumentation libraries in code`,
         fix: `Instrument the application with the OpenTelemetry ${runtime} SDK and its instrumentation libraries`,
       }),
     );
+  }
 
   if (compat.runtimeVersionSupported === "no")
     out.push(
@@ -207,7 +215,7 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
         ruleId: "OTEL002",
         candidate,
         message:
-          `${runtime} ${version ?? ""} is below the version range auto-instrumentation supports`.trim(),
+          `${runtime} ${version ?? ""} is below the version range OpenTelemetry supports`.trim(),
         fix: `Upgrade the ${runtime} runtime`,
       }),
     );
@@ -289,7 +297,34 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
     }
   }
 
+  if (compat.autoInstrumentationSupported)
+    for (const pkg of [
+      ...compat.packages.supported,
+      ...compat.packages.unverified,
+    ]) {
+      const instrumentation = manualInstrumentation(pkg);
+      if (instrumentation != null)
+        out.push(
+          finding({
+            ruleId: "OTEL017",
+            candidate,
+            pkg,
+            message: `${pkg.name} is not covered by zero-code instrumentation; ${instrumentation} must be wired into the application code`,
+            fix: `Add ${instrumentation} and register it in the application`,
+          }),
+        );
+    }
+
   for (const pkg of compat.packages.unverified) {
+    // On an SDK-only runtime every library is manual and OTEL004 already lists
+    // what to wire in; an unknown upstream range (all of Go contrib) would
+    // otherwise add one info finding per library per application.
+    if (
+      !compat.autoInstrumentationSupported &&
+      pkg.activation === "manual" &&
+      pkg.unverifiedReason === "support-range-missing"
+    )
+      continue;
     if (pkg.unverifiedReason === "support-range-missing") {
       out.push(
         finding({
@@ -342,6 +377,14 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
     );
 
   return out;
+}
+
+/** The instrumentation to wire in when a library's only path is manual. */
+function manualInstrumentation(pkg: PackageAssessment) {
+  if (pkg.activation !== "manual") return undefined;
+  return (pkg.instrumentationOptions ?? []).find(
+    (option) => option.activation === "manual",
+  )?.instrumentation;
 }
 
 /** Whether any finding is at or above the threshold. */

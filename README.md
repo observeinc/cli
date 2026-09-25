@@ -89,8 +89,8 @@ observe instrumentation audit . --format json
 ```
 
 The check is read-only and offline: it evaluates the project against a bundled
-OpenTelemetry support manifest and reports auto-instrumentation availability,
-per-signal SDK stability, runtime-version support, and per-library
+OpenTelemetry support manifest and reports zero-code instrumentation
+availability, per-signal SDK stability, runtime-version support, and per-library
 compatibility. Nothing is installed, changed, or sent.
 
 Support can come from external adapters or instrumentation built into libraries.
@@ -108,8 +108,12 @@ manifest, an incomplete scan, or no detected applications. `--fail-on none`
 does not suppress tool errors. A problem confined to one application, such as
 conflicting lockfiles, is reported as an OTEL030 finding for that application
 and the rest of the project is still assessed. Runtimes that have an
-OpenTelemetry SDK but no auto-instrumentation (Go, Rust, C++) are reported as
-OTEL004.
+OpenTelemetry SDK but no zero-code instrumentation (Go, Rust, C++) are reported
+as OTEL004. For Go, the audit reads direct `go.mod` requirements and reports
+cataloged libraries (opentelemetry-go-contrib and library-native
+instrumentation): the instrumentation exists but must be added to the
+application's code in place of a zero-code agent that would inject it.
+Standard-library packages and compile-time instrumentation are not assessed.
 
 The scan skips hidden directories and common build/dependency output
 (`node_modules`, `target`, `dist`, ...). Skip other directories with

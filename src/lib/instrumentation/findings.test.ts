@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { deriveFindings, hasFindingAtOrAbove } from "./findings";
 import { detectApplications } from "./detect";
 import type { ProjectSnapshot } from "./snapshot";
+import { checkCompatibility } from "./manifest/check";
+import { loadManifest } from "./manifest/load";
+import { fixtureManifest } from "./manifest/test-support";
+import { createCandidate } from "./detectors/common";
 
 function snapshot(files: Record<string, string>): ProjectSnapshot {
   return {
@@ -55,6 +59,74 @@ describe("deriveFindings", () => {
       "main.go": "package main\n\nfunc main() {}\n",
     });
     expect(rules).toEqual(["OTEL004"]);
+  });
+
+  test("OTEL004 is a single SDK-only finding without per-library noise", () => {
+    const detection = detectApplications(
+      snapshot({
+        "go.mod": "module example.com/svc\n\ngo 1.25\n",
+        "main.go": "package main\n\nfunc main() {}\n",
+      }),
+    );
+    const candidate = detection.candidates[0]!;
+    candidate.dependencies = [
+      {
+        name: "github.com/gin-gonic/gin",
+        version: "v1.10.0",
+        scope: "runtime",
+      },
+    ];
+    candidate.compatibility = checkCompatibility({
+      candidate,
+      manifest: loadManifest(),
+    });
+    const findings = deriveFindings({ candidates: [candidate] });
+    const otel004 = findings.filter((finding) => finding.ruleId === "OTEL004");
+    expect(otel004).toHaveLength(1);
+    // The message stays a single line; the per-library instrumentation packages
+    // live in the rendered table, not inlined into the finding.
+    expect(otel004[0]?.message).toContain(
+      "no zero-code instrumentation for go",
+    );
+    expect(otel004[0]?.message).toContain("instrumentation libraries in code");
+    // SDK-only runtimes report manual libraries once, inside OTEL004: no
+    // per-library OTEL017, and no OTEL015 for contrib's unpublished ranges.
+    const rules = findings.map((finding) => finding.ruleId);
+    expect(rules).not.toContain("OTEL017");
+    expect(rules).not.toContain("OTEL015");
+  });
+
+  test("OTEL017 for a manual-only library on an auto-instrumented runtime", () => {
+    const manifest = fixtureManifest();
+    manifest.runtimes.ruby!.packages = [
+      {
+        name: "hand-wired",
+        instrumentationOptions: [
+          {
+            id: "contrib",
+            instrumentation: "hand-wired-otel",
+            kind: "external",
+            supportedVersions: ">=1.0.0",
+            activation: "manual",
+          },
+        ],
+      },
+    ];
+    const candidate = createCandidate({
+      directory: ".",
+      name: "app",
+      language: "ruby",
+      runtime: "ruby",
+      version: "3.3.0",
+      dependencies: [
+        { name: "hand-wired", version: "1.2.0", scope: "runtime" },
+      ],
+    });
+    candidate.compatibility = checkCompatibility({ candidate, manifest });
+    const otel017 = deriveFindings({ candidates: [candidate] }).find(
+      (finding) => finding.ruleId === "OTEL017",
+    );
+    expect(otel017?.message).toContain("hand-wired-otel must be wired into");
   });
 
   test("OTEL004 is not raised for an auto-instrumentable runtime", () => {
