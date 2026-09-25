@@ -634,29 +634,80 @@ describe("instrumentation audit command", () => {
     expect(scanned).toBe(join(root, "sub"));
   });
 
-  test("--sbom on a multi-app path lists candidates and suggests --app", async () => {
+  const multiAppSnapshot = (root: string) =>
+    snapshot(root, {
+      "svc-a/go.mod": "module example.com/a\n\ngo 1.25\n",
+      "svc-a/main.go": "package main\nfunc main() {}\n",
+      "svc-b/go.mod": "module example.com/b\n\ngo 1.25\n",
+      "svc-b/main.go": "package main\nfunc main() {}\n",
+    });
+
+  test("--sbom audits the SBOM standalone when no single app matches", async () => {
     const root = tempRoot();
     const sbom = join(root, "bom.cdx.json");
     writeFileSync(
       sbom,
-      JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.6", components: [] }),
+      JSON.stringify({
+        bomFormat: "CycloneDX",
+        specVersion: "1.6",
+        metadata: {
+          component: {
+            type: "application",
+            "bom-ref": "app",
+            name: "checkout",
+            purl: "pkg:npm/checkout@1.0.0",
+          },
+        },
+        components: [
+          {
+            type: "library",
+            "bom-ref": "e",
+            name: "express",
+            version: "4.19.2",
+            purl: "pkg:npm/express@4.19.2",
+          },
+        ],
+        dependencies: [
+          { ref: "app", dependsOn: ["e"] },
+          { ref: "e", dependsOn: [] },
+        ],
+      }),
+    );
+    const { context, getExitCode, stdout } = createMockContext({ cwd: root });
+    // A multi-app Go tree, but no --app: the npm SBOM is audited on its own,
+    // its runtime inferred from the component purls (pkg:npm → nodejs).
+    await audit.call(context, { format: "json", sbom, "fail-on": "none" }, ".", {
+      createSnapshot: () => multiAppSnapshot(root),
+    });
+    expect(getExitCode()).toBe(0);
+    const report = JSON.parse(stdout.join("")) as AuditReport;
+    expect(report.candidates).toHaveLength(1);
+    expect(report.candidates[0]?.language.id).toBe("nodejs");
+    expect(report.candidates[0]?.name).toBe("checkout");
+    expect(report.candidates[0]?.dependencies.map((d) => d.name)).toContain(
+      "express",
+    );
+  });
+
+  test("--sbom without resolvable purls asks for --app", async () => {
+    const root = tempRoot();
+    const sbom = join(root, "bom.cdx.json");
+    writeFileSync(
+      sbom,
+      JSON.stringify({
+        bomFormat: "CycloneDX",
+        specVersion: "1.6",
+        components: [],
+      }),
     );
     const { context, getExitCode, stderr } = createMockContext({ cwd: root });
     await audit.call(context, { format: "json", sbom }, ".", {
-      createSnapshot: () =>
-        snapshot(root, {
-          "svc-a/go.mod": "module example.com/a\n\ngo 1.25\n",
-          "svc-a/main.go": "package main\nfunc main() {}\n",
-          "svc-b/go.mod": "module example.com/b\n\ngo 1.25\n",
-          "svc-b/main.go": "package main\nfunc main() {}\n",
-        }),
+      createSnapshot: () => multiAppSnapshot(root),
     });
     expect(getExitCode()).toBe(2);
     const message = JSON.parse(stderr.join("")).error.message as string;
-    expect(message).toContain("--sbom describes one application");
+    expect(message).toContain("Could not determine the runtime");
     expect(message).toContain("--app");
-    expect(message).toContain("go:svc-a");
-    expect(message).toContain("go:svc-b");
   });
 
   test("a rootless empty SBOM cannot erase declared dependencies", async () => {

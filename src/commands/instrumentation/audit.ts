@@ -13,7 +13,9 @@ import {
 import { parseManifest } from "../../lib/instrumentation/manifest/schema";
 import {
   INSTRUMENTATION_SCHEMA_VERSION,
+  type CandidateApplication,
   type InstrumentationResult,
+  type LanguageId,
 } from "../../lib/instrumentation/types";
 import {
   deriveFindings,
@@ -23,6 +25,7 @@ import {
 import { toSarif } from "../../lib/instrumentation/formats/sarif";
 import { toGithubAnnotations } from "../../lib/instrumentation/formats/github";
 import { loadCycloneDx } from "../../lib/instrumentation/graph/providers/cyclonedx";
+import type { DependencyGraph } from "../../lib/instrumentation/graph/types";
 import { applyGraph } from "../../lib/instrumentation/graph/apply";
 import { checkCompatibility } from "../../lib/instrumentation/manifest/check";
 import { loadManifest } from "../../lib/instrumentation/manifest/load";
@@ -76,6 +79,77 @@ function loadManifestFile(path: string) {
   return parseManifest(raw);
 }
 
+/** CycloneDX purl types → the runtime the SBOM describes. */
+const PURL_TYPE_TO_LANGUAGE: Record<string, LanguageId> = {
+  npm: "nodejs",
+  pypi: "python",
+  nuget: "dotnet",
+  golang: "go",
+  cargo: "rust",
+  gem: "ruby",
+  composer: "php",
+  maven: "java",
+};
+
+/** The runtime an SBOM describes, from the most common component purl type. */
+function sbomLanguage(graph: DependencyGraph): LanguageId | undefined {
+  const counts = new Map<LanguageId, number>();
+  for (const node of graph.nodes.values()) {
+    const type = /^pkg:([^/]+)\//.exec(node.purl ?? "")?.[1]?.toLowerCase();
+    const language = type == null ? undefined : PURL_TYPE_TO_LANGUAGE[type];
+    if (language != null) counts.set(language, (counts.get(language) ?? 0) + 1);
+  }
+  let best: LanguageId | undefined;
+  let bestCount = 0;
+  for (const [language, count] of counts)
+    if (count > bestCount) {
+      best = language;
+      bestCount = count;
+    }
+  return best;
+}
+
+/**
+ * Build a candidate from a CycloneDX SBOM alone, for when no single application
+ * was detected on disk to attach it to. The runtime comes from the components'
+ * package URLs and the graph from the SBOM itself, so an SBOM for an app that is
+ * not checked out locally can still be audited.
+ */
+function synthesizeSbomCandidate(
+  graph: DependencyGraph,
+  sbomPath: string,
+): CandidateApplication {
+  const language = sbomLanguage(graph);
+  if (language == null)
+    throw new Error(
+      "Could not determine the runtime from the SBOM's package URLs. Add a " +
+        "component purl (e.g. pkg:npm/…), or bind the SBOM to a detected " +
+        "application with --app <id>.",
+    );
+  const rootId = graph.roots[0];
+  const rootName = rootId == null ? undefined : graph.nodes.get(rootId)?.name;
+  const name =
+    rootName != null && rootName !== "SBOM inventory"
+      ? rootName
+      : "sbom-application";
+  return {
+    id: `sbom:${name}`,
+    path: sbomPath,
+    name,
+    language: { id: language },
+    runtime: { id: language },
+    frameworks: [],
+    lockfiles: [],
+    entrypoints: [],
+    dependencies: [],
+    testFrameworks: [],
+    containerFiles: [],
+    deploymentFiles: [],
+    evidence: [],
+    diagnostics: [],
+  };
+}
+
 export async function audit(
   this: LocalContext,
   flags: AuditFlags,
@@ -117,7 +191,7 @@ export async function audit(
     if (incomplete != null)
       throw new Error(`Incomplete scan: ${incomplete.message}`);
     const detection = detectApplications(snapshot);
-    const candidates = flags.app
+    let candidates = flags.app
       ? detection.candidates.filter((candidate) => candidate.id === flags.app)
       : detection.candidates;
     if (flags.app && candidates.length === 0) {
@@ -133,23 +207,22 @@ export async function audit(
             : `Pass the same project path, and use one of: ${available.join(", ")}`),
       );
     }
-    // An explicit SBOM is the graph for its candidate; building the lockfile
-    // or native graph first would only stack a second graph's diagnostics
-    // and provenance under it.
-    const sbomCandidate = flags.sbom == null ? null : candidates[0];
-    if (
-      flags.sbom != null &&
-      (candidates.length !== 1 || sbomCandidate == null)
-    ) {
-      const available = candidates
-        .map((candidate) => candidate.id)
-        .sort((a, b) => a.localeCompare(b));
-      throw new Error(
-        available.length === 0
-          ? `--sbom describes one application, but none were detected in ${root}.`
-          : `--sbom describes one application, but ${root} has ${candidates.length}. ` +
-              `Point at a single project directory, or add --app <one of: ${available.join(", ")}>.`,
-      );
+    // An explicit SBOM is the graph for one application. Bind it to the single
+    // detected app (or the --app selection); when there is no single app to bind
+    // to (a monorepo, or an app not checked out locally), audit the SBOM
+    // standalone by synthesizing the application from the SBOM itself.
+    let sbomCandidate: CandidateApplication | null = null;
+    if (flags.sbom != null) {
+      const [only] = candidates;
+      if (candidates.length === 1 && only != null) {
+        sbomCandidate = only;
+      } else {
+        sbomCandidate = synthesizeSbomCandidate(
+          loadCycloneDx(resolve(process.cwd(), flags.sbom)),
+          resolve(process.cwd(), flags.sbom),
+        );
+        candidates = [sbomCandidate];
+      }
     }
     for (const candidate of candidates) {
       let graph =
@@ -287,7 +360,7 @@ export const auditCommand = defineCommand({
         kind: "parsed",
         parse: String,
         brief:
-          "Use a CycloneDX JSON graph for the app; with no path, its own directory is scanned",
+          "Audit a CycloneDX SBOM: standalone (runtime inferred from purls), or as the graph for a detected app / --app selection",
         optional: true,
       },
       resolve: {
