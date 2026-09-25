@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
@@ -614,35 +614,7 @@ describe("instrumentation audit command", () => {
     expect(report.candidates[0]?.lockfiles).toEqual([sbom]);
   });
 
-  test("--sbom without a path scans the SBOM's own directory", async () => {
-    const root = tempRoot();
-    mkdirSync(join(root, "sub"), { recursive: true });
-    const sbom = join(root, "sub", "bom.cdx.json");
-    writeFileSync(
-      sbom,
-      JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.6", components: [] }),
-    );
-    const { context } = createMockContext({ cwd: root });
-    let scanned: string | undefined;
-    await audit.call(context, { format: "json", sbom }, undefined, {
-      createSnapshot: ({ targetPath }) => {
-        scanned = targetPath;
-        return snapshot(root, cleanProject);
-      },
-    });
-    // No positional path given, so the SBOM's directory is scanned, not cwd.
-    expect(scanned).toBe(join(root, "sub"));
-  });
-
-  const multiAppSnapshot = (root: string) =>
-    snapshot(root, {
-      "svc-a/go.mod": "module example.com/a\n\ngo 1.25\n",
-      "svc-a/main.go": "package main\nfunc main() {}\n",
-      "svc-b/go.mod": "module example.com/b\n\ngo 1.25\n",
-      "svc-b/main.go": "package main\nfunc main() {}\n",
-    });
-
-  test("--sbom audits the SBOM standalone when no single app matches", async () => {
+  test("--sbom audits the file alone, without scanning any project", async () => {
     const root = tempRoot();
     const sbom = join(root, "bom.cdx.json");
     writeFileSync(
@@ -674,11 +646,18 @@ describe("instrumentation audit command", () => {
       }),
     );
     const { context, getExitCode, stdout } = createMockContext({ cwd: root });
-    // A multi-app Go tree, but no --app: the npm SBOM is audited on its own,
-    // its runtime inferred from the component purls (pkg:npm → nodejs).
-    await audit.call(context, { format: "json", sbom, "fail-on": "none" }, ".", {
-      createSnapshot: () => multiAppSnapshot(root),
-    });
+    // The SBOM is audited on its own; the filesystem is never scanned, so a
+    // createSnapshot that throws proves detection does not run.
+    await audit.call(
+      context,
+      { format: "json", sbom, "fail-on": "none" },
+      undefined,
+      {
+        createSnapshot: () => {
+          throw new Error("--sbom must not scan the filesystem");
+        },
+      },
+    );
     expect(getExitCode()).toBe(0);
     const report = JSON.parse(stdout.join("")) as AuditReport;
     expect(report.candidates).toHaveLength(1);
@@ -687,6 +666,46 @@ describe("instrumentation audit command", () => {
     expect(report.candidates[0]?.dependencies.map((d) => d.name)).toContain(
       "express",
     );
+    expect(report.diagnostics).toHaveLength(0);
+  });
+
+  test("--sbom infers the runtime from component purls (pkg:golang → go)", async () => {
+    const root = tempRoot();
+    const sbom = join(root, "bom.cdx.json");
+    writeFileSync(
+      sbom,
+      JSON.stringify({
+        bomFormat: "CycloneDX",
+        specVersion: "1.6",
+        metadata: {
+          component: {
+            type: "application",
+            "bom-ref": "app",
+            name: "svc",
+            purl: "pkg:golang/example.com/svc@1.0.0",
+          },
+        },
+        components: [
+          {
+            type: "library",
+            "bom-ref": "g",
+            name: "google.golang.org/grpc",
+            version: "1.70.0",
+            purl: "pkg:golang/google.golang.org/grpc@1.70.0",
+          },
+        ],
+        dependencies: [
+          { ref: "app", dependsOn: ["g"] },
+          { ref: "g", dependsOn: [] },
+        ],
+      }),
+    );
+    const { context, getExitCode, stdout } = createMockContext({ cwd: root });
+    await audit.call(context, { format: "json", sbom }, undefined, {});
+    expect(getExitCode()).toBe(0);
+    const report = JSON.parse(stdout.join("")) as AuditReport;
+    expect(report.candidates[0]?.language.id).toBe("go");
+    expect(report.diagnostics).toHaveLength(0);
   });
 
   test("--sbom without resolvable purls asks for --app", async () => {
@@ -701,16 +720,14 @@ describe("instrumentation audit command", () => {
       }),
     );
     const { context, getExitCode, stderr } = createMockContext({ cwd: root });
-    await audit.call(context, { format: "json", sbom }, ".", {
-      createSnapshot: () => multiAppSnapshot(root),
-    });
+    await audit.call(context, { format: "json", sbom }, undefined, {});
     expect(getExitCode()).toBe(2);
     const message = JSON.parse(stderr.join("")).error.message as string;
     expect(message).toContain("Could not determine the runtime");
     expect(message).toContain("--app");
   });
 
-  test("a rootless empty SBOM cannot erase declared dependencies", async () => {
+  test("--app binds an SBOM to a detected app; empty SBOM keeps declared deps", async () => {
     const root = tempRoot();
     const sbom = join(root, "empty.cdx.json");
     writeFileSync(
@@ -722,7 +739,9 @@ describe("instrumentation audit command", () => {
       }),
     );
     const { context, stdout } = createMockContext({ cwd: root });
-    await audit.call(context, { format: "json", sbom }, ".", {
+    // --app binds the SBOM to the detected app; a rootless empty SBOM must not
+    // erase the app's declared dependencies.
+    await audit.call(context, { format: "json", sbom, app: "nodejs:." }, ".", {
       createSnapshot: () => snapshot(root, brokenProject),
     });
     const report = JSON.parse(stdout.join("")) as AuditReport;
