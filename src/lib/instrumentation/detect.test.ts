@@ -631,6 +631,35 @@ describe("instrumentation detection", () => {
     expect(candidate.compatibility?.runtimeVersionSupported).toBe("yes");
   });
 
+  test("expands Poetry caret ranges by the left-most non-zero component", () => {
+    const root = fixture({
+      "pyproject.toml": [
+        "[tool.poetry.dependencies]",
+        // The left-most non-zero component sets the ceiling.
+        'a = "^1.2.3"', // major
+        'b = "^0.2.3"', // minor
+        'c = "^0.0.3"', // patch — the previously mis-widened case
+        // All-zero specs bump the least significant written component.
+        'd = "^0.0.0"',
+        'e = "^0.0"',
+        'f = "^0"',
+      ].join("\n"),
+      "main.py": "app = 1",
+    });
+    const candidate = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates.find((c) => c.language.id === "python")!;
+    const byName = new Map(
+      candidate.dependencies.map((d) => [d.name, d.version]),
+    );
+    expect(byName.get("a")).toBe(">=1.2.3,<2.0.0");
+    expect(byName.get("b")).toBe(">=0.2.3,<0.3.0");
+    expect(byName.get("c")).toBe(">=0.0.3,<0.0.4");
+    expect(byName.get("d")).toBe(">=0.0.0,<0.0.1");
+    expect(byName.get("e")).toBe(">=0.0.0,<0.1.0");
+    expect(byName.get("f")).toBe(">=0.0.0,<1.0.0");
+  });
+
   test("uses Poetry project name before the directory fallback", () => {
     const root = fixture({
       "service_directory/pyproject.toml": [
