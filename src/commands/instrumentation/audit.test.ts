@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
@@ -612,6 +612,51 @@ describe("instrumentation audit command", () => {
       "cyclonedx",
     );
     expect(report.candidates[0]?.lockfiles).toEqual([sbom]);
+  });
+
+  test("--sbom without a path scans the SBOM's own directory", async () => {
+    const root = tempRoot();
+    mkdirSync(join(root, "sub"), { recursive: true });
+    const sbom = join(root, "sub", "bom.cdx.json");
+    writeFileSync(
+      sbom,
+      JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.6", components: [] }),
+    );
+    const { context } = createMockContext({ cwd: root });
+    let scanned: string | undefined;
+    await audit.call(context, { format: "json", sbom }, undefined, {
+      createSnapshot: ({ targetPath }) => {
+        scanned = targetPath;
+        return snapshot(root, cleanProject);
+      },
+    });
+    // No positional path given, so the SBOM's directory is scanned, not cwd.
+    expect(scanned).toBe(join(root, "sub"));
+  });
+
+  test("--sbom on a multi-app path lists candidates and suggests --app", async () => {
+    const root = tempRoot();
+    const sbom = join(root, "bom.cdx.json");
+    writeFileSync(
+      sbom,
+      JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.6", components: [] }),
+    );
+    const { context, getExitCode, stderr } = createMockContext({ cwd: root });
+    await audit.call(context, { format: "json", sbom }, ".", {
+      createSnapshot: () =>
+        snapshot(root, {
+          "svc-a/go.mod": "module example.com/a\n\ngo 1.25\n",
+          "svc-a/main.go": "package main\nfunc main() {}\n",
+          "svc-b/go.mod": "module example.com/b\n\ngo 1.25\n",
+          "svc-b/main.go": "package main\nfunc main() {}\n",
+        }),
+    });
+    expect(getExitCode()).toBe(2);
+    const message = JSON.parse(stderr.join("")).error.message as string;
+    expect(message).toContain("--sbom describes one application");
+    expect(message).toContain("--app");
+    expect(message).toContain("go:svc-a");
+    expect(message).toContain("go:svc-b");
   });
 
   test("a rootless empty SBOM cannot erase declared dependencies", async () => {

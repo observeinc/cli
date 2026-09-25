@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
@@ -79,7 +79,7 @@ function loadManifestFile(path: string) {
 export async function audit(
   this: LocalContext,
   flags: AuditFlags,
-  targetPath = ".",
+  targetPath?: string,
   deps: AuditDeps = {},
 ): Promise<void> {
   const { process, writer: baseWriter } = this;
@@ -89,7 +89,13 @@ export async function audit(
   const createSnapshot = deps.createSnapshot ?? createProjectSnapshot;
   const buildNpmGraph = deps.buildNpmGraph ?? buildNpmArboristGraph;
   const resolveNativeGraph = deps.resolveNativeGraph ?? resolveNative;
-  const root = resolve(process.cwd(), targetPath);
+  // A CycloneDX SBOM usually lives inside the project it describes, so when
+  // --sbom is given without a path, scan the SBOM's own directory instead of
+  // the current directory. An explicit path always wins.
+  const root = resolve(
+    process.cwd(),
+    targetPath ?? (flags.sbom != null ? dirname(flags.sbom) : "."),
+  );
 
   try {
     if (flags.manifest)
@@ -134,10 +140,17 @@ export async function audit(
     if (
       flags.sbom != null &&
       (candidates.length !== 1 || sbomCandidate == null)
-    )
+    ) {
+      const available = candidates
+        .map((candidate) => candidate.id)
+        .sort((a, b) => a.localeCompare(b));
       throw new Error(
-        "--sbom requires exactly one selected candidate; pass --app <id>",
+        available.length === 0
+          ? `--sbom describes one application, but none were detected in ${root}.`
+          : `--sbom describes one application, but ${root} has ${candidates.length}. ` +
+              `Point at a single project directory, or add --app <one of: ${available.join(", ")}>.`,
       );
+    }
     for (const candidate of candidates) {
       let graph =
         candidate === sbomCandidate && flags.sbom != null
@@ -273,7 +286,8 @@ export const auditCommand = defineCommand({
       sbom: {
         kind: "parsed",
         parse: String,
-        brief: "Use a CycloneDX JSON graph for the selected candidate",
+        brief:
+          "Use a CycloneDX JSON graph for the app; with no path, its own directory is scanned",
         optional: true,
       },
       resolve: {
