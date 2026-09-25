@@ -186,3 +186,31 @@ test.each([
     );
   },
 );
+
+test("a manual option with no published range reports manual activation", () => {
+  const manual: InstrumentationOption = {
+    id: "contrib",
+    instrumentation: "example-contrib",
+    kind: "external",
+    inAutoInstrumentation: false,
+    activation: "manual",
+  };
+  const result = assess({ version: "1.5.0", options: [manual], auto: false });
+  expect(result.unverified[0]).toMatchObject({
+    activation: "manual",
+    unverifiedReason: "support-range-missing",
+  });
+});
+
+test("a covering automatic option outranks a manual one", () => {
+  const manual: InstrumentationOption = {
+    ...native,
+    id: "manual",
+    supportedVersions: ">=1.0.0 <2.0.0",
+    activation: "manual",
+  };
+  expect(
+    assess({ version: "1.5.0", options: [community, manual] }).supported[0]
+      ?.activation,
+  ).toBe("automatic");
+});

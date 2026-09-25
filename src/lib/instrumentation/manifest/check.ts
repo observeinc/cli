@@ -184,18 +184,23 @@ function assessOptions({
       : combined;
   // Activation is a fact about the covering options — those whose version range
   // could apply to the scanned version. An automatic covering path means
-  // telemetry flows with no action; otherwise the covered support is opt-in.
+  // telemetry flows with no action; otherwise the covered support is opt-in or
+  // manual. When no option is known to cover the version, options whose range
+  // is unknown still say how the library would be instrumented (all manual for
+  // Go contrib packages, which publish no supported range).
   const covering = assessments.filter(
     (option) =>
       option.versionMatch === "in-range" || option.versionMatch === "overlap",
   );
+  const relevant =
+    covering.length > 0
+      ? covering
+      : assessments.filter((option) => option.versionMatch === "unknown");
   const activation = !hasRealOptions
     ? undefined
-    : covering.some((option) => option.activation === "automatic")
-      ? ("automatic" as const)
-      : covering.some((option) => option.activation === "opt-in")
-        ? ("opt-in" as const)
-        : undefined;
+    : (["automatic", "opt-in", "manual"] as const).find((level) =>
+        relevant.some((option) => option.activation === level),
+      );
   return {
     assessments,
     supportedVersions,

@@ -43,8 +43,10 @@ the set and the auto-instrumentation split:
 
 - `autoInstrumentationSupported: true`, non-empty `packages`: nodejs, python,
   java, dotnet, ruby, php.
-- `autoInstrumentationSupported: false`, empty `packages` (SDK-only): go, rust,
-  erlang, cpp, swift, kotlin.
+- `autoInstrumentationSupported: false` (SDK-only): go, rust, erlang, cpp,
+  swift, kotlin. Only `go` catalogs packages, and every option on an SDK-only
+  runtime must be `activation: manual` with `inAutoInstrumentation` not true;
+  the others keep empty `packages`. A test enforces both.
 
 Adding, removing, or renaming a runtime is a deliberate change that also updates
 that test — not a quick edit.
@@ -55,6 +57,9 @@ Each runtime entry:
 - `supportedRuntimeVersions` — optional semver range of runtime versions
   auto-instrumentation supports.
 - `autoInstrumentationSupported` / `runtimeMetricsSupported` — booleans.
+  `runtimeMetricsSupported` records only whether OpenTelemetry provides
+  runtime/host metrics for the runtime; how they are enabled follows the
+  runtime's auto-vs-SDK-only model and is not tracked separately.
 - `sdkStability` — per-signal (`traces`, `metrics`, `logs`, `profiles`), each one
   of `stable | release_candidate | beta | development | none`.
 - `packages` — instrumented libraries (may be empty).
@@ -81,7 +86,8 @@ automatically. Reach for `instrumentationOptions` ONLY when one of these is true
 - the library has two or more instrumentation paths with different version ranges
   (a "native handoff": e.g. an external gem covers older versions and the library
   ships native OpenTelemetry support in newer ones), or
-- you need to record that a path is **off by default** (`activation: opt-in`).
+- you need to record that a path is **off by default** (`activation: opt-in`),
+  or that it must be **wired into application code** (`activation: manual`).
 
 Do not wrap a single automatic path in `instrumentationOptions`; keep it scalar.
 
@@ -109,8 +115,10 @@ Field semantics (these drive audit findings, so get them right):
 - `kind`: `native` = the library ships its own OpenTelemetry instrumentation;
   `external` = a separate instrumentation package instruments it.
 - `activation`: `automatic` = zero-code/auto-instrumentation picks it up with no
-  user action; `opt-in` = the user must enable it (code or config) before any
-  telemetry is produced.
+  user action; `opt-in` = off by default and turned on by configuration (a
+  flag or environment variable); `manual` = nothing injects it, and the
+  application must wire the instrumentation into its own code (wrap a
+  handler, register an interceptor, start a meter).
 
 How the check uses them:
 
@@ -119,6 +127,10 @@ How the check uses them:
 - A covering option with `activation: opt-in` produces **OTEL016** ("off by
   default; no telemetry until enabled"); `kind` only changes the wording
   (native vs external). `activation: automatic` produces no such finding.
+- `activation: manual` produces **OTEL017** on auto-instrumented runtimes. On
+  SDK-only runtimes the manual packages are listed once in **OTEL004** instead.
+  When no option's range is known to cover the version, unknown-range options
+  still supply the activation.
 
 Invariants the validator enforces (all must hold or `test:otel-manifest` fails):
 
@@ -126,7 +138,7 @@ Invariants the validator enforces (all must hold or `test:otel-manifest` fails):
 - unique `id` across a package's options;
 - never mix scalar `supportedVersions` / `instrumentation` / `inAutoInstrumentation`
   with `instrumentationOptions`;
-- `kind` ∈ {native, external}; `activation` ∈ {automatic, opt-in}.
+- `kind` ∈ {native, external}; `activation` ∈ {automatic, opt-in, manual}.
 
 ## Determining version ranges (the part that is easy to get wrong)
 
@@ -145,6 +157,14 @@ Rules that trip people up:
 
 - A test matrix corroborates a range; it does not prove the whole supported range.
 - Do NOT use the instrumentation package's own version as the target-library range.
+- Go: name packages by module path as it appears in `go.mod` (the major
+  version suffix, e.g. `/v9`, is part of the name, so a range stays within one
+  major). A `require` version in an instrumentation's own `go.mod` is the
+  minimum version selection raises the app to, not a support floor — do not
+  use it as a range. opentelemetry-go-contrib publishes no library ranges, so
+  its entries omit `supportedVersions`. Every Go option is `activation:
+manual`. Standard-library packages (net/http, database/sql) are not
+  cataloged: go.mod never lists them, so the audit cannot detect them.
 - No range in the source → omit `supportedVersions` (unknown). Use `*`
   (unrestricted) only with an explicit upstream statement of unrestricted
   compatibility. An absent version guard does not establish all-version support.
@@ -167,6 +187,14 @@ semver. Verify a specific range before trusting it:
   and the `-contrib` repos for python, ruby, js, php, and go.
 - Follow native handoffs and library-maintainer references, including support
   absent from the registry.
+- Go: enumerate `data/registry/instrumentation-go-*.yml` in
+  `open-telemetry/opentelemetry.io`. Skip `instrumentation-go-compile-time-*`
+  (compile-time instrumentation is not cataloged until validated). Include
+  entries whose repo is opentelemetry-go-contrib, and library-native entries:
+  `isFirstParty: true`, or a repository owned by the library's own project
+  (verify it). Exclude community and vendor packages and anything that is not
+  a library you wire in (standalone exporters, host metrics). Confirm module
+  paths from each instrumentation's `go.mod`.
 
 ## Validation and correctness
 

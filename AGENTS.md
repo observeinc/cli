@@ -234,6 +234,16 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     option ranges form a union, preserving gaps and per-option setup requirements.
     Result schema v6 reports normalized options and activation as not assessed.
     Support is not proof of enablement or telemetry delivery; opt-in is not a failure.
+    `activation: manual` marks instrumentation the app must wire into its own
+    code. Go catalogs contrib and library-native instrumentation this way; the
+    Go detector reads direct `go.mod` requirements (not `// indirect`, not the
+    standard library) and skips modules whose only `main` files carry Go's
+    `// Code generated ... DO NOT EDIT.` marker (build products such as the OTel
+    Collector Builder output). On SDK-only runtimes manual libraries are
+    summarized in OTEL004 instead of per-library OTEL015/OTEL017. Runtime
+    metrics are reported only as available/unavailable; the manual wiring is
+    implied by the SDK-only model. Compile-time Go instrumentation is not
+    cataloged.
 - **`audit` exit codes**: 0 completed analysis below `--fail-on` (default
   `error`), 1 findings at the threshold, 2 tool error: unreadable path or
   manifest, project-level error diagnostic (incomplete scan, unreadable

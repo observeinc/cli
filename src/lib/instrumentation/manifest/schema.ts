@@ -41,7 +41,15 @@ export const instrumentationOptionSchema = z
     kind: z.enum(["native", "external"]),
     supportedVersions: z.string().trim().min(1).optional(),
     inAutoInstrumentation: z.boolean().optional(),
-    activation: z.enum(["automatic", "opt-in"]),
+    /**
+     * How telemetry starts flowing once the instrumentation is present:
+     * `automatic` (zero-code / auto-instrumentation, no user action),
+     * `opt-in` (off by default; a config flag or environment variable turns
+     * it on), or `manual` (the application must wire it into its own code,
+     * e.g. wrapping a handler or registering an interceptor; nothing injects
+     * it).
+     */
+    activation: z.enum(["automatic", "opt-in", "manual"]),
   })
   .strict();
 export type InstrumentationOption = z.infer<typeof instrumentationOptionSchema>;
@@ -99,6 +107,7 @@ const runtimeEntrySchema = z
     supportedRuntimeVersions: z.string().min(1).optional(),
     /** True when a manifest-detectable auto-instrumentation path exists. */
     autoInstrumentationSupported: z.boolean(),
+    /** True when OpenTelemetry provides runtime/host metrics for this runtime. */
     runtimeMetricsSupported: z.boolean(),
     sdkStability: sdkStabilitySchema,
     /** Instrumented libraries, independent of runtime-wide auto-instrumentation. */
