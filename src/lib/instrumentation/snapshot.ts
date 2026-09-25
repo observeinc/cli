@@ -212,6 +212,13 @@ export function createProjectSnapshot({
       // Hidden directories (.git, .idea, .claude/worktrees, ...) hold tooling
       // state and checkout copies, not applications.
       if (entry.isDirectory() && entry.name.startsWith(".")) continue;
+      // Go extracts each cached module to `<module>@<version>` under the module
+      // cache (GOMODCACHE, by default $GOPATH/pkg/mod). Those directories hold
+      // downloaded dependencies, not the project's own applications. Go module
+      // versions always start with `v`, and `@` cannot appear in a real Go
+      // import path, so this marker identifies cache modules wherever the cache
+      // lives — unlike hardcoding the `pkg/mod` location.
+      if (entry.isDirectory() && /@v\d/.test(entry.name)) continue;
       if (
         entry.isDirectory() &&
         IGNORED_DIRECTORIES.has(entry.name) &&
