@@ -26,15 +26,7 @@ function parsePythonDependencies(content: string) {
   });
 }
 
-/**
- * Dependencies from `pyproject.toml` (`[project] dependencies`, optional
- * dependency groups, `[tool.poetry.dependencies]`) and `Pipfile`
- * (`[packages]`, `[dev-packages]`), keeping the version specifier.
- *
- * Two shapes carry a version:
- *   - PEP 621 strings: `"fastapi>=0.100,<1"`, `"requests[security]==2.32.0"`
- *   - Poetry / Pipfile tables: `fastapi = "^0.100"`, `requests = {version = "*"}`
- */
+/** Narrow an unknown parsed-TOML value to a table (plain object), else null. */
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value != null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -54,6 +46,15 @@ function parseRequirement(requirement: string) {
       };
 }
 
+/**
+ * Dependencies from `pyproject.toml` (`[project] dependencies`, optional
+ * dependency groups, `[tool.poetry.dependencies]`) and `Pipfile`
+ * (`[packages]`, `[dev-packages]`), keeping the version specifier.
+ *
+ * Two shapes carry a version:
+ *   - PEP 621 strings: `"fastapi>=0.100,<1"`, `"requests[security]==2.32.0"`
+ *   - Poetry / Pipfile tables: `fastapi = "^0.100"`, `requests = {version = "*"}`
+ */
 function parseStructuredPythonDependencies(content: string) {
   let parsed: Record<string, unknown>;
   try {

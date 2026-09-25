@@ -18,11 +18,11 @@ export function parseBazelRuleCalls(content: string): BazelRuleCall[] {
   let depth = 0;
   for (let index = 0; index < searchable.length; index++) {
     const char = searchable[index] ?? "";
-    if ("([{ ".trim().includes(char)) {
+    if ("([{".includes(char)) {
       depth++;
       continue;
     }
-    if (")] }".replace(" ", "").includes(char)) {
+    if (")]}".includes(char)) {
       depth = Math.max(0, depth - 1);
       continue;
     }
@@ -152,8 +152,8 @@ function topLevelAssignment(segment: string) {
   let depth = 0;
   for (let index = 0; index < masked.length; index++) {
     const char = masked.charAt(index);
-    if ("([{ ".trim().includes(char)) depth++;
-    else if (")] }".replace(" ", "").includes(char)) depth--;
+    if ("([{".includes(char)) depth++;
+    else if (")]}".includes(char)) depth--;
     else if (char === "=" && depth === 0) {
       const name = segment.slice(0, index).trim();
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return null;
@@ -214,8 +214,8 @@ function splitTopLevel(content: string, separator: string) {
   let depth = 0;
   for (let index = 0; index < masked.length; index++) {
     const char = masked.charAt(index);
-    if ("([{ ".trim().includes(char)) depth++;
-    else if (")] }".replace(" ", "").includes(char)) depth--;
+    if ("([{".includes(char)) depth++;
+    else if (")]}".includes(char)) depth--;
     else if (char === separator && depth === 0) {
       segments.push(content.slice(start, index));
       start = index + 1;
