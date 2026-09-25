@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
@@ -163,13 +163,7 @@ export async function audit(
   const createSnapshot = deps.createSnapshot ?? createProjectSnapshot;
   const buildNpmGraph = deps.buildNpmGraph ?? buildNpmArboristGraph;
   const resolveNativeGraph = deps.resolveNativeGraph ?? resolveNative;
-  // A CycloneDX SBOM usually lives inside the project it describes, so when
-  // --sbom is given without a path, scan the SBOM's own directory instead of
-  // the current directory. An explicit path always wins.
-  const root = resolve(
-    process.cwd(),
-    targetPath ?? (flags.sbom != null ? dirname(flags.sbom) : "."),
-  );
+  const root = resolve(process.cwd(), targetPath ?? ".");
 
   try {
     if (flags.manifest)
@@ -177,94 +171,108 @@ export async function audit(
         loadManifestFile(resolve(process.cwd(), flags.manifest)),
       );
 
-    const snapshot = createSnapshot({
-      targetPath: root,
-      exclude: flags.exclude ?? [],
-    });
-    const incomplete = snapshot.diagnostics.find((diagnostic) =>
-      [
-        "SCAN_LIMIT_REACHED",
-        "METADATA_UNREADABLE",
-        "METADATA_TOO_LARGE",
-      ].includes(diagnostic.code),
-    );
-    if (incomplete != null)
-      throw new Error(`Incomplete scan: ${incomplete.message}`);
-    const detection = detectApplications(snapshot);
-    let candidates = flags.app
-      ? detection.candidates.filter((candidate) => candidate.id === flags.app)
-      : detection.candidates;
-    if (flags.app && candidates.length === 0) {
-      const available = detection.candidates
-        .map((candidate) => candidate.id)
-        .sort((a, b) => a.localeCompare(b));
-      // Name the scanned directory: a common cause is running --app without the
-      // same project path, so the id belongs to a different project than cwd.
-      throw new Error(
-        `No application with id "${flags.app}" in ${root}. ` +
-          (available.length === 0
-            ? "No applications were detected there."
-            : `Pass the same project path, and use one of: ${available.join(", ")}`),
+    let result: InstrumentationResult;
+    let findings: Finding[];
+    let analysisFailed: boolean;
+
+    if (flags.sbom != null && flags.app == null) {
+      // --sbom audits the SBOM file itself, independent of any project on disk:
+      // no filesystem scan, runtime inferred from the component purls. Use --app
+      // to instead bind the SBOM to a detected application's graph.
+      const sbomPath = resolve(process.cwd(), flags.sbom);
+      const graph = loadCycloneDx(sbomPath);
+      const candidate = synthesizeSbomCandidate(graph, sbomPath);
+      applyGraph({ candidate, graph });
+      candidate.compatibility = checkCompatibility({
+        candidate,
+        manifest: loadManifest(),
+      });
+      result = {
+        schemaVersion: INSTRUMENTATION_SCHEMA_VERSION,
+        root: sbomPath,
+        status: "ready",
+        manifest: manifestInfo(),
+        candidates: [candidate],
+        diagnostics: [],
+        selection: null,
+      };
+      findings = deriveFindings(result);
+      analysisFailed = false;
+    } else {
+      const snapshot = createSnapshot({
+        targetPath: root,
+        exclude: flags.exclude ?? [],
+      });
+      const incomplete = snapshot.diagnostics.find((diagnostic) =>
+        [
+          "SCAN_LIMIT_REACHED",
+          "METADATA_UNREADABLE",
+          "METADATA_TOO_LARGE",
+        ].includes(diagnostic.code),
       );
-    }
-    // An explicit SBOM is the graph for one application. Bind it to the single
-    // detected app (or the --app selection); when there is no single app to bind
-    // to (a monorepo, or an app not checked out locally), audit the SBOM
-    // standalone by synthesizing the application from the SBOM itself.
-    let sbomCandidate: CandidateApplication | null = null;
-    if (flags.sbom != null) {
-      const [only] = candidates;
-      if (candidates.length === 1 && only != null) {
-        sbomCandidate = only;
-      } else {
-        sbomCandidate = synthesizeSbomCandidate(
-          loadCycloneDx(resolve(process.cwd(), flags.sbom)),
-          resolve(process.cwd(), flags.sbom),
+      if (incomplete != null)
+        throw new Error(`Incomplete scan: ${incomplete.message}`);
+      const detection = detectApplications(snapshot);
+      const candidates = flags.app
+        ? detection.candidates.filter(
+            (candidate) => candidate.id === flags.app,
+          )
+        : detection.candidates;
+      if (flags.app && candidates.length === 0) {
+        const available = detection.candidates
+          .map((candidate) => candidate.id)
+          .sort((a, b) => a.localeCompare(b));
+        // Name the scanned directory: a common cause is running --app without
+        // the same project path, so the id belongs to a different project.
+        throw new Error(
+          `No application with id "${flags.app}" in ${root}. ` +
+            (available.length === 0
+              ? "No applications were detected there."
+              : `Pass the same project path, and use one of: ${available.join(", ")}`),
         );
-        candidates = [sbomCandidate];
       }
+      // With --app, an SBOM is the dependency graph for that one application.
+      const [selected] = candidates;
+      const sbomCandidate = flags.sbom != null ? (selected ?? null) : null;
+      for (const candidate of candidates) {
+        let graph =
+          candidate === sbomCandidate && flags.sbom != null
+            ? loadCycloneDx(resolve(process.cwd(), flags.sbom))
+            : candidate.dependencyGraph == null
+              ? await buildNpmGraph({ candidate, snapshot })
+              : null;
+        if (graph == null && flags.resolve) {
+          const resolution = resolveNativeGraph({ candidate, snapshot });
+          graph = resolution?.graph ?? null;
+          if (resolution?.diagnostic != null)
+            candidate.diagnostics.push(resolution.diagnostic);
+        }
+        if (graph != null) {
+          applyGraph({ candidate, graph });
+          candidate.compatibility = checkCompatibility({
+            candidate,
+            manifest: loadManifest(),
+          });
+        }
+      }
+      // MULTIPLE_CANDIDATES is irrelevant here: audit evaluates every candidate.
+      const diagnostics = detection.diagnostics.filter(
+        (diagnostic) => diagnostic.code !== "MULTIPLE_CANDIDATES",
+      );
+      result = {
+        schemaVersion: INSTRUMENTATION_SCHEMA_VERSION,
+        root: snapshot.root,
+        status: candidates.length === 0 ? "unsupported" : "ready",
+        manifest: manifestInfo(),
+        candidates,
+        diagnostics,
+        selection: flags.app ?? null,
+      };
+      findings = deriveFindings(result);
+      analysisFailed =
+        candidates.length === 0 ||
+        diagnostics.some((diagnostic) => diagnostic.severity === "error");
     }
-    for (const candidate of candidates) {
-      let graph =
-        candidate === sbomCandidate && flags.sbom != null
-          ? loadCycloneDx(resolve(process.cwd(), flags.sbom))
-          : candidate.dependencyGraph == null
-            ? await buildNpmGraph({ candidate, snapshot })
-            : null;
-      if (graph == null && flags.resolve) {
-        const resolution = resolveNativeGraph({ candidate, snapshot });
-        graph = resolution?.graph ?? null;
-        if (resolution?.diagnostic != null)
-          candidate.diagnostics.push(resolution.diagnostic);
-      }
-      if (graph != null) {
-        applyGraph({ candidate, graph });
-        candidate.compatibility = checkCompatibility({
-          candidate,
-          manifest: loadManifest(),
-        });
-      }
-    }
-
-    // MULTIPLE_CANDIDATES is irrelevant here: audit evaluates every candidate.
-    const diagnostics = detection.diagnostics.filter(
-      (diagnostic) => diagnostic.code !== "MULTIPLE_CANDIDATES",
-    );
-    const result: InstrumentationResult = {
-      schemaVersion: INSTRUMENTATION_SCHEMA_VERSION,
-      root: snapshot.root,
-      status: candidates.length === 0 ? "unsupported" : "ready",
-      manifest: manifestInfo(),
-      candidates,
-      diagnostics,
-      selection: flags.app ?? null,
-    };
-
-    const findings = deriveFindings(result);
-
-    const analysisFailed =
-      candidates.length === 0 ||
-      diagnostics.some((diagnostic) => diagnostic.severity === "error");
 
     const failed = analysisFailed || hasFindingAtOrAbove(findings, failOn);
 
@@ -284,7 +292,7 @@ export async function audit(
           JSON.stringify(
             toSarif({
               findings,
-              root: snapshot.root,
+              root: result.root,
               manifestSha256: result.manifest.sha256,
             }),
             null,
@@ -296,7 +304,9 @@ export async function audit(
         writer.write(toGithubAnnotations(findings));
         break;
       case "table":
-        writer.write(renderAudit({ result, candidates, findings }));
+        writer.write(
+          renderAudit({ result, candidates: result.candidates, findings }),
+        );
         break;
     }
     process.exitCode = analysisFailed

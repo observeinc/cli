@@ -191,8 +191,10 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     paths plus immediate parents. npm uses Arborist's virtual lockfile tree in the
     audit command; workspace and `file:` Links are collapsed onto their target
     package so its dependencies are traversed. CycloneDX JSON is accepted
-    through `--sbom` and replaces the lockfile graph for that candidate;
-    `--resolve` explicitly enables locked, offline Cargo, Go, and Maven
+    through `--sbom`: on its own it is audited standalone (no filesystem scan;
+    the runtime is inferred from the components' purls and the app synthesized
+    from the SBOM), and with `--app` it replaces that one detected candidate's
+    graph. `--resolve` explicitly enables locked, offline Cargo, Go, and Maven
     metadata commands. `resolveNative()` returns a graph or a
     `RESOLVE_FAILED`/`RESOLVE_UNSUPPORTED` diagnostic, never a silent null.
     Partial graphs resolve a declared range to the graph's shallowest node of

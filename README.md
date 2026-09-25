@@ -119,8 +119,13 @@ The scan skips hidden directories and common build/dependency output
 (`node_modules`, `target`, `dist`, ...). Skip other directories with
 `--exclude <dir>` (repeatable, relative to the project). Source files are read
 only when a detector inspects them.
-An empty or incomplete SBOM cannot erase declared dependencies. Inventory-only
-SBOMs do not establish which dependencies are direct runtime dependencies.
+`observe instrumentation audit --sbom <file>` audits a CycloneDX SBOM directly,
+independent of any project on disk: the runtime is inferred from the component
+purls and the application is built from the SBOM. Add `--app <id>` to instead
+use the SBOM as a detected application's dependency graph, in which case an
+empty or incomplete SBOM cannot erase that app's declared dependencies.
+Inventory-only SBOMs do not establish which dependencies are direct runtime
+dependencies.
 
 The unused `--offline` flag has been removed: the built-in check is always
 offline. `--resolve` explicitly invokes installed native package managers in
