@@ -5,6 +5,7 @@ import { loadManifest, manifestInfo } from "./load";
 import { parseManifest, type OtelSupportManifest } from "./schema";
 import { fixtureManifest } from "./test-support";
 import type { CandidateApplication, DetectedDependency } from "../types";
+import type { VersionMatch } from "./version-grammar";
 
 function candidate({
   language,
@@ -296,6 +297,62 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
   });
 });
 
+describe("checkCompatibility — Go manual instrumentation (bundled catalog)", () => {
+  const go = (dependencies: Partial<DetectedDependency>[]) =>
+    checkCompatibility({
+      candidate: candidate({ language: "go", version: "1.25", dependencies }),
+      manifest: loadManifest(),
+    });
+
+  test("runtime metrics are supported on the SDK-only Go runtime", () => {
+    expect(go([])).toMatchObject({
+      autoInstrumentationSupported: false,
+      runtimeMetricsSupported: true,
+    });
+  });
+
+  test("contrib libraries are manual with an unknown range, never supported", () => {
+    const packages = go([
+      {
+        name: "github.com/gin-gonic/gin",
+        version: "v1.10.0",
+        scope: "runtime",
+      },
+    ]).packages;
+    expect(packages.supported).toHaveLength(0);
+    expect(packages.unverified[0]).toMatchObject({
+      name: "github.com/gin-gonic/gin",
+      activation: "manual",
+      unverifiedReason: "support-range-missing",
+    });
+  });
+
+  test("gRPC's native plugin covers 1.64.0+; older versions stay unverified", () => {
+    const grpc = (version: string) =>
+      go([{ name: "google.golang.org/grpc", version, scope: "runtime" }])
+        .packages;
+    expect(grpc("v1.70.0").supported[0]).toMatchObject({
+      versionMatch: "in-range",
+      activation: "manual",
+    });
+    // otelgrpc has no published range, so an older gRPC is not provably
+    // unsupported.
+    expect(grpc("v1.60.0").unverified[0]?.activation).toBe("manual");
+  });
+
+  test.each<[string, string, VersionMatch]>([
+    ["github.com/elastic/go-elasticsearch/v8", "v8.11.0", "out-of-range"],
+    ["github.com/elastic/go-elasticsearch/v8", "v8.12.0", "in-range"],
+    ["github.com/elastic/go-elasticsearch/v9", "v9.0.0", "in-range"],
+  ])("native OpenTelemetry in %s %s is %s", (name, version, match) => {
+    const { packages } = go([{ name, version, scope: "runtime" }]);
+    const assessed = [...packages.supported, ...packages.unsupported][0];
+    expect(assessed?.versionMatch).toBe(match);
+    expect(assessed?.instrumentationOptions?.[0]?.activation).toBe("manual");
+  });
+
+});
+
 describe("checkCompatibility — SDK-only and absent runtimes", () => {
   // A trimmed manifest with an SDK-only runtime (go) and an absent one.
   const smallManifest: OtelSupportManifest = parseManifest({
@@ -370,11 +427,21 @@ describe("bundled manifest artifact", () => {
         true,
       );
     for (const runtime of sdkOnly) {
-      expect(bundled.runtimes[runtime]?.autoInstrumentationSupported).toBe(
-        false,
-      );
-      expect(bundled.runtimes[runtime]?.packages).toHaveLength(0);
+      const entry = bundled.runtimes[runtime];
+      expect(entry?.autoInstrumentationSupported).toBe(false);
+      // An SDK-only runtime may catalog instrumentation libraries (Go), but
+      // none may read as auto-injected: every option is manual wiring.
+      for (const pkg of entry?.packages ?? []) {
+        expect(pkg.instrumentationOptions).toBeDefined();
+        for (const option of pkg.instrumentationOptions ?? []) {
+          expect(option.activation).toBe("manual");
+          expect(option.inAutoInstrumentation).not.toBe(true);
+        }
+      }
     }
+    expect(bundled.runtimes.go?.packages.length).toBeGreaterThan(0);
+    for (const runtime of sdkOnly.filter((runtime) => runtime !== "go"))
+      expect(bundled.runtimes[runtime]?.packages).toHaveLength(0);
     expect(Object.keys(bundled.runtimes)).toHaveLength(12);
   });
 

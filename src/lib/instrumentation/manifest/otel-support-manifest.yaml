@@ -1,5 +1,5 @@
 schemaVersion: 1
-generatedAt: 2026-09-22T00:40:00.000Z
+generatedAt: 2026-09-24T00:00:00.000Z
 runtimes:
   cpp:
     ecosystem: cargo
@@ -171,14 +171,168 @@ runtimes:
   go:
     ecosystem: gomod
     supportedRuntimeVersions: ">=1.23"
+    # No zero-code path: compile-time instrumentation (registry entries
+    # instrumentation-go-compile-time-*) is not cataloged until validated.
+    # Packages are opentelemetry-go-contrib instrumentations and instrumentation
+    # maintained by the library's own project (registry isFirstParty or verified
+    # repository ownership); community and vendor packages are excluded. All
+    # must be wired into application code (activation: manual). Standard-library
+    # packages (net/http, database/sql) are not cataloged: go.mod never lists
+    # them. Contrib publishes no supported library ranges, and the versions in
+    # an instrumentation's go.mod are what minimum version selection raises the
+    # app to, not a support floor, so contrib entries omit supportedVersions.
     autoInstrumentationSupported: false
-    runtimeMetricsSupported: false
+    runtimeMetricsSupported: true
     sdkStability:
       traces: stable
       metrics: stable
       logs: release_candidate
       profiles: none
-    packages: []
+    packages:
+      - name: connectrpc.com/connect
+        instrumentationOptions:
+          - id: native
+            instrumentation: connectrpc.com/otelconnect
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/aws/aws-lambda-go
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-lambda-go/otellambda
+            kind: external
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/aws/aws-sdk-go-v2
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws
+            kind: external
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/cloudwego/hertz
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/hertz-contrib/obs-opentelemetry/tracing
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
+      # Native since 8.12.0 (elasticsearch.NewOpenTelemetryInstrumentation); not in the registry.
+      - name: github.com/elastic/go-elasticsearch/v8
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/elastic/go-elasticsearch/v8
+            kind: native
+            supportedVersions: ">=8.12.0 <9.0.0"
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/elastic/go-elasticsearch/v9
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/elastic/go-elasticsearch/v9
+            kind: native
+            supportedVersions: ">=9.0.0 <10.0.0"
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/emicklei/go-restful/v3
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful
+            kind: external
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/gin-gonic/gin
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin
+            kind: external
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/go-pg/pg/v10
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/go-pg/pg/extra/pgotel/v10
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/gofiber/fiber/v3
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/gofiber/contrib/v3/otel
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/gorilla/mux
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
+            kind: external
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/goyek/goyek/v3
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/goyek/x/otelgoyek
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
+      # Maintained in the library's own org; the registry does not flag it isFirstParty.
+      - name: github.com/labstack/echo/v5
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/labstack/echo-opentelemetry
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/redis/go-redis/v9
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/redis/go-redis/extra/redisotel/v9
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
+      - name: github.com/twmb/franz-go
+        instrumentationOptions:
+          - id: native
+            instrumentation: github.com/twmb/franz-go/plugin/kotel
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
+      - name: go.mongodb.org/mongo-driver
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo
+            kind: external
+            inAutoInstrumentation: false
+            activation: manual
+      - name: go.mongodb.org/mongo-driver/v2
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/v2/mongo/otelmongo
+            kind: external
+            inAutoInstrumentation: false
+            activation: manual
+      # Native stats/opentelemetry plugin since 1.64.0 (metrics; tracing later).
+      - name: google.golang.org/grpc
+        instrumentationOptions:
+          - id: contrib
+            instrumentation: go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
+            kind: external
+            inAutoInstrumentation: false
+            activation: manual
+          - id: native
+            instrumentation: google.golang.org/grpc/stats/opentelemetry
+            kind: native
+            supportedVersions: ">=1.64.0 <2.0.0"
+            inAutoInstrumentation: false
+            activation: manual
+      - name: gorm.io/gorm
+        instrumentationOptions:
+          - id: native
+            instrumentation: gorm.io/plugin/opentelemetry
+            kind: native
+            inAutoInstrumentation: false
+            activation: manual
   java:
     ecosystem: maven
     supportedRuntimeVersions: ">=8"

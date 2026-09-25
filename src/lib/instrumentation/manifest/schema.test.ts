@@ -71,3 +71,16 @@ test.each([
     entry.instrumentationOptions[0]!.activation = "unknown";
   expect(() => parseManifest(manifest)).toThrow();
 });
+
+test("manual activation is a valid instrumentation option", () => {
+  const manifest = proposedManifest();
+  manifest.runtimes.ruby.packages[0]!.instrumentationOptions[0]!.activation =
+    "manual";
+  expect(() => parseManifest(manifest)).not.toThrow();
+});
+
+test("rejects unknown runtime entry keys", () => {
+  const manifest = proposedManifest();
+  Object.assign(manifest.runtimes.ruby, { runtimeMetricsActivation: "manual" });
+  expect(() => parseManifest(manifest)).toThrow();
+});

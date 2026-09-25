@@ -37,8 +37,7 @@ function detectGo(snapshot: ProjectSnapshot) {
       const content = manifest.content ?? "";
       const version = /^go\s+(\d+(?:\.\d+){1,2})/m.exec(content)?.[1];
       const modulePath = /^module\s+(\S+)/m.exec(content)?.[1];
-      // Go currently has no package compatibility matrix in the support
-      // manifest, so module dependencies cannot affect the verdict.
+      const dependencies = goRequirements(content);
       const mains = findOwnedProjectFiles(snapshot.files, directory, [
         "go.mod",
       ]).filter(
@@ -48,7 +47,8 @@ function detectGo(snapshot: ProjectSnapshot) {
           ) &&
           file.path.endsWith(".go") &&
           !file.path.endsWith("_test.go") &&
-          /^\s*package\s+main\b/m.test(file.content ?? ""),
+          /^\s*package\s+main\b/m.test(file.content ?? "") &&
+          !isGeneratedGoFile(file.content ?? ""),
       );
       const mainDirectories = [
         ...new Set(mains.map((file) => posix.dirname(file.path))),
@@ -82,7 +82,7 @@ function detectGo(snapshot: ProjectSnapshot) {
           entrypoints: mains
             .filter((file) => posix.dirname(file.path) === mainDirectory)
             .map((file) => ({ path: file.path })),
-          dependencies: [],
+          dependencies,
           evidence: [{ kind: "manifest", path: manifest.path }],
           discovery: {
             completeness: "resolved",
@@ -96,6 +96,60 @@ function detectGo(snapshot: ProjectSnapshot) {
         }),
       );
     });
+}
+
+/**
+ * Go marks machine-written files with a `// Code generated ... DO NOT EDIT.`
+ * line before the package clause. A module whose only `main`-package files are
+ * generated (for example the OpenTelemetry Collector Builder's `ocb-build`
+ * output) is a build product, not an application the project instruments, so it
+ * yields no candidate. See https://pkg.go.dev/cmd/go#hdr-Generate_Go_files.
+ */
+function isGeneratedGoFile(content: string): boolean {
+  for (const raw of content.split("\n")) {
+    const line = raw.trim();
+    if (/^\/\/ Code generated .* DO NOT EDIT\.$/.test(line)) return true;
+    if (/^package\s/.test(line)) return false;
+  }
+  return false;
+}
+
+/**
+ * Direct module requirements from go.mod, as single `require` lines or
+ * `require ( ... )` blocks. `// indirect` requirements are skipped: Go
+ * instrumentation is wired in by hand around the application's own calls, so
+ * only modules the application imports directly can be instrumented.
+ * Standard-library packages never appear in go.mod and are not reported.
+ */
+function goRequirements(content: string): DetectedDependency[] {
+  const dependencies: DetectedDependency[] = [];
+  let inBlock = false;
+  for (const raw of content.split("\n")) {
+    const indirect = /\/\/\s*indirect\b/.test(raw);
+    const line = raw.replace(/\/\/.*$/, "").trim();
+    if (inBlock && line === ")") {
+      inBlock = false;
+      continue;
+    }
+    if (/^require\s*\($/.test(line)) {
+      inBlock = true;
+      continue;
+    }
+    const requirement = inBlock ? line : /^require\s+(.+)$/.exec(line)?.[1];
+    const match =
+      requirement == null ? null : /^(\S+)\s+(\S+)$/.exec(requirement);
+    if (match?.[1] == null || match[2] == null || indirect) continue;
+    const [, name, version] = match;
+    dependencies.push({
+      name,
+      version,
+      scope: "runtime",
+      optional: false,
+      sourceKind: "manifest",
+      purl: `pkg:golang/${name}@${version}`,
+    });
+  }
+  return dependencies;
 }
 
 function detectRust(snapshot: ProjectSnapshot) {

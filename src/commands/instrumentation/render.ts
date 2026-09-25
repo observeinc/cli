@@ -38,20 +38,35 @@ function stabilityColor(level: string) {
   return muted(level);
 }
 
-function libraryStatus(pkg: PackageAssessment) {
+function libraryStatus(
+  pkg: PackageAssessment,
+  autoInstrumentationSupported: boolean,
+) {
   if (pkg.aggregator)
     return pkg.components && pkg.components.length > 0
       ? green("✓ covered via components")
       : muted("• aggregator (no components)");
   if (pkg.versionMatch === "out-of-range") return red("✗ out of range");
+  // On a code-based-auto-instrumentation-only runtime the whole app is wired in
+  // by hand (stated in the header), so don't repeat it per row. On a zero-code
+  // runtime a manual/opt-in library is the exception, so call it out.
+  const action = !autoInstrumentationSupported
+    ? ""
+    : pkg.activation === "opt-in"
+      ? " · enable required"
+      : pkg.activation === "manual"
+        ? " · manual wiring"
+        : "";
   if (pkg.versionMatch === "overlap")
-    return pkg.activation === "opt-in"
-      ? yellow("⚠ partially in range · enable required")
-      : yellow("⚠ partially in range");
-  if (pkg.versionMatch === "unknown") return muted("• unverified");
-  return pkg.activation === "opt-in"
-    ? yellow("✓ supported · enable required")
-    : green("✓ supported");
+    return yellow(`⚠ partially in range${action}`);
+  if (pkg.versionMatch === "unknown") {
+    // A cataloged library whose instrumentation package is known but whose
+    // supported range is not published (e.g. all of Go contrib) is available to
+    // wire in, not an unverified coverage gap.
+    if (!autoInstrumentationSupported) return green("✓ available");
+    return muted(`• unverified${action}`);
+  }
+  return action === "" ? green("✓ supported") : yellow(`✓ supported${action}`);
 }
 
 /** A pure aggregator that resolves to no instrumented components (BOM, validation). */
@@ -77,10 +92,10 @@ function renderCompatibility(candidate: CandidateApplication) {
 
   lines.push(
     compat.autoInstrumentationSupported
-      ? green("● auto-instrumentation available")
+      ? green("● zero-code instrumentation available")
       : compat.sdkStability == null
         ? red("● runtime not supported by OpenTelemetry")
-        : yellow("● SDK only — manual instrumentation required"),
+        : yellow("● code-based auto-instrumentation only"),
   );
   lines.push("");
 
@@ -143,13 +158,23 @@ function renderCompatibility(candidate: CandidateApplication) {
       const partialCount = rated.filter(
         (pkg) => pkg.versionMatch === "overlap",
       ).length;
+      const aggregatorSuffix =
+        neutralCount > 0 ? ` · ${neutralCount} aggregator` : "";
+      const partialSuffix =
+        partialCount > 0 ? ` · ${partialCount} partial` : "";
       lines.push(
         bold("Libraries") +
           muted(
-            `  ${supportedCount}/${rated.length} supported` +
-              (partialCount > 0 ? ` · ${partialCount} partial` : "") +
-              (unverifiedCount > 0 ? ` · ${unverifiedCount} unverified` : "") +
-              (neutralCount > 0 ? ` · ${neutralCount} aggregator` : ""),
+            compat.autoInstrumentationSupported
+              ? `  ${supportedCount}/${rated.length} supported` +
+                  partialSuffix +
+                  (unverifiedCount > 0
+                    ? ` · ${unverifiedCount} unverified`
+                    : "") +
+                  aggregatorSuffix
+              : `  ${rated.length} with instrumentation available` +
+                  partialSuffix +
+                  aggregatorSuffix,
           ),
       );
       const columns: ColumnDef<PackageAssessment>[] = [
@@ -186,7 +211,8 @@ function renderCompatibility(candidate: CandidateApplication) {
         {
           header: "STATUS",
           accessorFn: (row) => row.versionMatch,
-          format: (_value, row) => libraryStatus(row),
+          format: (_value, row) =>
+            libraryStatus(row, compat.autoInstrumentationSupported),
         },
         {
           header: "INSTRUMENTATION",
