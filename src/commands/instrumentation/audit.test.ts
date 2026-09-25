@@ -324,9 +324,10 @@ describe("instrumentation audit command", () => {
       createSnapshot: () => snapshot(root, cleanProject),
     });
     expect(getExitCode()).toBe(2);
-    expect(JSON.parse(stderr.join("")).error.message).toContain(
-      "Candidate not found",
-    );
+    // The error names the missing id and lists the valid ones to guide the user.
+    const message = JSON.parse(stderr.join("")).error.message as string;
+    expect(message).toContain('No application with id "nope"');
+    expect(message).toContain("nodejs:.");
   });
 
   test("table output presents Go as SDK-only with instrumentation available", async () => {
@@ -374,15 +375,15 @@ describe("instrumentation audit command", () => {
     expect(output).toContain("3 go");
     // Runtime facts are printed once for the group, not per app.
     expect(occurrences("code-based auto-instrumentation only")).toBe(1);
-    // One compact row per app.
-    for (const name of ["svc-a", "svc-b", "svc-c"])
-      expect(output).toContain(name);
+    // Each row shows the full candidate id verbatim, so the value can be
+    // copied straight into `--app <id>` (bugbash: a shortened label was 404).
+    for (const id of ["go:svc-a", "go:svc-b", "go:svc-c"])
+      expect(output).toContain(id);
+    expect(output).toContain("--app <APPLICATION>");
     // The identical OTEL004 collapses to one footer entry listing the apps,
     // so its message text appears exactly once.
     expect(occurrences("no zero-code instrumentation for go")).toBe(1);
     expect(output).toContain("3 apps · ");
-    // Drill-down hint for the full per-app tables.
-    expect(output).toContain("--app <id>");
   });
 
   test("passes --exclude through to the snapshot", async () => {

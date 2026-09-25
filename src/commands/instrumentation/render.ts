@@ -318,15 +318,6 @@ function findingRules(candidateId: string, byCandidate: Map<string, Finding[]>) 
   return [...worst.entries()];
 }
 
-/** A candidate's id without the redundant `<language>:` prefix of its group. */
-function appLabel(candidate: CandidateApplication) {
-  const prefix = `${candidate.language.id}:`;
-  const path = candidate.id.startsWith(prefix)
-    ? candidate.id.slice(prefix.length)
-    : candidate.id;
-  return safeTerminalText(path === "." ? candidate.name : path);
-}
-
 /** "3 go · 2 nodejs", runtimes in first-seen order. */
 function runtimeCounts(candidates: CandidateApplication[]) {
   const counts = new Map<string, number>();
@@ -382,8 +373,10 @@ function renderRuntimeGroup(
   }
   const columns: ColumnDef<CandidateApplication>[] = [
     {
+      // The full candidate id, verbatim, so it can be copied straight into
+      // `--app <id>` (the same id the findings footer and headings show).
       header: "APPLICATION",
-      accessorFn: (row) => appLabel(row),
+      accessorFn: (row) => safeTerminalText(row.id),
       maxWidth: 40,
       format: (value) => cyan(String(value)),
     },
@@ -422,7 +415,7 @@ function renderRuntimeGroup(
   for (const candidate of group)
     for (const diagnostic of candidate.diagnostics)
       lines.push(
-        `  ${muted(appLabel(candidate))}  ${severityMark(diagnostic.severity)} ${muted(diagnostic.code)}  ${safeTerminalText(diagnostic.message)}`,
+        `  ${muted(safeTerminalText(candidate.id))}  ${severityMark(diagnostic.severity)} ${muted(diagnostic.code)}  ${safeTerminalText(diagnostic.message)}`,
       );
   return lines;
 }
@@ -481,7 +474,10 @@ export function renderAudit({
       lines.push("", ...renderRuntimeGroup(group, byCandidate));
     lines.push(
       "",
-      muted("Full per-app library tables:  observe instrumentation audit --app <id>"),
+      muted(
+        `Inspect one app: observe instrumentation audit ${safeTerminalText(result.root)} --app <APPLICATION>` +
+          ` (a value from the APPLICATION column, e.g. ${safeTerminalText(candidates[0]?.id ?? "<id>")})`,
+      ),
     );
   }
 
