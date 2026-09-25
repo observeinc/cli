@@ -90,25 +90,13 @@ function renderCompatibility(candidate: CandidateApplication) {
   if (compat == null) return [];
   const lines: string[] = [];
 
-  lines.push(
-    compat.autoInstrumentationSupported
-      ? green("● zero-code instrumentation available")
-      : compat.sdkStability == null
-        ? red("● runtime not supported by OpenTelemetry")
-        : yellow("● code-based auto-instrumentation only"),
-  );
+  lines.push(runtimeModelLine(compat));
   lines.push("");
 
-  const status =
-    candidate.language.version == null
-      ? muted("version unknown")
-      : compat.runtimeVersionSupported === "yes"
-        ? green("supported")
-        : compat.runtimeVersionSupported === "no"
-          ? red("unsupported")
-          : compat.runtimeVersionSupported === "partial"
-            ? yellow("partially supported")
-            : muted("version support unknown");
+  const status = runtimeStatusLabel(
+    compat,
+    candidate.language.version != null,
+  );
   const version = candidate.language.version
     ? ` ${candidate.language.version}`
     : "";
@@ -267,6 +255,178 @@ function severityMark(severity: Finding["severity"]) {
       : muted("•");
 }
 
+type Compatibility = NonNullable<CandidateApplication["compatibility"]>;
+
+/** The ● model line: how (and whether) OpenTelemetry instruments this runtime. */
+function runtimeModelLine(compat: Compatibility) {
+  return compat.autoInstrumentationSupported
+    ? green("● zero-code instrumentation available")
+    : compat.sdkStability == null
+      ? red("● runtime not supported by OpenTelemetry")
+      : yellow("● code-based auto-instrumentation only");
+}
+
+/** Runtime-version support label, e.g. "supported" / "unsupported". */
+function runtimeStatusLabel(compat: Compatibility, hasVersion: boolean) {
+  return !hasVersion
+    ? muted("version unknown")
+    : compat.runtimeVersionSupported === "yes"
+      ? green("supported")
+      : compat.runtimeVersionSupported === "no"
+        ? red("unsupported")
+        : compat.runtimeVersionSupported === "partial"
+          ? yellow("partially supported")
+          : muted("version support unknown");
+}
+
+/** Per-signal SDK stability as a single inline string (empty when unknown). */
+function sdkStabilityInline(compat: Compatibility) {
+  const s = compat.sdkStability;
+  if (s == null) return "";
+  const signal = (name: keyof typeof s) =>
+    `${muted(name)} ${stabilityColor(s[name])}`;
+  return `${signal("traces")} · ${signal("metrics")} · ${signal("logs")} · ${signal("profiles")}`;
+}
+
+/** Cataloged libraries as a compact cell: a few names, then "+N more". */
+function librarySummaryText(compat: Compatibility) {
+  const rated = [
+    ...compat.packages.supported,
+    ...compat.packages.unsupported,
+    ...compat.packages.unverified,
+  ].filter((pkg) => !isNeutralAggregator(pkg));
+  if (rated.length === 0) return "none detected";
+  const names = rated.map((pkg) => pkg.name).sort((a, b) => a.localeCompare(b));
+  return names.length <= 3
+    ? names.join(", ")
+    : `${names.slice(0, 2).join(", ")} +${names.length - 2} more`;
+}
+
+/** Distinct rule IDs affecting a candidate, each at its worst severity. */
+function findingRules(candidateId: string, byCandidate: Map<string, Finding[]>) {
+  const rank: Record<Finding["severity"], number> = {
+    error: 0,
+    warning: 1,
+    info: 2,
+  };
+  const worst = new Map<string, Finding["severity"]>();
+  for (const finding of byCandidate.get(candidateId) ?? []) {
+    const prev = worst.get(finding.ruleId);
+    if (prev == null || rank[finding.severity] < rank[prev])
+      worst.set(finding.ruleId, finding.severity);
+  }
+  return [...worst.entries()];
+}
+
+/** A candidate's id without the redundant `<language>:` prefix of its group. */
+function appLabel(candidate: CandidateApplication) {
+  const prefix = `${candidate.language.id}:`;
+  const path = candidate.id.startsWith(prefix)
+    ? candidate.id.slice(prefix.length)
+    : candidate.id;
+  return safeTerminalText(path === "." ? candidate.name : path);
+}
+
+/** "3 go · 2 nodejs", runtimes in first-seen order. */
+function runtimeCounts(candidates: CandidateApplication[]) {
+  const counts = new Map<string, number>();
+  for (const candidate of candidates)
+    counts.set(
+      candidate.language.id,
+      (counts.get(candidate.language.id) ?? 0) + 1,
+    );
+  return [...counts.entries()].map(([lang, n]) => `${n} ${lang}`).join(" · ");
+}
+
+/** Group candidates by runtime + version; runtime facts are shared within a group. */
+function groupByRuntime(candidates: CandidateApplication[]) {
+  const groups = new Map<string, CandidateApplication[]>();
+  for (const candidate of candidates) {
+    const key = `${candidate.language.id} ${candidate.language.version ?? ""}`;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(candidate);
+    else groups.set(key, [candidate]);
+  }
+  return [...groups.values()];
+}
+
+/**
+ * One runtime's shared facts printed once, then a compact row per application.
+ * Used when more than one application is detected; a single app (or `--app`)
+ * still gets the full per-app block via `renderCompatibility`.
+ */
+function renderRuntimeGroup(
+  group: CandidateApplication[],
+  byCandidate: Map<string, Finding[]>,
+) {
+  const lines: string[] = [];
+  const [first] = group;
+  if (first == null) return lines;
+  const version = first.language.version ? ` ${first.language.version}` : "";
+  const compat = first.compatibility;
+  if (compat == null) {
+    lines.push(
+      `${bold(safeTerminalText(first.language.id) + version)}  ${muted("· runtime not assessed by OpenTelemetry")}`,
+    );
+  } else {
+    lines.push(
+      `${bold(first.language.id + version)}  ${muted("(")}${runtimeStatusLabel(compat, first.language.version != null)}${muted(")")}  ${runtimeModelLine(compat)}`,
+    );
+    const sdk = sdkStabilityInline(compat);
+    const metrics = compat.runtimeMetricsSupported
+      ? green("available")
+      : red("unavailable");
+    lines.push(
+      `  ${muted("SDK")} ${sdk}${sdk === "" ? "" : " · "}${muted("runtime metrics")} ${metrics}`,
+    );
+  }
+  const columns: ColumnDef<CandidateApplication>[] = [
+    {
+      header: "APPLICATION",
+      accessorFn: (row) => appLabel(row),
+      maxWidth: 40,
+      format: (value) => cyan(String(value)),
+    },
+    {
+      header: "LIBRARIES",
+      accessorFn: (row) =>
+        row.compatibility ? librarySummaryText(row.compatibility) : "—",
+      maxWidth: 50,
+      format: (value) =>
+        value === "none detected" || value === "—"
+          ? muted(String(value))
+          : String(value),
+    },
+    {
+      header: "FINDINGS",
+      accessorFn: (row) => {
+        const rules = findingRules(row.id, byCandidate);
+        return rules.length === 0
+          ? "✓"
+          : rules.map(([ruleId]) => ruleId).join(" · ");
+      },
+      format: (_value, row) => {
+        const rules = findingRules(row.id, byCandidate);
+        return rules.length === 0
+          ? green("✓")
+          : rules
+              .map(
+                ([ruleId, severity]) =>
+                  `${severityMark(severity)} ${cyan(ruleId)}`,
+              )
+              .join(" · ");
+      },
+    },
+  ];
+  lines.push(formatTable(group, columns).trimEnd());
+  for (const candidate of group)
+    for (const diagnostic of candidate.diagnostics)
+      lines.push(
+        `  ${muted(appLabel(candidate))}  ${severityMark(diagnostic.severity)} ${muted(diagnostic.code)}  ${safeTerminalText(diagnostic.message)}`,
+      );
+  return lines;
+}
+
 /**
  * Human output for `audit`: every candidate's compatibility block followed by
  * the findings list, the way `npm audit` prints advisories.
@@ -289,17 +449,40 @@ export function renderAudit({
 
   if (candidates.length === 0) {
     lines.push("", muted("No supported application detected."));
-  }
-  for (const candidate of candidates) {
+  } else if (candidates.length === 1) {
+    // A single app (or a `--app <id>` selection) gets the full detail block.
+    for (const candidate of candidates) {
+      lines.push(
+        "",
+        candidateHeading(candidate),
+        ...renderCompatibility(candidate),
+      );
+      for (const diagnostic of candidate.diagnostics)
+        lines.push(
+          `  ${muted(diagnostic.code)}  ${safeTerminalText(diagnostic.message)}`,
+        );
+    }
+  } else {
+    // Multiple apps: an orientation summary, then compact rows grouped by
+    // runtime so shared facts (model, SDK stability) are not repeated per app.
+    const counts = { error: 0, warning: 0, info: 0 };
+    for (const finding of findings) counts[finding.severity]++;
     lines.push(
       "",
-      candidateHeading(candidate),
-      ...renderCompatibility(candidate),
+      `${bold(`${candidates.length} applications`)}${muted(`  · ${runtimeCounts(candidates)} · ${findings.length} finding${findings.length === 1 ? "" : "s"} (${counts.error} error · ${counts.warning} warning · ${counts.info} info)`)}`,
     );
-    for (const diagnostic of candidate.diagnostics)
-      lines.push(
-        `  ${muted(diagnostic.code)}  ${safeTerminalText(diagnostic.message)}`,
-      );
+    const byCandidate = new Map<string, Finding[]>();
+    for (const finding of findings) {
+      const bucket = byCandidate.get(finding.candidateId);
+      if (bucket) bucket.push(finding);
+      else byCandidate.set(finding.candidateId, [finding]);
+    }
+    for (const group of groupByRuntime(candidates))
+      lines.push("", ...renderRuntimeGroup(group, byCandidate));
+    lines.push(
+      "",
+      muted("Full per-app library tables:  observe instrumentation audit --app <id>"),
+    );
   }
 
   lines.push("");
@@ -321,15 +504,32 @@ export function renderAudit({
           `  ${counts.error} error · ${counts.warning} warning · ${counts.info} info`,
         ),
     );
+    // Collapse findings identical except for the app they apply to (e.g. the
+    // same OTEL004 across every Go app) into one entry listing those apps.
+    const groups = new Map<string, Finding[]>();
     for (const finding of findings) {
+      const key = `${finding.ruleId}\u0000${finding.message}\u0000${finding.fix}`;
+      const bucket = groups.get(key);
+      if (bucket) bucket.push(finding);
+      else groups.set(key, [finding]);
+    }
+    for (const group of groups.values()) {
+      const [finding] = group;
+      if (finding == null) continue;
       const where =
-        candidates.length > 1
+        group.length === 1 && candidates.length > 1
           ? muted(` [${safeTerminalText(finding.candidateId)}]`)
           : "";
       lines.push(
         `  ${severityMark(finding.severity)} ${cyan(finding.ruleId)}  ${safeTerminalText(finding.message)}${where}`,
-        `      ${muted(safeTerminalText(finding.fix))}`,
       );
+      if (group.length > 1) {
+        const ids = group.map((item) => safeTerminalText(item.candidateId));
+        const shown =
+          ids.length > 8 ? [...ids.slice(0, 8), `+${ids.length - 8} more`] : ids;
+        lines.push(`      ${muted(`${group.length} apps · ${shown.join(", ")}`)}`);
+      }
+      lines.push(`      ${muted(safeTerminalText(finding.fix))}`);
     }
   }
   if (result.diagnostics.length > 0) {
