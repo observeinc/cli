@@ -351,6 +351,40 @@ describe("instrumentation audit command", () => {
     expect(output).not.toContain("instrumentation/runtime");
   });
 
+  test("groups multiple apps by runtime and collapses repeated findings", async () => {
+    const root = tempRoot();
+    const { context, stdout } = createMockContext({ cwd: root });
+    const goModule = (name: string) =>
+      `module example.com/${name}\n\ngo 1.25\n\nrequire google.golang.org/grpc v1.70.0\n`;
+    await audit.call(context, { format: "table" }, ".", {
+      createSnapshot: () =>
+        snapshot(root, {
+          "svc-a/go.mod": goModule("svc-a"),
+          "svc-a/main.go": "package main\nfunc main() {}\n",
+          "svc-b/go.mod": goModule("svc-b"),
+          "svc-b/main.go": "package main\nfunc main() {}\n",
+          "svc-c/go.mod": goModule("svc-c"),
+          "svc-c/main.go": "package main\nfunc main() {}\n",
+        }),
+    });
+    const output = stdout.join("");
+    const occurrences = (needle: string) => output.split(needle).length - 1;
+    // Orientation summary up top.
+    expect(output).toContain("3 applications");
+    expect(output).toContain("3 go");
+    // Runtime facts are printed once for the group, not per app.
+    expect(occurrences("code-based auto-instrumentation only")).toBe(1);
+    // One compact row per app.
+    for (const name of ["svc-a", "svc-b", "svc-c"])
+      expect(output).toContain(name);
+    // The identical OTEL004 collapses to one footer entry listing the apps,
+    // so its message text appears exactly once.
+    expect(occurrences("no zero-code instrumentation for go")).toBe(1);
+    expect(output).toContain("3 apps · ");
+    // Drill-down hint for the full per-app tables.
+    expect(output).toContain("--app <id>");
+  });
+
   test("passes --exclude through to the snapshot", async () => {
     const root = tempRoot();
     let excluded: readonly string[] | undefined;
