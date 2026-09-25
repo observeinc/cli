@@ -40,6 +40,8 @@ const SENSITIVE_FLAGS = new Set([
  * inflate its cardinality — every route/command in this CLI is lowercase-kebab.
  */
 export function commandNameFromArgv(argv: string[]): string {
+  if (argv[0] === "instrumentation" && argv[1] === "audit")
+    return `instrumentation.${argv[1]}`;
   const path: string[] = [];
   for (const token of argv) {
     if (!/^[a-z][a-z0-9-]*$/.test(token)) break;
@@ -49,6 +51,8 @@ export function commandNameFromArgv(argv: string[]): string {
 }
 
 export function redactArgv(argv: string[]): string[] {
+  if (argv[0] === "instrumentation" && argv[1] === "audit")
+    return redactInstrumentationArgv(argv);
   const result: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -64,6 +68,38 @@ export function redactArgv(argv: string[]): string[] {
       continue;
     }
     result.push(arg);
+  }
+  return result;
+}
+
+function redactInstrumentationArgv(argv: string[]) {
+  const valueFlags = new Set([
+    "--exclude",
+    "--app",
+    "--manifest",
+    "--sbom",
+    "--format",
+    "--fail-on",
+  ]);
+  const result = argv.slice(0, 2);
+  let positionalOnly = false;
+  let valueExpected = false;
+  for (const argument of argv.slice(2)) {
+    if (valueExpected) {
+      result.push("<REDACTED>");
+      valueExpected = false;
+    } else if (!positionalOnly && argument === "--") {
+      positionalOnly = true;
+      result.push(argument);
+    } else if (!positionalOnly && argument.startsWith("-")) {
+      const equals = argument.indexOf("=");
+      const flag = equals < 0 ? argument : argument.slice(0, equals);
+      result.push(equals < 0 ? flag : `${flag}=<REDACTED>`);
+      valueExpected =
+        equals < 0 && (valueFlags.has(flag) || SENSITIVE_FLAGS.has(flag));
+    } else {
+      result.push("<PROJECT_PATH>");
+    }
   }
   return result;
 }

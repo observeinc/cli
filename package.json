@@ -26,12 +26,14 @@
     "lint:fix": "eslint --fix",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
+    "test:otel-manifest": "bun test src/lib/instrumentation/manifest src/lib/instrumentation/findings.test.ts",
     "ifneeded:codegen": "sh -c '[ -f src/gql/generated/graphql.ts ] && [ -f src/rest/generated/index.ts ] || bun run codegen'",
     "codegen": "bun codegen:gql && bun codegen:rest",
     "codegen:gql": "dotenvx run -- bun graphql-code-generator --config src/gql/gql-codegen.config.ts",
     "codegen:rest": "dotenvx run -- sh -c 'bun openapi-generator-cli generate -c src/rest/config.yaml -i $OBSERVE_OPENAPI_SPEC'"
   },
   "dependencies": {
+    "@npmcli/arborist": "^10.0.2",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
     "@opentelemetry/resources": "^2.7.1",
@@ -42,6 +44,9 @@
     "@vercel/detect-agent": "^1.2.3",
     "gray-matter": "^4.0.3",
     "nanotar": "^0.3.0",
+    "semver": "^7.8.5",
+    "smol-toml": "^1.8.0",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -51,6 +56,7 @@
     "@openapitools/openapi-generator-cli": "^2.34.0",
     "@slack/webhook": "^7.2.0",
     "@types/bun": "^1.3.14",
+    "@types/semver": "^7.8.0",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.8.3",
