@@ -114,8 +114,19 @@ export async function audit(
     const candidates = flags.app
       ? detection.candidates.filter((candidate) => candidate.id === flags.app)
       : detection.candidates;
-    if (flags.app && candidates.length === 0)
-      throw new Error(`Candidate not found: ${flags.app}`);
+    if (flags.app && candidates.length === 0) {
+      const available = detection.candidates
+        .map((candidate) => candidate.id)
+        .sort((a, b) => a.localeCompare(b));
+      // Name the scanned directory: a common cause is running --app without the
+      // same project path, so the id belongs to a different project than cwd.
+      throw new Error(
+        `No application with id "${flags.app}" in ${root}. ` +
+          (available.length === 0
+            ? "No applications were detected there."
+            : `Pass the same project path, and use one of: ${available.join(", ")}`),
+      );
+    }
     // An explicit SBOM is the graph for its candidate; building the lockfile
     // or native graph first would only stack a second graph's diagnostics
     // and provenance under it.
