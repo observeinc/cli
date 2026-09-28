@@ -13,8 +13,8 @@
 
 import * as http from "node:http";
 import * as readline from "node:readline";
-import { spawn } from "node:child_process";
 import { z } from "zod";
+import { openBrowser } from "../browser";
 
 export interface ServerInfo {
   /** The full host URL (e.g., "123456789012.observeinc.com") */
@@ -44,24 +44,6 @@ const ServerInfoSchema = z.object({
 });
 
 const ServersArraySchema = z.array(ServerInfoSchema);
-
-/**
- * Open a URL in the default browser
- */
-function openBrowser(url: string): void {
-  const platform = process.platform;
-  let command: string;
-
-  if (platform === "darwin") {
-    command = "open";
-  } else if (platform === "win32") {
-    command = "start";
-  } else {
-    command = "xdg-open";
-  }
-
-  spawn(command, [url], { detached: true, stdio: "ignore" }).unref();
-}
 
 /**
  * Fetch the list of servers the user has previously logged into.

@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { MonitorRuleKind, MonitorV2RuleKind } from "../../rest/generated";
+import { MonitorRuleKind, type MonitorV2RuleKind } from "../../rest/generated";
 
 export function ruleKindColor(
   kind: MonitorRuleKind | MonitorV2RuleKind | undefined,
@@ -12,6 +12,10 @@ export function ruleKindColor(
       return chalk.green(kind);
     case MonitorRuleKind.Promote:
       return chalk.magenta(kind);
+    case MonitorRuleKind.Anomaly:
+      return chalk.yellow(kind);
+    case MonitorRuleKind.Composite:
+      return chalk.blue(kind);
     default:
       return chalk.dim(kind);
   }

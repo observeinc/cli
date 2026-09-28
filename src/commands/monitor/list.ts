@@ -58,6 +58,8 @@ const RULE_KIND_ORDER: Record<string, number> = {
   [MonitorRuleKind.Count]: 0,
   [MonitorRuleKind.Promote]: 1,
   [MonitorRuleKind.Threshold]: 2,
+  [MonitorRuleKind.Anomaly]: 3,
+  [MonitorRuleKind.Composite]: 4,
 };
 
 function sortMonitors(

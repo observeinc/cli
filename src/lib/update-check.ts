@@ -5,9 +5,20 @@ import { loadState, saveState } from "./state";
 
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-function shouldCheckForUpdate(env: Record<string, string | undefined>) {
+function isCliUpgradeCommand(args: readonly string[]) {
+  const positional = args.filter((arg) => arg !== "--" && !arg.startsWith("-"));
+  return positional[0] === "cli" && positional[1] === "upgrade";
+}
+
+function shouldCheckForUpdate({
+  env,
+  currentVersion,
+}: {
+  env: Record<string, string | undefined>;
+  currentVersion: string;
+}) {
   // Local dev builds don't have a meaningful version to compare against
-  if (CURRENT_CLI_VERSION === "0.0.0-dev") return false;
+  if (currentVersion === "0.0.0-dev") return false;
 
   // Explicit opt-out
   if (env.OBSERVE_NO_UPDATE_NOTIFIER) return false;
@@ -43,7 +54,7 @@ function compareVersions(current: string, latest: string) {
   return 0;
 }
 
-async function checkForUpdate({ signal }: { signal?: AbortSignal } = {}) {
+async function cacheLatestRelease({ signal }: { signal?: AbortSignal } = {}) {
   const { version: latestVersion, url: releaseUrl } = await fetchLatestRelease({
     signal,
   });
@@ -53,12 +64,6 @@ async function checkForUpdate({ signal }: { signal?: AbortSignal } = {}) {
     latestKnownVersion: latestVersion,
     latestReleaseUrl: releaseUrl,
   });
-
-  if (compareVersions(CURRENT_CLI_VERSION, latestVersion) > 0) {
-    return { currentVersion: CURRENT_CLI_VERSION, latestVersion };
-  }
-
-  return null;
 }
 
 function formatUpdateMessage({
@@ -78,23 +83,45 @@ function formatUpdateMessage({
   ].join("\n");
 }
 
+/**
+ * Decide at print time, not check-start time. `cli upgrade` replaces the
+ * on-disk binary and records `installedVersion` while this process still
+ * reports the old CURRENT_CLI_VERSION.
+ */
+function messageIfOutdated(currentVersion: string) {
+  const state = loadState();
+  const latestVersion = state.latestKnownVersion;
+  if (!latestVersion) return null;
+
+  if (
+    state.installedVersion &&
+    compareVersions(state.installedVersion, latestVersion) <= 0
+  ) {
+    return null;
+  }
+
+  if (compareVersions(currentVersion, latestVersion) > 0) {
+    return formatUpdateMessage({ currentVersion, latestVersion });
+  }
+
+  return null;
+}
+
 export function startBackgroundUpdateCheck(
   env: Record<string, string | undefined>,
+  options: { args?: readonly string[]; currentVersion?: string } = {},
 ) {
-  if (!shouldCheckForUpdate(env)) {
-    const state = loadState();
-    if (
-      state.latestKnownVersion &&
-      compareVersions(CURRENT_CLI_VERSION, state.latestKnownVersion) > 0
-    ) {
-      const message = formatUpdateMessage({
-        currentVersion: CURRENT_CLI_VERSION,
-        latestVersion: state.latestKnownVersion,
-      });
-      return { getResult: () => Promise.resolve(message) };
-    }
+  const currentVersion = options.currentVersion ?? CURRENT_CLI_VERSION;
+  const args = options.args ?? [];
 
+  if (isCliUpgradeCommand(args)) {
     return { getResult: () => Promise.resolve(null) };
+  }
+
+  if (!shouldCheckForUpdate({ env, currentVersion })) {
+    return {
+      getResult: () => Promise.resolve(messageIfOutdated(currentVersion)),
+    };
   }
 
   const abort = new AbortController();
@@ -105,18 +132,18 @@ export function startBackgroundUpdateCheck(
     }, 150);
   });
 
-  const pending = checkForUpdate({ signal: abort.signal })
-    .then((result) =>
-      result
-        ? formatUpdateMessage({
-            currentVersion: result.currentVersion,
-            latestVersion: result.latestVersion,
-          })
-        : null,
-    )
-    .catch(() => null);
+  const pending = cacheLatestRelease({ signal: abort.signal })
+    .then(() => true)
+    .catch(() => false);
 
   return {
-    getResult: () => Promise.race([pending, timeoutPromise]),
+    getResult: async () => {
+      const completed = await Promise.race([
+        pending,
+        timeoutPromise.then(() => false),
+      ]);
+      if (!completed) return null;
+      return messageIfOutdated(currentVersion);
+    },
   };
 }

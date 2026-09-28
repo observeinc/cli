@@ -11,7 +11,7 @@ async function main(): Promise<void> {
 
   await initUserAgent();
 
-  const updateCheck = startBackgroundUpdateCheck(process.env);
+  const updateCheck = startBackgroundUpdateCheck(process.env, { args });
 
   try {
     await withTelemetry(args, async (span) => {

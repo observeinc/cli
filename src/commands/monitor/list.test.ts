@@ -9,14 +9,7 @@ import {
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
-import {
-  MonitorRuleKind,
-  MonitorRollupStatus,
-  MonitorHealth,
-  MonitorAlertState,
-  MonitorMuteState,
-  type MonitorResource,
-} from "../../rest/generated";
+import { MonitorRuleKind, type MonitorResource } from "../../rest/generated";
 
 const loadConfigFn = mock(
   (): Config => ({
@@ -26,9 +19,9 @@ const loadConfigFn = mock(
   }),
 );
 
-/** Build a fully-populated MonitorResource. Only id and label need to be provided;
- *  every other required field defaults to a benign value. */
-function makeMonitor(
+/** Build a MonitorResource stub. Only the fields the list command reads are
+ *  populated; the cast keeps the stub stable as the API spec grows fields. */
+function monitorStub(
   id: string,
   label: string,
   overrides: Partial<MonitorResource> = {},
@@ -39,35 +32,17 @@ function makeMonitor(
     description: null,
     disabled: false,
     ruleKind: MonitorRuleKind.Count,
-    monitorVersion: "0",
-    createdBy: { id: "" },
-    createdAt: "",
-    updatedBy: { id: "" },
-    updatedAt: "",
-    disabledDetail: null,
-    scheduled: false,
-    rollupStatus: MonitorRollupStatus.Running,
-    health: MonitorHealth.Running,
-    governorState: null,
-    alertState: MonitorAlertState.Never,
-    aiTriagingMode: undefined,
-    muteState: MonitorMuteState.NotMuted,
-    mutedUntil: null,
-    muteCount: 0,
-    lastErrorTime: null,
-    lastAlarmTime: null,
-    managedBy: null,
     ...overrides,
-  };
+  } as unknown as MonitorResource;
 }
 
 const STUB_MONITORS: MonitorResource[] = [
-  makeMonitor("1", "Alpha Monitor", { ruleKind: MonitorRuleKind.Count }),
-  makeMonitor("2", "Beta Monitor", {
+  monitorStub("1", "Alpha Monitor", { ruleKind: MonitorRuleKind.Count }),
+  monitorStub("2", "Beta Monitor", {
     ruleKind: MonitorRuleKind.Threshold,
     disabled: true,
   }),
-  makeMonitor("3", "Gamma Monitor", {
+  monitorStub("3", "Gamma Monitor", {
     ruleKind: MonitorRuleKind.Promote,
   }),
 ];
