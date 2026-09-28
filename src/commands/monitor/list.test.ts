@@ -19,6 +19,8 @@ const loadConfigFn = mock(
   }),
 );
 
+/** Build a MonitorResource stub. Only the fields the list command reads are
+ *  populated; the cast keeps the stub stable as the API spec grows fields. */
 function monitorStub(
   id: string,
   label: string,
@@ -27,11 +29,11 @@ function monitorStub(
   return {
     id,
     label,
-    description: "",
+    description: null,
     disabled: false,
     ruleKind: MonitorRuleKind.Count,
     ...overrides,
-  };
+  } as unknown as MonitorResource;
 }
 
 const STUB_MONITORS: MonitorResource[] = [
@@ -155,8 +157,8 @@ describe("monitor list — sorting", () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { sort: "name", json: true }, deps);
     const result = JSON.parse(stdout.join("")) as MonitorResource[];
-    const names = result.map((m) => m.label);
-    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    const labels = result.map((m) => m.label);
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)));
   });
 
   test("--sort id returns monitors in ascending numeric id order", async () => {
