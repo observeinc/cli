@@ -74,8 +74,8 @@ function sortMonitors(
         return a.label.localeCompare(b.label);
       case "kind":
         return (
-          (RULE_KIND_ORDER[a.ruleKind ?? ""] ?? 99) -
-          (RULE_KIND_ORDER[b.ruleKind ?? ""] ?? 99)
+          (RULE_KIND_ORDER[a.ruleKind] ?? 99) -
+          (RULE_KIND_ORDER[b.ruleKind] ?? 99)
         );
       case "disabled":
         return Number(a.disabled) - Number(b.disabled);
@@ -138,9 +138,7 @@ export async function list(
 
     if (flags.kind) {
       const filterKinds = flags.kind;
-      monitors = monitors.filter(
-        (m) => m.ruleKind != null && filterKinds.includes(m.ruleKind),
-      );
+      monitors = monitors.filter((m) => filterKinds.includes(m.ruleKind));
     }
 
     if (flags.disabled != null) {
