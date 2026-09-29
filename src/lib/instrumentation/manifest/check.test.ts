@@ -350,7 +350,6 @@ describe("checkCompatibility — Go manual instrumentation (bundled catalog)", (
     expect(assessed?.versionMatch).toBe(match);
     expect(assessed?.instrumentationOptions?.[0]?.activation).toBe("manual");
   });
-
 });
 
 describe("checkCompatibility — SDK-only and absent runtimes", () => {
@@ -592,7 +591,14 @@ describe("bundled manifest artifact", () => {
       "opt-in",
       "native",
     ],
-    ["Azure.Storage.Blobs", "12.22.0", "supported", "in-range", "opt-in", "native"],
+    [
+      "Azure.Storage.Blobs",
+      "12.22.0",
+      "supported",
+      "in-range",
+      "opt-in",
+      "native",
+    ],
   ] as const)(
     "dotnet %s %s is %s (%s, %s, %s)",
     (name, version, bucket, versionMatch, activation, coveringId) => {

@@ -214,9 +214,7 @@ export async function audit(
         throw new Error(`Incomplete scan: ${incomplete.message}`);
       const detection = detectApplications(snapshot);
       const candidates = flags.app
-        ? detection.candidates.filter(
-            (candidate) => candidate.id === flags.app,
-          )
+        ? detection.candidates.filter((candidate) => candidate.id === flags.app)
         : detection.candidates;
       if (flags.app && candidates.length === 0) {
         const available = detection.candidates
