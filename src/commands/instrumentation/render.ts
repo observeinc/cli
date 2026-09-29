@@ -93,10 +93,7 @@ function renderCompatibility(candidate: CandidateApplication) {
   lines.push(runtimeModelLine(compat));
   lines.push("");
 
-  const status = runtimeStatusLabel(
-    compat,
-    candidate.language.version != null,
-  );
+  const status = runtimeStatusLabel(compat, candidate.language.version != null);
   const version = candidate.language.version
     ? ` ${candidate.language.version}`
     : "";
@@ -303,7 +300,10 @@ function librarySummaryText(compat: Compatibility) {
 }
 
 /** Distinct rule IDs affecting a candidate, each at its worst severity. */
-function findingRules(candidateId: string, byCandidate: Map<string, Finding[]>) {
+function findingRules(
+  candidateId: string,
+  byCandidate: Map<string, Finding[]>,
+) {
   const rank: Record<Finding["severity"], number> = {
     error: 0,
     warning: 1,
@@ -522,8 +522,12 @@ export function renderAudit({
       if (group.length > 1) {
         const ids = group.map((item) => safeTerminalText(item.candidateId));
         const shown =
-          ids.length > 8 ? [...ids.slice(0, 8), `+${ids.length - 8} more`] : ids;
-        lines.push(`      ${muted(`${group.length} apps · ${shown.join(", ")}`)}`);
+          ids.length > 8
+            ? [...ids.slice(0, 8), `+${ids.length - 8} more`]
+            : ids;
+        lines.push(
+          `      ${muted(`${group.length} apps · ${shown.join(", ")}`)}`,
+        );
       }
       lines.push(`      ${muted(safeTerminalText(finding.fix))}`);
     }
