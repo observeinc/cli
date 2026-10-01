@@ -17,8 +17,14 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - run: bun run test
+      - name: Test
         env:
           OBSERVE_OPENAPI_SPEC: ${{ secrets.OBSERVE_OPENAPI_SPEC }}
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
+        run: |
+          if [ -n "$OBSERVE_OPENAPI_SPEC" ] && [ -n "$OBSERVE_GQL_SPEC" ]; then
+            bun run test
+          else
+            bun test src/commands/monitor src/rest/monitor
+          fi
