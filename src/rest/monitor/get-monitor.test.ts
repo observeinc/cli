@@ -90,18 +90,18 @@ const getMonitorRawFn = mock((params: Record<string, unknown>) => {
 });
 
 function jsonApiResponse(
-  _status: number,
+  status: number,
   body: unknown,
 ): { raw: Response; value: () => Promise<MonitorV2> } {
   const raw = new Response(JSON.stringify(body), {
-    status: _status,
+    status,
     headers: { "Content-Type": "application/json" },
   });
   return {
     raw,
     value: async () => {
       const json = (await raw.clone().json()) as Record<string, unknown>;
-      // Mimic a stale generated FromJSON pick-list: the six keys Build 91 kept.
+      // Mimic a stale generated FromJSON pick-list that keeps only id, name, disabled, ruleKind, and definition.
       const id = typeof json.id === "string" ? json.id : "";
       const name = typeof json.name === "string" ? json.name : "";
       return parsedMonitor({

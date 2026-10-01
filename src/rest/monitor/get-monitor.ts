@@ -14,6 +14,13 @@ export const MONITOR_GET_PRESERVE_KEYS = [
  * onto the typed monitor. The typescript-fetch FromJSON pick-list omits
  * properties that were missing from the spec at codegen time, which is how
  * `observe monitor view --json` lost notification actions.
+ *
+ * This copy exists so a stale FromJSON pick-list cannot drop the keys. The
+ * generated client is not committed, and codegen needs $OBSERVE_OPENAPI_SPEC,
+ * which this change does not have. The TypeScript interface may already
+ * declare the fields; the JSON path still loses them if FromJSON never copies
+ * them. Remove this once the generated FromJSON in the published CLI includes
+ * actionRules, health, and effectiveScheduling.
  */
 export function preserveMonitorGetFields(
   parsed: MonitorV2,
