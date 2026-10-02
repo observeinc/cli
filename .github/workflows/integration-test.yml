@@ -41,7 +41,7 @@ jobs:
             echo "available=false" >> "$GITHUB_OUTPUT"
             exit 0
           else
-            echo "OBSERVE_INTEGRATION_API_TOKEN and OBSERVE_OPENAPI_SPEC are required; a green integration check means codegen and the suite ran."
+            echo "::error::OBSERVE_INTEGRATION_API_TOKEN and OBSERVE_OPENAPI_SPEC are required on non-fork runs; configure those secrets and the job will not pass without them."
             exit 1
           fi
 

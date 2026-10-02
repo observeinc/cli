@@ -3,7 +3,7 @@ import { ObserveRestSDK } from "../client";
 import { type MonitorApi, type MonitorV2, ResponseError } from "../generated";
 
 /** Fields GET /v1/monitors/{id} returns that a generated client may drop. */
-export const MONITOR_GET_PRESERVE_KEYS = [
+const MONITOR_GET_PRESERVE_KEYS = [
   "actionRules",
   "health",
   "effectiveScheduling",

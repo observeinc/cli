@@ -30,6 +30,6 @@ jobs:
             echo "::warning::Fork PRs do not receive OBSERVE_OPENAPI_SPEC or OBSERVE_GQL_SPEC; skipping live codegen and the full suite."
             exit 0
           else
-            echo "OBSERVE_OPENAPI_SPEC and OBSERVE_GQL_SPEC are required; a green test check means bun run test ran."
+            echo "::error::OBSERVE_OPENAPI_SPEC and OBSERVE_GQL_SPEC are required on non-fork runs; configure those secrets and the job will not pass without them."
             exit 1
           fi
