@@ -100,7 +100,7 @@ function jsonApiResponse(
   return {
     raw,
     value: async () => {
-      const json = (await raw.clone().json()) as Record<string, unknown>;
+      const json = (await raw.json()) as Record<string, unknown>;
       // Mimic a stale generated FromJSON pick-list that keeps only id, name, disabled, ruleKind, and definition.
       const id = typeof json.id === "string" ? json.id : "";
       const name = typeof json.name === "string" ? json.name : "";

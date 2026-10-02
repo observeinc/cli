@@ -13,14 +13,13 @@ export const MONITOR_GET_PRESERVE_KEYS = [
  * Copy actionRules, health, and effectiveScheduling from the raw GET body
  * onto the typed monitor when the API returned them.
  *
- * Codegen uses withoutRuntimeChecks: true (src/rest/config.yaml), so
- * getMonitorRaw's JSONApiResponse identity-transforms the body; this tree
- * has no MonitorV2FromJSON pick-list. The helper still copies the keys so
- * `observe monitor view --json` cannot drop them if a published or future
- * generated client filters the payload. Regenerating the client needs
- * $OBSERVE_OPENAPI_SPEC, which this change does not have. Remove this once
- * a regenerated client is shown to keep actionRules, health, and
- * effectiveScheduling.
+ * In this tree, codegen sets withoutRuntimeChecks: true, so getMonitorRaw
+ * returns JSONApiResponse with the default identity transformer: value()
+ * is `(json) => json` and there is no MonitorV2FromJSON. The copy then
+ * writes values parsed already has, and `--json` is unchanged. The helper
+ * is the guard for a generated client that drops those keys; it is a
+ * no-op when the body is already complete. Remove this once a regenerated
+ * client is shown to keep actionRules, health, and effectiveScheduling.
  */
 export function preserveMonitorGetFields(
   parsed: MonitorV2,
@@ -45,6 +44,7 @@ export async function getMonitor({
   const sdk = new ObserveRestSDK(config);
   try {
     const response = await sdk.monitorApi.getMonitorRaw({ id });
+    // Clone first: JSONApiResponse.value() calls raw.json() and consumes the body.
     const raw: unknown = await response.raw.clone().json();
     const parsed = await response.value();
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
