@@ -27,7 +27,7 @@ jobs:
           if [ -n "$OBSERVE_OPENAPI_SPEC" ] && [ -n "$OBSERVE_GQL_SPEC" ]; then
             bun run test
           elif [ "$PR_FROM_FORK" = "true" ]; then
-            echo "Fork PRs do not receive OBSERVE_OPENAPI_SPEC or OBSERVE_GQL_SPEC; skipping live codegen and the full suite."
+            echo "::warning::Fork PRs do not receive OBSERVE_OPENAPI_SPEC or OBSERVE_GQL_SPEC; skipping live codegen and the full suite."
             exit 0
           else
             echo "OBSERVE_OPENAPI_SPEC and OBSERVE_GQL_SPEC are required; a green test check means bun run test ran."

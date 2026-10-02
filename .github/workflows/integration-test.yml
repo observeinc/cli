@@ -37,7 +37,7 @@ jobs:
           if [ -n "$OBSERVE_INTEGRATION_API_TOKEN" ] && [ -n "$OBSERVE_OPENAPI_SPEC" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           elif [ "$PR_FROM_FORK" = "true" ]; then
-            echo "Fork PRs do not receive OBSERVE_INTEGRATION_API_TOKEN or OBSERVE_OPENAPI_SPEC; skipping live codegen and the integration suite."
+            echo "::warning::Fork PRs do not receive OBSERVE_INTEGRATION_API_TOKEN or OBSERVE_OPENAPI_SPEC; skipping live codegen and the integration suite."
             echo "available=false" >> "$GITHUB_OUTPUT"
             exit 0
           else

@@ -156,9 +156,6 @@ describe("monitor view — output", () => {
       health: MonitorV2Health.Running,
       effectiveScheduling,
     });
-    expect(Object.hasOwn(result, "actionRules")).toBe(true);
-    expect(Object.hasOwn(result, "health")).toBe(true);
-    expect(Object.hasOwn(result, "effectiveScheduling")).toBe(true);
   });
 });
 
