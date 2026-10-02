@@ -23,8 +23,8 @@ jobs:
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
         run: |
-          if [ -n "$OBSERVE_OPENAPI_SPEC" ] && [ -n "$OBSERVE_GQL_SPEC" ]; then
-            bun run test
-          else
-            bun test src/commands/monitor src/rest/monitor
+          if [ -z "$OBSERVE_OPENAPI_SPEC" ] || [ -z "$OBSERVE_GQL_SPEC" ]; then
+            echo "OBSERVE_OPENAPI_SPEC and OBSERVE_GQL_SPEC are required; a green test check means bun run test ran."
+            exit 1
           fi
+          bun run test

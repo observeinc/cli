@@ -28,8 +28,6 @@ dist
 dist-bin
 
 generated
-!src/rest/generated/
-!src/rest/generated/**
 
 .env
 !.env.example

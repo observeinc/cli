@@ -2,7 +2,7 @@ import type { Config } from "../../lib/config";
 import { ObserveRestSDK } from "../client";
 import { type MonitorV2, ResponseError } from "../generated";
 
-/** Fields GET /v1/monitors/{id} returns that a stale generated MonitorV2 may drop. */
+/** Fields GET /v1/monitors/{id} returns that a generated client may drop. */
 export const MONITOR_GET_PRESERVE_KEYS = [
   "actionRules",
   "health",
@@ -11,16 +11,16 @@ export const MONITOR_GET_PRESERVE_KEYS = [
 
 /**
  * Copy actionRules, health, and effectiveScheduling from the raw GET body
- * onto the typed monitor. The typescript-fetch FromJSON pick-list omits
- * properties that were missing from the spec at codegen time, which is how
- * `observe monitor view --json` lost notification actions.
+ * onto the typed monitor when the API returned them.
  *
- * This copy exists so a stale FromJSON pick-list cannot drop the keys. The
- * generated client is not committed, and codegen needs $OBSERVE_OPENAPI_SPEC,
- * which this change does not have. The TypeScript interface may already
- * declare the fields; the JSON path still loses them if FromJSON never copies
- * them. Remove this once the generated FromJSON in the published CLI includes
- * actionRules, health, and effectiveScheduling.
+ * Codegen uses withoutRuntimeChecks: true (src/rest/config.yaml), so
+ * getMonitorRaw's JSONApiResponse identity-transforms the body; this tree
+ * has no MonitorV2FromJSON pick-list. The helper still copies the keys so
+ * `observe monitor view --json` cannot drop them if a published or future
+ * generated client filters the payload. Regenerating the client needs
+ * $OBSERVE_OPENAPI_SPEC, which this change does not have. Remove this once
+ * a regenerated client is shown to keep actionRules, health, and
+ * effectiveScheduling.
  */
 export function preserveMonitorGetFields(
   parsed: MonitorV2,
