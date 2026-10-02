@@ -34,16 +34,27 @@ export function preserveMonitorGetFields(
   return out;
 }
 
+export interface GetMonitorSdk {
+  monitorApi: {
+    getMonitorRaw: (params: { id: number }) => Promise<{
+      raw: Response;
+      value: () => Promise<MonitorV2>;
+    }>;
+  };
+}
+
 export async function getMonitor({
   config,
   id,
+  sdk,
 }: {
   config: Config;
   id: number;
+  sdk?: GetMonitorSdk;
 }): Promise<MonitorV2 | null> {
-  const sdk = new ObserveRestSDK(config);
+  const client = sdk ?? new ObserveRestSDK(config);
   try {
-    const response = await sdk.monitorApi.getMonitorRaw({ id });
+    const response = await client.monitorApi.getMonitorRaw({ id });
     // Clone first: JSONApiResponse.value() calls raw.json() and consumes the body.
     const raw: unknown = await response.raw.clone().json();
     const parsed = await response.value();

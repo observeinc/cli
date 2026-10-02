@@ -1,13 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  test,
-} from "bun:test";
-import { resolve } from "node:path";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Config } from "../../lib/config";
 import {
   MonitorV2Health,
@@ -15,9 +6,11 @@ import {
   type MonitorV2,
 } from "../generated";
 import { ResponseError } from "../generated/runtime";
-
-const repoRoot = resolve(import.meta.dir, "../../..");
-const clientModulePath = resolve(repoRoot, "src/rest/client.ts");
+import {
+  getMonitor,
+  preserveMonitorGetFields,
+  type GetMonitorSdk,
+} from "./get-monitor";
 
 const CONFIG: Config = {
   customerId: "test-customer",
@@ -34,8 +27,6 @@ function parsedMonitor(overrides: Partial<MonitorV2> = {}): MonitorV2 {
     ...overrides,
   };
 }
-
-let preserveMonitorGetFields: (typeof import("./get-monitor"))["preserveMonitorGetFields"];
 
 describe("preserveMonitorGetFields", () => {
   test("copies actionRules, health, and effectiveScheduling from the raw GET body", () => {
@@ -89,6 +80,10 @@ const getMonitorRawFn = mock((params: Record<string, unknown>) => {
   return respond(params);
 });
 
+const stubSdk: GetMonitorSdk = {
+  monitorApi: { getMonitorRaw: getMonitorRawFn },
+};
+
 function jsonApiResponse(
   status: number,
   body: unknown,
@@ -129,24 +124,6 @@ async function captureError(promise: Promise<unknown>): Promise<unknown> {
   throw new Error("expected getMonitor to reject, but it resolved");
 }
 
-let getMonitor: (typeof import("./get-monitor"))["getMonitor"];
-
-beforeAll(async () => {
-  void mock.module(clientModulePath, () => ({
-    ObserveRestSDK: class {
-      monitorApi = { getMonitorRaw: getMonitorRawFn };
-    },
-  }));
-
-  const mod = await import("./get-monitor.ts");
-  getMonitor = mod.getMonitor;
-  preserveMonitorGetFields = mod.preserveMonitorGetFields;
-});
-
-afterAll(() => {
-  mock.restore();
-});
-
 beforeEach(() => {
   calls = [];
   getMonitorRawFn.mockClear();
@@ -171,7 +148,11 @@ describe("getMonitor — field preservation", () => {
     };
     respond = () => Promise.resolve(jsonApiResponse(200, payload));
 
-    const result = await getMonitor({ config: CONFIG, id: 41072994 });
+    const result = await getMonitor({
+      config: CONFIG,
+      id: 41072994,
+      sdk: stubSdk,
+    });
 
     expect(calls).toEqual([{ id: 41072994 }]);
     expect(result).not.toBeNull();
@@ -184,14 +165,18 @@ describe("getMonitor — field preservation", () => {
   test("returns null on 404", async () => {
     respond = () => Promise.reject(responseError(404));
 
-    expect(await getMonitor({ config: CONFIG, id: 99999 })).toBeNull();
+    expect(
+      await getMonitor({ config: CONFIG, id: 99999, sdk: stubSdk }),
+    ).toBeNull();
     expect(calls).toHaveLength(1);
   });
 
   test("rethrows a non-404 ResponseError", async () => {
     respond = () => Promise.reject(responseError(500));
 
-    const err = await captureError(getMonitor({ config: CONFIG, id: 42 }));
+    const err = await captureError(
+      getMonitor({ config: CONFIG, id: 42, sdk: stubSdk }),
+    );
 
     expect(err).toBeInstanceOf(ResponseError);
     expect((err as ResponseError).response.status).toBe(500);
