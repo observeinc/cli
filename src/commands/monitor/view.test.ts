@@ -9,7 +9,11 @@ import {
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
-import { MonitorV2RuleKind, type MonitorV2 } from "../../rest/generated";
+import {
+  MonitorV2Health,
+  MonitorV2RuleKind,
+  type MonitorV2,
+} from "../../rest/generated";
 
 const loadConfigFn = mock(
   (): Config => ({
@@ -124,6 +128,33 @@ describe("monitor view — output", () => {
       id: "42",
       name: "My Monitor",
       ruleKind: MonitorV2RuleKind.Threshold,
+    });
+  });
+
+  test("JSON output includes actionRules, health, and effectiveScheduling when the API payload has them", async () => {
+    const actionRules = [
+      { actionId: "41075519", definition: { inline: true, type: "Slack" } },
+    ];
+    const effectiveScheduling = {
+      transform: { freshnessGoal: "60000000000" },
+    };
+    getMonitorFn.mockImplementationOnce(() =>
+      Promise.resolve(
+        monitorStub("41072994", {
+          name: "clone-config-parity",
+          actionRules,
+          health: MonitorV2Health.Running,
+          effectiveScheduling,
+        }),
+      ),
+    );
+    const { context, stdout } = createMockContext();
+    await view.call(context, { json: true }, "41072994", deps);
+    const result = JSON.parse(stdout.join("")) as Record<string, unknown>;
+    expect(result).toMatchObject({
+      actionRules,
+      health: MonitorV2Health.Running,
+      effectiveScheduling,
     });
   });
 });

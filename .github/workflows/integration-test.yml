@@ -27,7 +27,26 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      - name: Require integration secrets
+        id: secrets
+        env:
+          OBSERVE_OPENAPI_SPEC: ${{ secrets.OBSERVE_OPENAPI_SPEC }}
+          OBSERVE_INTEGRATION_API_TOKEN: ${{ secrets.OBSERVE_INTEGRATION_API_TOKEN }}
+          PR_FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          if [ -n "$OBSERVE_INTEGRATION_API_TOKEN" ] && [ -n "$OBSERVE_OPENAPI_SPEC" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          elif [ "$PR_FROM_FORK" = "true" ]; then
+            echo "::warning::Fork PRs do not receive OBSERVE_INTEGRATION_API_TOKEN or OBSERVE_OPENAPI_SPEC; skipping live codegen and the integration suite."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            echo "::error::OBSERVE_INTEGRATION_API_TOKEN and OBSERVE_OPENAPI_SPEC are required on non-fork runs; configure those secrets and the job will not pass without them."
+            exit 1
+          fi
+
       - name: Codegen
+        if: steps.secrets.outputs.available == 'true'
         run: bun run ifneeded:codegen
         env:
           OBSERVE_OPENAPI_SPEC: ${{ secrets.OBSERVE_OPENAPI_SPEC }}
@@ -35,6 +54,7 @@ jobs:
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
 
       - name: Integration tests
+        if: steps.secrets.outputs.available == 'true'
         id: tests
         run: bun run test:integration --reporter=junit --reporter-outfile=junit.xml
         env:
@@ -45,7 +65,7 @@ jobs:
 
       - name: Collect failing tests
         id: failed_tests
-        if: failure()
+        if: failure() && steps.tests.outcome == 'failure'
         run: |
           {
             echo "failed_tests<<__EOF__"
