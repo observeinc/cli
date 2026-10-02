@@ -1,6 +1,6 @@
 import type { Config } from "../../lib/config";
 import { ObserveRestSDK } from "../client";
-import { type MonitorV2, ResponseError } from "../generated";
+import { type MonitorApi, type MonitorV2, ResponseError } from "../generated";
 
 /** Fields GET /v1/monitors/{id} returns that a generated client may drop. */
 export const MONITOR_GET_PRESERVE_KEYS = [
@@ -23,24 +23,19 @@ export const MONITOR_GET_PRESERVE_KEYS = [
  */
 export function preserveMonitorGetFields(
   parsed: MonitorV2,
-  raw: Record<string, unknown>,
+  rawBody: Record<string, unknown>,
 ): MonitorV2 {
   const out: MonitorV2 = { ...parsed };
   for (const key of MONITOR_GET_PRESERVE_KEYS) {
-    if (Object.hasOwn(raw, key) && raw[key] !== undefined) {
-      (out as Record<string, unknown>)[key] = raw[key];
+    if (Object.hasOwn(rawBody, key) && rawBody[key] !== undefined) {
+      (out as Record<string, unknown>)[key] = rawBody[key];
     }
   }
   return out;
 }
 
 export interface GetMonitorSdk {
-  monitorApi: {
-    getMonitorRaw: (params: { id: number }) => Promise<{
-      raw: Response;
-      value: () => Promise<MonitorV2>;
-    }>;
-  };
+  monitorApi: Pick<MonitorApi, "getMonitorRaw">;
 }
 
 export async function getMonitor({
@@ -56,10 +51,17 @@ export async function getMonitor({
   try {
     const response = await client.monitorApi.getMonitorRaw({ id });
     // Clone first: JSONApiResponse.value() calls raw.json() and consumes the body.
-    const raw: unknown = await response.raw.clone().json();
+    const rawBody: unknown = await response.raw.clone().json();
     const parsed = await response.value();
-    if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-      return preserveMonitorGetFields(parsed, raw as Record<string, unknown>);
+    if (
+      rawBody !== null &&
+      typeof rawBody === "object" &&
+      !Array.isArray(rawBody)
+    ) {
+      return preserveMonitorGetFields(
+        parsed,
+        rawBody as Record<string, unknown>,
+      );
     }
     return parsed;
   } catch (error) {

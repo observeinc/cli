@@ -65,7 +65,7 @@ jobs:
 
       - name: Collect failing tests
         id: failed_tests
-        if: failure()
+        if: failure() && steps.tests.outcome == 'failure'
         run: |
           {
             echo "failed_tests<<__EOF__"

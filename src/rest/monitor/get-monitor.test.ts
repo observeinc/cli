@@ -5,7 +5,7 @@ import {
   MonitorV2RuleKind,
   type MonitorV2,
 } from "../generated";
-import { ResponseError } from "../generated/runtime";
+import { type ApiResponse, ResponseError } from "../generated/runtime";
 import {
   getMonitor,
   preserveMonitorGetFields,
@@ -70,10 +70,9 @@ describe("preserveMonitorGetFields", () => {
 let calls: Record<string, unknown>[] = [];
 
 /** Set per-test to drive the stubbed generated client's response. */
-let respond: (params: Record<string, unknown>) => Promise<{
-  raw: Response;
-  value: () => Promise<MonitorV2>;
-}>;
+let respond: (
+  params: Record<string, unknown>,
+) => Promise<ApiResponse<MonitorV2>>;
 
 const getMonitorRawFn = mock((params: Record<string, unknown>) => {
   calls.push(params);
@@ -81,13 +80,16 @@ const getMonitorRawFn = mock((params: Record<string, unknown>) => {
 });
 
 const stubSdk: GetMonitorSdk = {
-  monitorApi: { getMonitorRaw: getMonitorRawFn },
+  monitorApi: {
+    getMonitorRaw:
+      getMonitorRawFn as GetMonitorSdk["monitorApi"]["getMonitorRaw"],
+  },
 };
 
 function jsonApiResponse(
   status: number,
   body: unknown,
-): { raw: Response; value: () => Promise<MonitorV2> } {
+): ApiResponse<MonitorV2> {
   const raw = new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
