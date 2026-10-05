@@ -97,7 +97,8 @@ Cover at minimum:
 
 - Happy path
 - Empty-result user message
-- `--format json` (or `--json`)
+- `--format json`. Optionally add a test for the `--json` shorthand; do not
+  treat `--json` as a substitute for `--format json` coverage.
 - Each flag-validation error your command defines
 
 ## Local verification
