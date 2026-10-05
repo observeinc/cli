@@ -2,9 +2,7 @@
 
 Coverage, local Linux Harbor, iteration, and the scoped CI trailer after a
 CLI command add or change. Load `ai-eval-landscape` for suite routing and
-interpretation; do not restate its matrix. Compose existing
-`eval-coverage`; do not rebuild it. Do not add a CI skill. Do not
-implement OB-64617.
+interpretation; do not restate its matrix.
 
 ## Coverage
 
@@ -137,7 +135,7 @@ on baked `observe-monorepo-src-cli` and does not set `OBSERVE_CLI_BIN`.
 
 Do not emit a bare `jenkins: evaluate-observe-ai` or `--full-eval` as
 the default. Do not emit `jenkins: o11y-agent-eval` for a
-CLI-command-only change. Do not implement OB-64617.
+CLI-command-only change.
 
 If no scenario id exists, omit the trailer and record
 `CLI Jenkins scoped line omitted — no scenario id; local Harbor ran or was blocked.`
