@@ -32,7 +32,8 @@ Skip this section when the command reuses an existing backend helper.
 **REST**
 
 1. Add `src/rest/<resource>/<verb>-<resource>.ts` — accept API parameters and
-   project the response shape the command needs.
+   project the response shape the command needs. Export from
+   `src/rest/<resource>/index.ts` when the resource barrel is new or extended.
 
 Never hand-edit generated trees: `src/gql/generated/` and
 `src/rest/generated/`.
@@ -47,6 +48,8 @@ Create `src/commands/<resource>/<command>.ts`.
 - Inject backends through an optional `deps` object on the handler. Tests stub
   through `deps` because `mock.module` is process-global in bun and leaks
   across test files (see `src/commands/dataset/list.ts`).
+- List commands with filter flags: build CEL in `src/lib/cel.ts` and parse user
+  input with helpers in `src/lib/parsers.ts` (pattern: `dataset list`).
 - Set `docs.brief` to an imperative one-liner.
 - Row/list commands: support `--format json|csv` and the `--json` shorthand.
 - Tabular output: `formatTable()` from `src/lib/formatters/table`.
@@ -82,8 +85,9 @@ working without appearing in help.
 When `maturity` is `experimental`, set `experimental: true` on `defineCommand`
 and nothing else. The command is hidden and refuses to run unless
 `OBSERVE_CLI_EXPERIMENTAL=1`, and shows an `[experimental]` badge when visible.
-A route group becomes experimental when every child command is experimental.
-Promote to GA by deleting that one line.
+A route group becomes experimental when every child command is experimental
+(`isAllExperimental` also treats nested route maps the same way). Promote to GA
+by deleting that one line.
 
 Behavior lives in `src/lib/experimental.ts`. Authors do not import it
 directly — `defineCommand` / `defineRoutes` in `src/lib/stricli-wrappers`
@@ -124,7 +128,8 @@ bun run format
 bun test src/commands/<resource>
 ```
 
-`bun run test` also runs codegen and needs `OBSERVE_GQL_TOKEN` and
+`bun run format` is check-only; `bun run format:fix` writes. `bun run test`
+also runs codegen and needs `OBSERVE_GQL_TOKEN` and
 `OBSERVE_OPENAPI_SPEC`. If those env vars are missing, say so explicitly — do
 not treat a codegen failure as a failure of your command work.
 

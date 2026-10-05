@@ -14,7 +14,7 @@ output. Before changing code, classify the change and complete its touch set.
 | `rename`               | Command, group, or flag renamed.                              | Update the new implementation and complete the rename/delete sweep, preserving a hidden alias until usage dies off; update expectations.                                                                |
 | `delete`               | Command or group removed.                                     | Remove its implementation and complete the rename/delete sweep; update expectations.                                                                                                                    |
 
-## Flags superseded by additive changes
+## Deprecated flag aliases
 
 When a new flag supersedes an existing one, preserve the old flag as optional
 and hidden:
@@ -29,6 +29,9 @@ Follow the deprecated `--label` alias for `--match` in
 
 ## Command and group renames
 
+For a renamed flag, follow [Deprecated flag aliases](#deprecated-flag-aliases)
+above.
+
 Keep the old key in `src/app.ts` pointing to the same route object, then add
 that key to `docs.hideRoute`. Drop the alias once usage dies off. Follow the
 `tag-key` alias precedent in `src/app.ts`.
@@ -41,7 +44,8 @@ old name:
 1. The command file.
 2. The resource `index.ts`.
 3. `src/app.ts` routes and `docs.hideRoute`.
-4. The README Commands table.
+4. The README Commands table (order matches `src/app.ts`; hidden alias keys
+   such as `tag-key` stay out of the table).
 5. The `AGENTS.md` Project Structure tree and REST-Backed List Commands
    table.
 6. Unit tests under `src/commands/<resource>/`.
@@ -64,5 +68,5 @@ before running them.
 
 ## Finish
 
-Run `bunx prettier --write` on this file, then `bunx prettier --check` on this
-file before committing.
+Run `bunx prettier --write` on the files you changed, then `bunx prettier
+--check` before committing.

@@ -1,7 +1,8 @@
 # Eval routes for CLI command lifecycle
 
 Coverage, local Linux Harbor, iteration, and the scoped CI trailer after a
-CLI command add or change. Load `ai-eval-landscape` for suite routing and
+CLI command add or change. Load `ai-eval-landscape` from the observe monorepo
+at `.agents/skills/ai-eval-landscape/SKILL.md` for suite routing and
 interpretation; do not restate its matrix.
 
 ## Coverage
@@ -45,7 +46,7 @@ Authors do not hand-edit
 `code/js/packages/ai/src/eval/scripts/registry.json`.
 
 Until the framework change is installed, a stem may use
-`custom_operations` with `cli: [observe, …]`. `cli: null` requires
+`custom_operations` with `cli: [observe, ...]`. `cli: null` requires
 `cli_null_reason`. Drop `custom_operations` for an id that already exists
 in `registry.json`.
 
@@ -80,7 +81,8 @@ the trial image is arm64.
 Public variable `OBSERVE_CLI_BIN` is the absolute path of that Linux
 binary. Unset or empty keeps the released bake and does not add a mount.
 A non-empty value is mounted read-only over the executable the trial
-runs.
+runs. Until the external-evals injection lands, nothing reads
+`OBSERVE_CLI_BIN`, so a set value is ignored.
 
 Working assumption (confirm-when-external-evals-is-readable): overlay
 path is `/usr/local/bin/observe`. Do not invent other Harbor files
@@ -88,8 +90,7 @@ inside `observeinc/external-evals`.
 
 `doctor` rejects a missing path, a non-executable file, and a binary
 whose architecture does not match the trial image. Surface names stay
-`observe-cli` or `observe-monorepo-src-cli`. Do not select an
-`observe-cli-local` surface.
+`observe-cli` or `observe-monorepo-src-cli`.
 
 If `observeinc/external-evals` is not readable, run on the released bake,
 record the blocker, and do not report the run as validating the new
