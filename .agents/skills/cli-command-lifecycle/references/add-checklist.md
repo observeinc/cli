@@ -50,6 +50,14 @@ Create `src/commands/<resource>/<command>.ts`.
 - Set `docs.brief` to an imperative one-liner.
 - Row/list commands: support `--format json|csv` and the `--json` shorthand.
 - Tabular output: `formatTable()` from `src/lib/formatters/table`.
+- Structured output: wrap the context writer with `muteStatusWriter()` from
+  `src/lib/writer`, with
+  `muted: format === "json" || format === "csv"`. Status `info`/`warn`/`success`
+  still go to stdout and would corrupt a JSON or CSV payload; the docstring in
+  `src/lib/writer.ts` documents this helper for `--format json|csv`. Pattern:
+  `src/commands/dataset/list.ts`.
+- CSV body: `renderAsCSV()` from `src/lib/formatters/csv` (same reference
+  command).
 - Errors: `formatApiError` and set `process.exitCode = 1`.
 
 ## Route registration
