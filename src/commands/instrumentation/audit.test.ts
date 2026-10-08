@@ -352,6 +352,25 @@ describe("instrumentation audit command", () => {
     expect(output).not.toContain("instrumentation/runtime");
   });
 
+  test("table output strips C0, DEL, and C1 control characters from untrusted names", async () => {
+    const root = tempRoot();
+    const { context, stdout } = createMockContext({ cwd: root });
+    await audit.call(context, { format: "table" }, ".", {
+      createSnapshot: () =>
+        snapshot(root, {
+          "package.json": JSON.stringify({
+            name: "evil\u001b[2J\u009b2J\u007fname",
+            scripts: { start: "node index.js" },
+          }),
+          "index.js": "",
+        }),
+    });
+    const output = stdout.join("");
+    expect(output).toContain("evil[2J2Jname");
+    expect(output).not.toContain("\u009b");
+    expect(output).not.toContain("\u007f");
+  });
+
   test("groups multiple apps by runtime and collapses repeated findings", async () => {
     const root = tempRoot();
     const { context, stdout } = createMockContext({ cwd: root });
