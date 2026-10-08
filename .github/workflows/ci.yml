@@ -33,3 +33,15 @@ jobs:
             echo "::error::OBSERVE_OPENAPI_SPEC and OBSERVE_GQL_SPEC are required on non-fork runs; configure those secrets and the job will not pass without them."
             exit 1
           fi
+
+  # Released binaries include Windows, where executable lookup differs.
+  native-resolver-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun test src/lib/instrumentation/graph/native-runner.test.ts

@@ -194,8 +194,11 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     through `--sbom`: on its own it is audited standalone (no filesystem scan;
     the runtime is inferred from the components' purls and the app synthesized
     from the SBOM), and with `--app` it replaces that one detected candidate's
-    graph. `--resolve` explicitly enables locked, offline Cargo, Go, and Maven
-    metadata commands. `resolveNative()` returns a graph or a
+    graph. `--resolve` explicitly enables locked, offline Cargo and Go
+    metadata commands, spawned by absolute path (never from inside the
+    project) with an allowlisted environment. Java build tools are never run:
+    Maven and Gradle load repository-controlled code before resolving, so Java
+    graphs come from `--sbom`. `resolveNative()` returns a graph or a
     `RESOLVE_FAILED`/`RESOLVE_UNSUPPORTED` diagnostic, never a silent null.
     Partial graphs resolve a declared range to the graph's shallowest node of
     the same name rather than assessing the library twice.

@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { writeFileSync } from "node:fs";
 import { resolveNative } from "./native-providers";
 import type { CandidateApplication } from "../types";
 import type { ProjectSnapshot } from "../snapshot";
@@ -39,16 +38,13 @@ const snapshot: ProjectSnapshot = {
 };
 
 describe("native resolver parsing", () => {
-  test.each(["rust", "java", "go"] as const)(
+  test.each(["rust", "go"] as const)(
     "%s reports malformed output instead of a graph",
     (language) => {
       const resolution = resolveNative({
         candidate: { ...candidate, language: { id: language } },
         snapshot,
-        run: ({ args }) => {
-          writeMavenTree(args, "{invalid}");
-          return { stdout: "{invalid}", stderr: "", status: 0 };
-        },
+        run: () => ({ stdout: "{invalid}", stderr: "", status: 0 }),
       });
       expect(resolution?.graph).toBeNull();
       expect(resolution?.diagnostic?.code).toBe("RESOLVE_FAILED");
@@ -86,25 +82,29 @@ describe("native resolver parsing", () => {
     expect(resolution?.diagnostic?.message).toContain("go mod download");
   });
 
-  test("Gradle projects are reported as unsupported, not failed", () => {
-    const resolution = resolveNative({
-      candidate: {
-        ...candidate,
-        language: { id: "java" },
-        evidence: [{ kind: "manifest", path: "build.gradle" }],
-      },
-      snapshot,
-      run: () => {
-        throw new Error("must not run");
-      },
-    });
-    expect(resolution?.diagnostic).toMatchObject({
-      code: "RESOLVE_UNSUPPORTED",
-      severity: "info",
-    });
-  });
+  test.each(["pom.xml", "build.gradle"])(
+    "Java (%s) runs no build tool and points to --sbom",
+    (manifest) => {
+      const resolution = resolveNative({
+        candidate: {
+          ...candidate,
+          language: { id: "java" },
+          evidence: [{ kind: "manifest", path: manifest }],
+        },
+        snapshot,
+        run: () => {
+          throw new Error("must not run");
+        },
+      });
+      expect(resolution?.diagnostic).toMatchObject({
+        code: "RESOLVE_UNSUPPORTED",
+        severity: "info",
+      });
+      expect(resolution?.diagnostic?.message).toContain("--sbom");
+    },
+  );
 
-  test("resolvers exist only for Rust, Go, and Maven", () => {
+  test("resolvers exist only for Rust and Go", () => {
     expect(
       resolveNative({
         candidate: { ...candidate, language: { id: "python" } },
@@ -162,66 +162,15 @@ describe("native resolver parsing", () => {
     expect(result?.graph?.roots).toHaveLength(1);
   });
 
-  test("Maven preserves dependency scopes", () => {
-    const result = resolveNative({
-      candidate: { ...candidate, language: { id: "java" } },
+  test("resolvers are told the project root", () => {
+    expect.assertions(1);
+    resolveNative({
+      candidate,
       snapshot,
-      run: ({ args }) => {
-        expect(args).toContain("-DappendOutput=true");
-        expect(args.some((arg) => arg.includes("/dev/stdout"))).toBe(false);
-        writeMavenTree(
-          args,
-          JSON.stringify({
-            groupId: "org",
-            artifactId: "app",
-            version: "1.0.0",
-            children: [
-              {
-                groupId: "org",
-                artifactId: "tests",
-                version: "1.0.0",
-                scope: "test",
-              },
-            ],
-          }),
-        );
-        return { stdout: "[INFO] noise {not json}", stderr: "", status: 0 };
+      run: ({ root }) => {
+        expect(root).toBe("/repo");
+        return { stdout: "", stderr: "", status: 1 };
       },
     });
-    expect(result?.graph?.edges[0]?.kind).toBe("test");
-  });
-
-  test("Maven picks the candidate's module from a multi-module tree file", () => {
-    const tree = (artifactId: string, child: string) =>
-      JSON.stringify({
-        groupId: "org",
-        artifactId,
-        version: "1.0.0",
-        children: [{ groupId: "org", artifactId: child, version: "2.0.0" }],
-      });
-    const result = resolveNative({
-      candidate: { ...candidate, name: "api", language: { id: "java" } },
-      snapshot,
-      run: ({ args }) => {
-        writeMavenTree(
-          args,
-          `${tree("parent", "a")}\n${tree("api", "okhttp")}\n${tree("web", "b")}`,
-        );
-        return { stdout: "", stderr: "", status: 0 };
-      },
-    });
-    expect(
-      [...(result?.graph?.nodes.values() ?? [])]
-        .map((node) => node.name)
-        .sort(),
-    ).toEqual(["api", "okhttp"]);
   });
 });
-
-/** Write what `mvn dependency:tree` would, to the file named in its args. */
-function writeMavenTree(args: string[], content: string) {
-  const file = args
-    .find((arg) => arg.startsWith("-DoutputFile="))
-    ?.slice("-DoutputFile=".length);
-  if (file != null) writeFileSync(file, content);
-}

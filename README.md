@@ -128,11 +128,16 @@ Inventory-only SBOMs do not establish which dependencies are direct runtime
 dependencies.
 
 The unused `--offline` flag has been removed: the built-in check is always
-offline. `--resolve` explicitly invokes installed native package managers in
-their offline modes (Cargo, Go, and Maven via a pinned
-`maven-dependency-plugin` 3.8.1); this is not an OS network sandbox. When a
-resolver cannot run or fails, the application carries a `RESOLVE_FAILED`
-diagnostic with the reason. Without a dependency graph (a `package-lock.json`,
+offline. `--resolve` explicitly runs `cargo metadata` and `go list` in their
+locked offline modes; this is not an OS network sandbox. Resolvers receive only
+an allowlisted set of environment variables (`PATH`, home and temp
+directories, and Go/Cargo cache locations), never secrets from the calling
+shell or CI job, and run only from an absolute `PATH` location outside the
+project. Use `--resolve` only on repositories you trust. Java build tools are
+never run, because Maven and Gradle execute repository-controlled code before
+resolving dependencies; pass `--sbom` with a CycloneDX file from your build
+instead. When a resolver cannot run or fails, the application carries a
+`RESOLVE_FAILED` diagnostic with the reason. Without a dependency graph (a `package-lock.json`,
 `pnpm-lock.yaml`, `uv.lock`, `--sbom`, or `--resolve`), only declared
 dependencies are assessed and the application gets an OTEL031 info finding.
 

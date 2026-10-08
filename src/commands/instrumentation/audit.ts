@@ -373,7 +373,8 @@ export const auditCommand = defineCommand({
       },
       resolve: {
         kind: "boolean",
-        brief: "Use installed native package managers in locked offline mode",
+        brief:
+          "Resolve Cargo and Go graphs with the installed toolchain in locked offline mode",
         optional: true,
       },
       exclude: {

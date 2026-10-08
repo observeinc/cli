@@ -1,6 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { z } from "zod";
 import type { CandidateApplication, Diagnostic } from "../types";
 import type { ProjectSnapshot } from "../snapshot";
@@ -20,10 +18,6 @@ import { runNativeResolver, type NativeRunResult } from "./native-runner";
 export type NativeResolution =
   | { graph: DependencyGraph; diagnostic?: undefined }
   | { graph: null; diagnostic: Diagnostic };
-
-/** Pinned so `-DoutputType=json` (added in 3.7.0) is always available. */
-export const MAVEN_DEPENDENCY_PLUGIN =
-  "org.apache.maven.plugins:maven-dependency-plugin:3.8.1";
 
 function failure(
   tool: string,
@@ -107,24 +101,6 @@ const goPackage = z.object({
     .optional(),
 });
 
-interface MavenNode {
-  groupId: string;
-  artifactId: string;
-  version: string;
-  scope?: string;
-  children: MavenNode[];
-}
-
-const mavenNode: z.ZodType<MavenNode> = z.lazy(() =>
-  z.object({
-    groupId: z.string(),
-    artifactId: z.string(),
-    version: z.string(),
-    scope: z.string().optional(),
-    children: z.array(mavenNode).default([]),
-  }),
-);
-
 export function resolveNative({
   candidate,
   snapshot,
@@ -140,7 +116,13 @@ export function resolveNative({
     case "go":
       return goGraph(candidate, snapshot, run);
     case "java":
-      return mavenGraph(candidate, snapshot, run);
+      // Maven and Gradle load repository-controlled code (.mvn/extensions.xml,
+      // .mvn/jvm.config, POM plugins, build scripts) before resolving anything.
+      return failure(
+        "resolution",
+        "does not run Java build tools; pass --sbom with a CycloneDX file from your build (cyclonedx-maven-plugin or the CycloneDX Gradle plugin) for the full graph",
+        "info",
+      );
     default:
       return null;
   }
@@ -156,6 +138,7 @@ function cargoGraph(
     executable: "cargo",
     args: ["metadata", "--locked", "--offline", "--format-version", "1"],
     cwd,
+    root: snapshot.root,
   });
   if (result.status !== 0)
     return runFailure(
@@ -236,6 +219,7 @@ function goGraph(
     executable: "go",
     args: ["list", "-mod=readonly", "-deps", "-json", "."],
     cwd,
+    root: snapshot.root,
   });
   if (result.status !== 0)
     return runFailure(
@@ -282,104 +266,6 @@ function goGraph(
   return resolved(
     root ? graph("go-list", "go.mod", root, nodes, edges, "go") : null,
     "go list",
-  );
-}
-
-function mavenGraph(
-  candidate: CandidateApplication,
-  snapshot: ProjectSnapshot,
-  run: typeof runNativeResolver,
-) {
-  const manifest = candidate.evidence.find((item) =>
-    item.path.endsWith("pom.xml"),
-  );
-  if (manifest == null)
-    return failure(
-      "resolution",
-      "supports Maven projects only, not Gradle",
-      "info",
-    );
-  const cwd = dirname(join(snapshot.root, manifest.path));
-  // The tree goes to a file outside the project: stdout mixes in Maven's log,
-  // and /dev/stdout does not exist on Windows. Appending keeps one tree per
-  // reactor module instead of letting each module overwrite the last.
-  const outputDirectory = mkdtempSync(join(tmpdir(), "observe-mvn-tree-"));
-  const outputFile = join(outputDirectory, "tree.json");
-  let output: string;
-  try {
-    const result = run({
-      executable: "mvn",
-      args: [
-        "--offline",
-        "--batch-mode",
-        "--quiet",
-        `${MAVEN_DEPENDENCY_PLUGIN}:tree`,
-        "-DoutputType=json",
-        `-DoutputFile=${outputFile}`,
-        "-DappendOutput=true",
-      ],
-      cwd,
-    });
-    if (result.status !== 0)
-      return runFailure(
-        "mvn dependency:tree",
-        result,
-        `Offline resolution needs every dependency and ${MAVEN_DEPENDENCY_PLUGIN} in the local repository (run the same command once without --offline)`,
-      );
-    try {
-      output = readFileSync(outputFile, "utf8");
-    } catch {
-      return failure("mvn dependency:tree", "wrote no dependency tree");
-    }
-  } finally {
-    rmSync(outputDirectory, { recursive: true, force: true });
-  }
-  const trees = (parseJsonStream(output) ?? []).flatMap((tree) => {
-    const parsed = mavenNode.safeParse(tree);
-    return parsed.success ? [parsed.data] : [];
-  });
-  const selected =
-    trees.find((tree) => tree.artifactId === candidate.name) ?? trees[0];
-  if (selected == null) return resolved(null, "mvn dependency:tree");
-  const rootNode = selected;
-  const nodes = new Map<string, PackageNode>();
-  const edges: DependencyEdge[] = [];
-  const visit = (raw: MavenNode, parent?: string) => {
-    const name = `${raw.groupId}:${raw.artifactId}`;
-    const version = raw.version;
-    const id = packageId({
-      ecosystem: "maven",
-      name,
-      version,
-      source: { kind: parent ? "registry" : "workspace" },
-    });
-    nodes.set(id, {
-      id,
-      name: raw.artifactId,
-      version,
-      purl: `pkg:maven/${raw.groupId}/${raw.artifactId}@${version}`,
-      source: { kind: parent ? "registry" : "workspace" },
-      workspace: !parent,
-    });
-    if (parent)
-      edges.push({
-        from: parent,
-        to: id,
-        kind:
-          raw.scope === "test"
-            ? "test"
-            : raw.scope === "provided"
-              ? "build"
-              : "runtime",
-        optional: false,
-      });
-    for (const child of raw.children) visit(child, id);
-    return id;
-  };
-  const root = visit(rootNode);
-  return resolved(
-    graph("maven-dependency-tree", manifest.path, root, nodes, edges, "mvn"),
-    "mvn dependency:tree",
   );
 }
 
