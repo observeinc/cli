@@ -362,7 +362,7 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
         candidate,
         message:
           "Only declared dependencies were assessed; libraries pulled in transitively were not checked",
-        fix: "Commit a package-lock.json, pnpm-lock.yaml, or uv.lock, pass --sbom with a CycloneDX file, or use --resolve for Maven",
+        fix: "Commit a package-lock.json, pnpm-lock.yaml, or uv.lock, or pass --sbom with a CycloneDX file",
       }),
     );
 
