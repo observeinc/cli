@@ -22,7 +22,8 @@ function safeTerminalText(value: string) {
   for (let index = 0; index < value.length; index++) {
     const code = value.charCodeAt(index);
     const character = value[index];
-    if ((code === 9 || code >= 32) && character != null) safe += character;
+    const control = code < 32 || (code >= 127 && code <= 159);
+    if ((code === 9 || !control) && character != null) safe += character;
   }
   return safe;
 }
