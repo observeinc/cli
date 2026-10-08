@@ -29,7 +29,7 @@ function alertStub(id: string): AlertResource {
     id,
     level: AlertLevelEnum.Critical,
     status: AlertStatus.Active,
-    monitor: { id: "mon-1", record: { label: "High CPU" } },
+    monitor: { id: "mon-1", record: { name: "High CPU" } },
     start: "2026-07-01T00:00:00Z",
     end: null,
     muted: false,
