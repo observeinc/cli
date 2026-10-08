@@ -10,9 +10,11 @@ import {
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
 import {
+  MonitorV2ActionType,
   MonitorV2Health,
   MonitorV2RuleKind,
   type MonitorV2,
+  type MonitorV2ActionRule,
 } from "../../rest/generated";
 
 const loadConfigFn = mock(
@@ -132,8 +134,14 @@ describe("monitor view — output", () => {
   });
 
   test("JSON output includes actionRules, health, and effectiveScheduling when the API payload has them", async () => {
-    const actionRules = [
-      { actionId: "41075519", definition: { inline: true, type: "Slack" } },
+    const actionRules: MonitorV2ActionRule[] = [
+      {
+        actionId: "41075519",
+        definition: {
+          inline: true,
+          type: MonitorV2ActionType.Slack,
+        },
+      },
     ];
     const effectiveScheduling = {
       transform: { freshnessGoal: "60000000000" },

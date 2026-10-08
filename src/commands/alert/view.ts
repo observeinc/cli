@@ -56,7 +56,7 @@ function buildViewData(alert: AlertResource) {
     monitorVersion: alert.monitorVersion,
     monitor: {
       id: alert.monitor.id,
-      name: alert.monitor.record?.label ?? "-",
+      name: alert.monitor.record?.name ?? "-",
       description: alert.monitor.record?.description ?? "-",
     },
     context: alert.context.map((c) => ({

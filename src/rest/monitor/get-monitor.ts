@@ -28,7 +28,7 @@ export function preserveMonitorGetFields(
   const out: MonitorV2 = { ...parsed };
   for (const key of MONITOR_GET_PRESERVE_KEYS) {
     if (Object.hasOwn(rawBody, key) && rawBody[key] !== undefined) {
-      (out as Record<string, unknown>)[key] = rawBody[key];
+      (out as unknown as Record<string, unknown>)[key] = rawBody[key];
     }
   }
   return out;
@@ -49,10 +49,12 @@ export async function getMonitor({
 }): Promise<MonitorV2 | null> {
   const client = sdk ?? new ObserveRestSDK(config);
   try {
-    const response = await client.monitorApi.getMonitorRaw({ id });
+    // The unversioned endpoint returns MonitorV2 even though the public
+    // OpenAPI operation is typed as the newer MonitorResource shape.
+    const response = await client.monitorApi.getMonitorRaw({ id: String(id) });
     // Clone first: JSONApiResponse.value() calls raw.json() and consumes the body.
     const rawBody: unknown = await response.raw.clone().json();
-    const parsed = await response.value();
+    const parsed = (await response.value()) as unknown as MonitorV2;
     if (
       rawBody !== null &&
       typeof rawBody === "object" &&

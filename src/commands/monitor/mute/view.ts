@@ -30,7 +30,7 @@ function buildViewData(mute: MonitorMuteResource) {
         mute.target.kind === MonitorMuteTargetKind.Monitors
           ? mute.target.monitors.map((m) => ({
               id: m.id,
-              name: m.record?.label ?? "-",
+              name: m.record?.name ?? "-",
             }))
           : [],
     },

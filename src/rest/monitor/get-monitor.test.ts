@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Config } from "../../lib/config";
 import {
+  MonitorV2ActionType,
   MonitorV2Health,
   MonitorV2RuleKind,
+  type MonitorV2ActionRule,
   type MonitorV2,
+  type MonitorV2Scheduling,
 } from "../generated";
 import { type ApiResponse, ResponseError } from "../generated/runtime";
 import {
@@ -82,7 +85,7 @@ const getMonitorRawFn = mock((params: Record<string, unknown>) => {
 const stubSdk: GetMonitorSdk = {
   monitorApi: {
     getMonitorRaw:
-      getMonitorRawFn as GetMonitorSdk["monitorApi"]["getMonitorRaw"],
+      getMonitorRawFn as unknown as GetMonitorSdk["monitorApi"]["getMonitorRaw"],
   },
 };
 
@@ -133,10 +136,15 @@ beforeEach(() => {
 
 describe("getMonitor — field preservation", () => {
   test("restores actionRules, health, and effectiveScheduling dropped by FromJSON", async () => {
-    const actionRules = [
-      { actionId: "41075519", definition: { type: "Slack" } },
+    const actionRules: MonitorV2ActionRule[] = [
+      {
+        actionId: "41075519",
+        definition: { type: MonitorV2ActionType.Slack },
+      },
     ];
-    const effectiveScheduling = { scheduled: { cronConfig: "0 * * * *" } };
+    const effectiveScheduling: MonitorV2Scheduling = {
+      scheduled: { cronConfig: "0 * * * *", timezone: "UTC" },
+    };
     const payload = {
       id: "41072994",
       name: "clone-config-parity",
@@ -156,7 +164,7 @@ describe("getMonitor — field preservation", () => {
       sdk: stubSdk,
     });
 
-    expect(calls).toEqual([{ id: 41072994 }]);
+    expect(calls).toEqual([{ id: "41072994" }]);
     expect(result).not.toBeNull();
     expect(result!.actionRules).toEqual(actionRules);
     expect(result!.health).toBe(MonitorV2Health.Running);
