@@ -124,11 +124,18 @@ Profile selection priority: `OBSERVE_PROFILE` env var → `currentProfile` in th
 
 ### Telemetry
 
-Released builds send one usage span per command to Observe: the command name,
-arguments with values redacted, exit code, CLI version, OS and CPU
-architecture, an anonymous install ID, and your customer ID and domain when
-you are logged in. To turn it off, set `OBSERVE_DISABLE_TELEMETRY` to any
-non-empty value:
+Released builds send one usage span per command to Observe. It contains:
+
+- The command name and its command-line arguments. Values of secret flags such
+  as `--token` and `--password` are redacted; other argument values, such as
+  query text and IDs, are sent as-is.
+- The exit code, and the error message if the command fails.
+- The CLI version, OS, OS version, and CPU architecture.
+- The calling AI agent and its session ID, if one is detected.
+- An anonymous install ID, plus your customer ID and domain when you are
+  logged in.
+
+To turn it off, set `OBSERVE_DISABLE_TELEMETRY` to any non-empty value:
 
 ```bash
 export OBSERVE_DISABLE_TELEMETRY=1
