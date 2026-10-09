@@ -122,6 +122,18 @@ OBSERVE_PROFILE=staging observe auth status
 
 Profile selection priority: `OBSERVE_PROFILE` env var → `currentProfile` in the config file → `"default"`.
 
+### Telemetry
+
+Released builds send one usage span per command to Observe: the command name,
+arguments with values redacted, exit code, CLI version, OS and CPU
+architecture, an anonymous install ID, and your customer ID and domain when
+you are logged in. To turn it off, set `OBSERVE_DISABLE_TELEMETRY` to any
+non-empty value:
+
+```bash
+export OBSERVE_DISABLE_TELEMETRY=1
+```
+
 ## Agent Skills
 
 Agent skills are instruction documents that teach a coding agent how to drive the CLI, write OPAL,
