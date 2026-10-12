@@ -1,0 +1,62 @@
+# Advisory: list the CLI commands a PR adds, changes or removes, so eval
+# coverage can be checked. Never blocks the PR.
+name: Surface detect
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Test the detector
+        run: bun test scripts/surface-detect.test.ts
+
+      - name: Detect
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          bun run scripts/surface-detect.ts --base "$BASE_SHA" --head HEAD \
+            --json surface-report.json --markdown > surface-comment.md
+          cat surface-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: surface-report
+          path: surface-report.json
+
+      # Fork PRs get a read-only token, so they keep the summary and artifact only.
+      - name: Comment
+        if: github.event.pull_request.head.repo.fork == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          marker='<!-- observe-cli-surface-detect -->'
+          existing=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
+          if [ ! -s surface-comment.md ]; then
+            # Nothing found now: retire an earlier comment instead of leaving it stale.
+            [ -n "$existing" ] && gh api -X PATCH "repos/$REPO/issues/comments/$existing" \
+              -f body="$marker"$'\n'"No CLI command surfaces touched in the latest push."
+            exit 0
+          fi
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -F body=@surface-comment.md
+          else
+            gh api "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@surface-comment.md
+          fi
