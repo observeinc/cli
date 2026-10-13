@@ -317,6 +317,20 @@ describe("detect: contract reach", () => {
     expect(got.inc).toBeUndefined();
   });
 
+  test("an unwired new group adds no command rows", () => {
+    const base = commit();
+    write(
+      "src/commands/inc/list.ts",
+      SERVICES.replace("servicesCommand", "listCommand"),
+    );
+    write(
+      "src/commands/inc/index.ts",
+      'import { buildRouteMap } from "@stricli/core";\nimport { listCommand } from "./list";\n\nexport const incRoutes = buildRouteMap({\n  routes: {\n    list: listCommand,\n  },\n  docs: { brief: "Incidents" },\n});\n',
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(Object.keys(got).filter((k) => k.startsWith("inc"))).toEqual([]);
+  });
+
   test("a routes-only edit is explained by the added child", () => {
     const base = commit();
     write(
