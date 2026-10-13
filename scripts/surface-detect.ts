@@ -282,9 +282,22 @@ function commandHelpers(
 }
 
 export function detect(base: string, head: string, cwd?: string): Surface[] {
+  // Git rename detection: identical moves (R100) are not changes; every
+  // renamed file's old path is accounted for by its new one.
+  const renamedFrom = new Set<string>();
+  const pureMoves = new Set<string>();
+  for (const line of git(
+    ["diff", "--name-status", "-M", base, head],
+    cwd,
+  ).split("\n")) {
+    const [status = "", from = "", to = ""] = line.split("\t");
+    if (!status.startsWith("R")) continue;
+    renamedFrom.add(from);
+    if (status === "R100") pureMoves.add(to);
+  }
   const changed = git(["diff", "--name-only", "--no-renames", base, head], cwd)
     .split("\n")
-    .filter((f) => f && !isTest(f));
+    .filter((f) => f && !isTest(f) && !pureMoves.has(f) && !renamedFrom.has(f));
   const changedSet = new Set(changed);
   const before = commandTree(base, cwd);
   const after = commandTree(head, cwd);

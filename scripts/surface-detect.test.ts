@@ -350,6 +350,35 @@ describe("detect: contract reach", () => {
     ]);
   });
 
+  test("moving a group with its helper reports nothing", () => {
+    write(
+      "src/commands/apm/utils.ts",
+      "export const parseLimit = (n: number) => n;\n",
+    );
+    write(
+      "src/commands/apm/services.ts",
+      `import { parseLimit } from "./utils";\n${SERVICES}`,
+    );
+    const base = commit();
+    mkdirSync(path.join(dir, "src/commands/obs-apm"), { recursive: true });
+    for (const f of ["index.ts", "services.ts", "utils.ts"]) {
+      git("mv", `src/commands/apm/${f}`, `src/commands/obs-apm/${f}`);
+    }
+    write(
+      "src/app.ts",
+      APP.replace('"./commands/apm/index.js"', '"./commands/obs-apm/index.js"'),
+    );
+    expect(detect(base, commit(), dir)).toEqual([
+      {
+        kind: "cli",
+        name: "(root)",
+        change: "modified",
+        tags: ["impl"],
+        files: ["src/app.ts"],
+      },
+    ]);
+  });
+
   test("a routes-only edit is explained by the added child", () => {
     const base = commit();
     write(
