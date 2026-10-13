@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { GqlApiError } from "../gql/gql-request";
 import { ResponseError } from "../rest/generated/runtime";
-import { formatApiError } from "./format-error";
+import { FEATURE_NOT_ENABLED_MESSAGE, formatApiError } from "./format-error";
 
 function jsonResponse(
   status: number,
@@ -135,6 +135,28 @@ describe("formatApiError", () => {
         new Response("nope", { status: 418, statusText: "" }),
       );
       expect(await formatApiError(err)).toBe("HTTP 418: nope");
+    });
+
+    test("replaces a 403 feature_not_enabled with a friendly message", async () => {
+      const err = new ResponseError(
+        jsonResponse(403, "Forbidden", {
+          type: "feature_not_enabled",
+          message: "the source datasets API is not enabled for customer 123",
+        }),
+      );
+      expect(await formatApiError(err)).toBe(FEATURE_NOT_ENABLED_MESSAGE);
+    });
+
+    test("keeps the server message for other 403 types", async () => {
+      const err = new ResponseError(
+        jsonResponse(403, "Forbidden", {
+          type: "failed_authorization",
+          message: "permission denied",
+        }),
+      );
+      expect(await formatApiError(err)).toBe(
+        "HTTP 403 Forbidden: permission denied",
+      );
     });
 
     test("does not consume the original response body (uses .clone())", async () => {

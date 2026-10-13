@@ -13,6 +13,9 @@ import { ResponseError } from "../rest/generated/runtime";
 export async function formatApiError(error: unknown): Promise<string> {
   if (error instanceof ResponseError) {
     const { status, statusText } = error.response;
+    if (status === 403 && (await isFeatureNotEnabled(error.response))) {
+      return FEATURE_NOT_ENABLED_MESSAGE;
+    }
     const detail = await readResponseErrorBody(error.response);
     const statusLine = `HTTP ${status}${statusText ? ` ${statusText}` : ""}`;
     return detail ? `${statusLine}: ${detail}` : statusLine;
@@ -27,6 +30,25 @@ export async function formatApiError(error: unknown): Promise<string> {
   }
 
   return String(error);
+}
+
+export const FEATURE_NOT_ENABLED_MESSAGE =
+  "This feature isn't enabled for your account yet. Contact Observe support to request access.";
+
+// Pre-GA APIs answer `403 feature_not_enabled` while their backend flag is off
+// for the customer; any other 403 type (e.g. failed_authorization) is a real
+// permission error and keeps the server message.
+async function isFeatureNotEnabled(response: Response): Promise<boolean> {
+  try {
+    const parsed: unknown = JSON.parse(await response.clone().text());
+    return (
+      parsed != null &&
+      typeof parsed === "object" &&
+      (parsed as Record<string, unknown>).type === "feature_not_enabled"
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function readResponseErrorBody(response: Response): Promise<string> {
