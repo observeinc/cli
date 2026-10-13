@@ -173,6 +173,65 @@ describe("detect", () => {
     const got = detect(base, commit(), dir);
     expect(got).toHaveLength(1);
     expect(got[0]?.tags).toEqual(["indirect"]);
+    expect(got[0]?.name).toBe("(shared src/lib)");
+  });
+});
+
+describe("detect: helpers and route maps", () => {
+  test("a changed helper marks the commands that import it", () => {
+    write(
+      "src/commands/apm/utils.ts",
+      "export const parseLimit = (n: number) => n;\n",
+    );
+    write(
+      "src/commands/apm/services.ts",
+      `import { parseLimit } from "./utils";\n${SERVICES}`,
+    );
+    const base = commit();
+    write(
+      "src/commands/apm/utils.ts",
+      "export const parseLimit = (n: number) => n + 1;\n",
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(got["apm services"]?.tags).toEqual(["impl"]);
+    expect(got["apm services"]?.files).toEqual(["src/commands/apm/utils.ts"]);
+    expect(Object.keys(got).some((k) => k.startsWith("(shared"))).toBe(false);
+  });
+
+  test("an index.ts import-only edit is impl", () => {
+    const base = commit();
+    write(
+      "src/commands/apm/index.ts",
+      APM.replace('from "./services"', 'from "./services.js"'),
+    );
+    expect(byName(detect(base, commit(), dir)).apm?.tags).toEqual(["impl"]);
+  });
+
+  test("group docs edit stays when a child is only impl", () => {
+    const base = commit();
+    write(
+      "src/commands/apm/index.ts",
+      APM.replace('brief: "APM"', 'brief: "APM tools"'),
+    );
+    write(
+      "src/commands/apm/services.ts",
+      SERVICES.replace("limit + 1", "limit + 2"),
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(got["apm services"]?.tags).toEqual(["impl"]);
+    expect(got.apm?.tags).toEqual(["contract"]);
+  });
+
+  test("root app.ts and other src files are reported", () => {
+    const base = commit();
+    write(
+      "src/app.ts",
+      APP.replace('brief: "Observe CLI"', 'brief: "observe"'),
+    );
+    write("src/context.ts", "export const c = 1;\n");
+    const got = byName(detect(base, commit(), dir));
+    expect(got["(root)"]?.tags).toEqual(["contract"]);
+    expect(got["(shared src)"]?.tags).toEqual(["indirect"]);
   });
 });
 

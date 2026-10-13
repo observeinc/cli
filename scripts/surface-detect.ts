@@ -7,8 +7,9 @@
  * fails on it.
  *
  * Tags: `contract` when a command's flags, positional args or docs changed,
- * or the command was added or removed; `impl` otherwise; `indirect` for
- * shared code (src/lib, src/rest) that every command may use.
+ * or the command was added or removed; `impl` when only its code or a helper
+ * it imports under src/commands changed; `indirect` for any other changed
+ * src file (src/lib, src/rest, src/gql, src/context.ts, ...).
  *
  * Usage:
  *   bun run scripts/surface-detect.ts [--base REV] [--head REV] [--json FILE] [--markdown]
@@ -28,7 +29,10 @@ export interface Surface {
 const ROOT_FILE = "src/app.ts";
 // Route maps are built with the repo wrapper or Stricli directly.
 const ROUTES_CALL = "(?:defineRoutes|buildRouteMap)";
-const SHARED_PREFIXES = ["src/lib/", "src/rest/", "src/gql/"];
+const COMMANDS_DIR = "src/commands/";
+// Agent-visible blocks in a defineCommand / route map.
+const COMMAND_CONTRACT_KEYS = ["parameters", "docs", "experimental"];
+const ROUTES_CONTRACT_KEYS = ["routes", "docs", "hideRoute", "defaultCommand"];
 
 function git(args: string[], cwd?: string): string {
   return execFileSync("git", args, {
@@ -149,11 +153,16 @@ export function commandTree(rev: string, cwd?: string): Map<string, string> {
   return tree;
 }
 
-/** Line ranges (1-based) of `parameters:` and `docs:` blocks in a defineCommand. */
-export function contractRanges(source: string): [number, number][] {
+/** Line ranges (1-based) of the `keys:` blocks (default: a defineCommand's contract). */
+export function contractRanges(
+  source: string,
+  keys: string[] = COMMAND_CONTRACT_KEYS,
+): [number, number][] {
   const out: [number, number][] = [];
   const lineOf = (i: number) => source.slice(0, i).split("\n").length;
-  for (const m of source.matchAll(/\b(parameters|docs|experimental)\s*:\s*/g)) {
+  for (const m of source.matchAll(
+    new RegExp(`\\b(${keys.join("|")})\\s*:\\s*`, "g"),
+  )) {
     const at = m.index + m[0].length;
     const end =
       source[at] === "{" ? matchBrace(source, at) : source.indexOf("\n", at);
@@ -188,13 +197,14 @@ function touchesContract(
   head: string,
   file: string,
   cwd?: string,
+  keys: string[] = COMMAND_CONTRACT_KEYS,
 ): boolean {
   const [old, neu] = changedLines(base, head, file, cwd);
   for (const [rev, lines] of [
     [base, old],
     [head, neu],
   ] as const) {
-    const ranges = contractRanges(show(rev, file, cwd) ?? "");
+    const ranges = contractRanges(show(rev, file, cwd) ?? "", keys);
     for (const n of lines)
       if (ranges.some(([a, b]) => n >= a && n <= b)) return true;
   }
@@ -203,70 +213,104 @@ function touchesContract(
 
 const isTest = (f: string) => /\.test\.ts$|test-helpers\.ts$/.test(f);
 
+/** Helper files under src/commands that `file` imports, transitively. */
+function commandHelpers(
+  rev: string,
+  file: string,
+  exists: (p: string) => boolean,
+  cwd?: string,
+): Set<string> {
+  const seen = new Set<string>();
+  const todo = [file];
+  while (todo.length) {
+    const f = todo.pop() ?? "";
+    for (const dep of new Set(
+      importMap(show(rev, f, cwd) ?? "", f, exists).values(),
+    )) {
+      if (dep.startsWith(COMMANDS_DIR) && dep !== file && !seen.has(dep)) {
+        seen.add(dep);
+        todo.push(dep);
+      }
+    }
+  }
+  return seen;
+}
+
 export function detect(base: string, head: string, cwd?: string): Surface[] {
   const changed = git(["diff", "--name-only", "--no-renames", base, head], cwd)
     .split("\n")
     .filter((f) => f && !isTest(f));
+  const changedSet = new Set(changed);
   const before = commandTree(base, cwd);
   const after = commandTree(head, cwd);
+  const headFiles = new Set(
+    git(["ls-tree", "-r", "--name-only", head, "--", "src"], cwd).split("\n"),
+  );
+  const exists = (p: string) => headFiles.has(p);
+  const baseFiles = new Set(
+    git(["ls-tree", "-r", "--name-only", base, "--", "src"], cwd).split("\n"),
+  );
+  const baseExists = (p: string) => baseFiles.has(p);
+  const commandFiles = new Set([...before.values(), ...after.values()]);
+  const attributed = new Set<string>();
   const out: Surface[] = [];
+  const row = (
+    name: string,
+    change: Surface["change"],
+    tag: string,
+    files: string[],
+  ) => {
+    files.forEach((f) => attributed.add(f));
+    out.push({ kind: "cli", name, change, tags: [tag], files });
+  };
   for (const name of [...new Set([...before.keys(), ...after.keys()])].sort()) {
     const file = after.get(name) ?? before.get(name) ?? "";
-    if (!before.has(name))
-      out.push({
-        kind: "cli",
-        name,
-        change: "added",
-        tags: ["contract"],
-        files: [file],
-      });
+    const rev = after.has(name) ? head : base;
+    const revExists = after.has(name) ? exists : baseExists;
+    const helpers = [...commandHelpers(rev, file, revExists, cwd)].filter(
+      (h) => changedSet.has(h) && !commandFiles.has(h),
+    );
+    if (!before.has(name)) row(name, "added", "contract", [file, ...helpers]);
     else if (!after.has(name))
-      out.push({
-        kind: "cli",
-        name,
-        change: "removed",
-        tags: ["contract"],
-        files: [file],
-      });
-    else if (changed.includes(file)) {
+      row(name, "removed", "contract", [file, ...helpers]);
+    else if (changedSet.has(file)) {
       const tag = touchesContract(base, head, file, cwd) ? "contract" : "impl";
-      out.push({
-        kind: "cli",
-        name,
-        change: "modified",
-        tags: [tag],
-        files: [file],
-      });
+      row(name, "modified", tag, [file, ...helpers]);
+    } else if (helpers.length) {
+      row(name, "modified", "impl", helpers);
     }
   }
-  // Route-group docs (brief / fullDescription) in an index.ts.
-  for (const f of changed.filter(
-    (f) => f.startsWith("src/commands/") && f.endsWith("/index.ts"),
-  )) {
-    const group = f
-      .slice("src/commands/".length, -"/index.ts".length)
-      .replaceAll("/", " ");
-    if (!out.some((s) => s.name === group || s.name.startsWith(`${group} `))) {
-      out.push({
-        kind: "cli",
-        name: group,
-        change: "modified",
-        tags: ["contract"],
-        files: [f],
-      });
-    }
+  // Route maps: group index.ts files and the root app.ts.
+  const routeFiles = changed.filter(
+    (f) =>
+      f === ROOT_FILE ||
+      (f.startsWith(COMMANDS_DIR) && f.endsWith("/index.ts")),
+  );
+  for (const f of routeFiles) {
+    const group =
+      f === ROOT_FILE
+        ? "(root)"
+        : f
+            .slice(COMMANDS_DIR.length, -"/index.ts".length)
+            .replaceAll("/", " ");
+    const tag = touchesContract(base, head, f, cwd, ROUTES_CONTRACT_KEYS)
+      ? "contract"
+      : "impl";
+    const covered = out.some(
+      (s) =>
+        s.name === group ||
+        (s.name.startsWith(`${group} `) && s.tags.includes("contract")),
+    );
+    if (covered) attributed.add(f);
+    else row(group, "modified", tag, [f]);
   }
-  const shared = changed.filter((f) =>
-    SHARED_PREFIXES.some((p) => f.startsWith(p)),
+  // Anything else under src/ (lib, rest, gql, context.ts, bin.ts, ...).
+  const shared = changed.filter(
+    (f) => f.startsWith("src/") && !attributed.has(f) && !commandFiles.has(f),
   );
   if (shared.length) {
-    out.push({
-      kind: "cli",
-      name: "(shared src/lib, src/rest)",
-      change: "modified",
-      tags: ["indirect"],
-      files: shared,
-    });
+    const dirs = [...new Set(shared.map((f) => path.posix.dirname(f)))].sort();
+    row(`(shared ${dirs.join(", ")})`, "modified", "indirect", shared);
   }
   return out;
 }

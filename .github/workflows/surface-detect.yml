@@ -10,6 +10,11 @@ permissions:
   contents: read
   pull-requests: write
 
+# A newer push supersedes an older run, so the sticky comment never goes stale.
+concurrency:
+  group: surface-detect-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   detect:
     runs-on: ubuntu-latest
@@ -59,4 +64,23 @@ jobs:
             gh api -X PATCH "repos/$REPO/issues/comments/$existing" -F body=@surface-comment.md
           else
             gh api "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@surface-comment.md
+          fi
+
+      # The test or detect step failed: say so instead of leaving an old result up.
+      - name: Mark comment stale
+        if: failure() && github.event.pull_request.head.repo.fork == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          marker='<!-- observe-cli-surface-detect -->'
+          body="$marker"$'\n'"Surface detection failed for the latest push, so the earlier result may be stale. See $RUN_URL."
+          existing=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body"
+          else
+            gh api "repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body"
           fi
