@@ -26,6 +26,9 @@ const REFERENCE_LINKS: Record<string, string> = {
   "references/docs-delta.md": "notion",
 };
 
+const DOCS_DELTA_NOTION_URL =
+  "https://app.notion.com/p/observeinc/Running-MCP-CLI-evals-3bb770a806fc812fa95ddbc13a288821";
+
 function listMarkdownFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
@@ -41,9 +44,16 @@ function listMarkdownFiles(dir: string): string[] {
 
 function markdownLinkTargets(content: string): string[] {
   const targets: string[] = [];
-  const re = /\[[^\]]*\]\(([^)]+)\)/g;
+  const inlineRe = /\[[^\]]*\]\(([^)]+)\)/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(content)) !== null) {
+  while ((match = inlineRe.exec(content)) !== null) {
+    const href = match[1];
+    if (href) {
+      targets.push(href.trim());
+    }
+  }
+  const autolinkRe = /<(https:\/\/[^>\s]+)>/g;
+  while ((match = autolinkRe.exec(content)) !== null) {
     const href = match[1];
     if (href) {
       targets.push(href.trim());
@@ -84,10 +94,17 @@ describe("cli-command-lifecycle project skill", () => {
     expect(body).toMatch(/make evals-run-all SURFACE=observe-cli/i);
     expect(body).toMatch(/not the how-to|is not the how-to/i);
 
+    const docsDeltaPath = join(SKILL_DIR, "references/docs-delta.md");
+    expect(markdownLinkTargets(readFileSync(docsDeltaPath, "utf-8"))).toContain(
+      DOCS_DELTA_NOTION_URL,
+    );
+
     for (const mdPath of listMarkdownFiles(SKILL_DIR)) {
       const content = readFileSync(mdPath, "utf-8");
       for (const target of markdownLinkTargets(content)) {
-        expect(target).not.toMatch(/^https?:\/\//);
+        if (target.startsWith("https://")) {
+          continue;
+        }
         expect(target).not.toMatch(/^\.\.\//);
         const pathPart = target.split("#")[0] ?? target;
         const resolved = resolve(join(mdPath, ".."), pathPart);
