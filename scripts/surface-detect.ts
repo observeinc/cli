@@ -331,8 +331,9 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
     if (!before.has(name)) row(name, "added", "contract", [file, ...helpers]);
     else if (!after.has(name))
       row(name, "removed", "contract", [file, ...helpers]);
-    else if (changedSet.has(file)) {
-      // Moved command: compare against its base path, so a pure move is not a change.
+    else if (changedSet.has(file) || before.get(name) !== file) {
+      // Path changed: always compare against the command's own base file, since
+      // git pairs renames by content, not by command.
       const oldFile = before.get(name) ?? file;
       const [o, n] = changedLines(base, head, file, cwd, oldFile);
       if (oldFile !== file && !o.size && !n.size && !helpers.length) continue;

@@ -379,6 +379,30 @@ describe("detect: contract reach", () => {
     ]);
   });
 
+  test("a command repointed at another command's moved file is reported", () => {
+    write("src/commands/query.ts", QUERY.replace("Max rows", "Query rows"));
+    const base = commit();
+    rmSync(path.join(dir, "src/commands/apm/services.ts"));
+    git("mv", "src/commands/query.ts", "src/commands/apm/svc.ts");
+    write(
+      "src/commands/apm/index.ts",
+      APM.replace(
+        'import { servicesCommand } from "./services";',
+        'import { queryCommand as servicesCommand } from "./svc";',
+      ),
+    );
+    write(
+      "src/app.ts",
+      APP.replace(
+        'import { queryCommand } from "./commands/query.js";\n',
+        "",
+      ).replace("    query: queryCommand,\n", ""),
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(got["apm services"]?.tags).toEqual(["contract"]);
+    expect(got.query?.change).toBe("removed");
+  });
+
   test("a routes-only edit is explained by the added child", () => {
     const base = commit();
     write(
