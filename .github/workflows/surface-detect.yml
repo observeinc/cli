@@ -53,7 +53,7 @@ jobs:
         run: |
           marker='<!-- observe-cli-surface-detect -->'
           existing=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
-            --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
+            --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))][0].id // empty")
           if [ ! -s surface-comment.md ]; then
             # Nothing found now: retire an earlier comment instead of leaving it stale.
             [ -n "$existing" ] && gh api -X PATCH "repos/$REPO/issues/comments/$existing" \
@@ -78,7 +78,7 @@ jobs:
           marker='<!-- observe-cli-surface-detect -->'
           body="$marker"$'\n'"Surface detection failed for the latest push, so the earlier result may be stale. See $RUN_URL."
           existing=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
-            --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
+            --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))][0].id // empty")
           if [ -n "$existing" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body"
           else

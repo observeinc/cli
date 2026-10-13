@@ -403,6 +403,27 @@ describe("detect: contract reach", () => {
     expect(got.query?.change).toBe("removed");
   });
 
+  test("a moved group keeps its docs change", () => {
+    const base = commit();
+    mkdirSync(path.join(dir, "src/commands/tracing"), { recursive: true });
+    git(
+      "mv",
+      "src/commands/apm/services.ts",
+      "src/commands/tracing/services.ts",
+    );
+    rmSync(path.join(dir, "src/commands/apm/index.ts"));
+    write("src/commands/tracing/index.ts", APM.replace('"APM"', '"Tracing"'));
+    write(
+      "src/app.ts",
+      APP.replace('"./commands/apm/index.js"', '"./commands/tracing/index.js"'),
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(got.apm?.tags).toEqual(["contract"]);
+    expect(got.apm?.files).toEqual(["src/commands/tracing/index.ts"]);
+    expect(got["apm services"]).toBeUndefined();
+    expect(Object.keys(got).some((k) => k.startsWith("(shared"))).toBe(false);
+  });
+
   test("a routes-only edit is explained by the added child", () => {
     const base = commit();
     write(

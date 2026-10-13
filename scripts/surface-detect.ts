@@ -27,6 +27,7 @@ export interface Surface {
 }
 
 const ROOT_FILE = "src/app.ts";
+const ROOT_GROUP = "(root)";
 // Route maps are built with the repo wrapper or Stricli directly.
 const ROUTES_CALL = "(?:defineRoutes|buildRouteMap)";
 const COMMANDS_DIR = "src/commands/";
@@ -134,8 +135,15 @@ function matchBrace(text: string, open: number): number {
   return text.length;
 }
 
-/** Full command path ("monitor mute list") -> defining file, at `rev`. */
-export function commandTree(rev: string, cwd?: string): Map<string, string> {
+/**
+ * Full command path ("monitor mute list") -> defining file, at `rev`.
+ * `groups`, if given, gets each route group's path -> its route-map file.
+ */
+export function commandTree(
+  rev: string,
+  cwd?: string,
+  groups?: Map<string, string>,
+): Map<string, string> {
   const files = new Set(
     git(["ls-tree", "-r", "--name-only", rev, "--", "src"], cwd).split("\n"),
   );
@@ -159,8 +167,11 @@ export function commandTree(rev: string, cwd?: string): Map<string, string> {
             childSource,
           )
         : false;
-      if (isRoutes) walk(childFile, target, [...prefix, key], depth + 1);
-      else tree.set([...prefix, key].join(" "), childFile);
+      const name = [...prefix, key].join(" ");
+      if (isRoutes) {
+        groups?.set(name, childFile);
+        walk(childFile, target, [...prefix, key], depth + 1);
+      } else tree.set(name, childFile);
     }
   };
   walk(ROOT_FILE, "routes", [], 0);
@@ -299,8 +310,10 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
     .split("\n")
     .filter((f) => f && !isTest(f) && !pureMoves.has(f) && !renamedFrom.has(f));
   const changedSet = new Set(changed);
-  const before = commandTree(base, cwd);
-  const after = commandTree(head, cwd);
+  const beforeGroups = new Map([[ROOT_GROUP, ROOT_FILE]]);
+  const afterGroups = new Map([[ROOT_GROUP, ROOT_FILE]]);
+  const before = commandTree(base, cwd, beforeGroups);
+  const after = commandTree(head, cwd, afterGroups);
   const headFiles = new Set(
     git(["ls-tree", "-r", "--name-only", head, "--", "src"], cwd).split("\n"),
   );
@@ -352,41 +365,40 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
       row(name, "modified", "impl", helpers);
     }
   }
-  // Route maps: group index.ts files and the root app.ts.
-  const routeFiles = changed.filter(
-    (f) =>
-      f === ROOT_FILE ||
-      (f.startsWith(COMMANDS_DIR) && f.endsWith("/index.ts")),
-  );
-  for (const f of routeFiles) {
-    const group =
-      f === ROOT_FILE
-        ? "(root)"
-        : f
-            .slice(COMMANDS_DIR.length, -"/index.ts".length)
-            .replaceAll("/", " ");
-    // A new or deleted route file: the command tree already reports which
-    // commands appeared or went away, so it adds no row of its own.
-    if (!baseFiles.has(f) || !headFiles.has(f)) {
-      attributed.add(f);
+  // Route maps, per group: compared against the group's own base file, so a
+  // moved or repointed group keeps its docs changes.
+  for (const [group, file] of afterGroups) {
+    const oldFile = beforeGroups.get(group);
+    // A new group: its added commands already report it.
+    if (!oldFile) {
+      attributed.add(file);
       continue;
     }
-    const keys = f === ROOT_FILE ? ROUTES_CONTRACT_KEYS : GROUP_DOC_KEYS;
-    const docs =
-      f !== ROOT_FILE && touchesContract(base, head, f, cwd, GROUP_DOC_KEYS);
-    const contract = docs || touchesContract(base, head, f, cwd, keys);
-    const routes = touchesContract(base, head, f, cwd, ["routes"]);
+    attributed.add(oldFile);
+    if (oldFile === file && !changedSet.has(file)) continue;
+    const [o, n] = changedLines(base, head, file, cwd, oldFile);
+    if (!o.size && !n.size) {
+      attributed.add(file);
+      continue;
+    }
+    const root = group === ROOT_GROUP;
+    const contractIn = (keys: string[]) =>
+      touchesContract(base, head, file, cwd, keys, oldFile);
+    const docs = !root && contractIn(GROUP_DOC_KEYS);
+    const contract = root ? contractIn(ROUTES_CONTRACT_KEYS) : docs;
+    const routes = contractIn(["routes"]);
     const childAddedOrRemoved = out.some(
       (s) => s.name.startsWith(`${group} `) && s.change !== "modified",
     );
     // Skip only when the route-map edit is just the routes an added or
     // removed child already explains.
-    const explained =
-      out.some((s) => s.name === group) ||
-      (!docs && routes && childAddedOrRemoved && f !== ROOT_FILE);
-    if (explained) attributed.add(f);
-    else row(group, "modified", contract || routes ? "contract" : "impl", [f]);
+    if (!docs && routes && childAddedOrRemoved && !root) attributed.add(file);
+    else
+      row(group, "modified", contract || routes ? "contract" : "impl", [file]);
   }
+  // A removed group: its removed commands already report it.
+  for (const [group, file] of beforeGroups)
+    if (!afterGroups.has(group)) attributed.add(file);
   // Anything else under src/ (lib, rest, gql, context.ts, bin.ts, ...).
   const shared = changed.filter(
     (f) => f.startsWith("src/") && !attributed.has(f) && !commandFiles.has(f),
