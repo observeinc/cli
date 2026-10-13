@@ -17,6 +17,7 @@ import { metricRoutes } from "./commands/metric/index.js";
 import { monitorRoutes } from "./commands/monitor/index.js";
 import { queryCommand } from "./commands/query.js";
 import { skillRoutes } from "./commands/skill/index.js";
+import { sourceDatasetRoutes } from "./commands/source-dataset/index.js";
 import { tagRoutes } from "./commands/tag/index.js";
 import { tagValueRoutes } from "./commands/tag-value/index.js";
 import { CURRENT_CLI_VERSION } from "./lib/constants.js";
@@ -46,6 +47,7 @@ export const routes = defineRoutes({
     datastream: datastreamRoutes,
     "datastream-token": datastreamTokenRoutes,
     docs: docsRoutes,
+    "source-dataset": sourceDatasetRoutes,
     cli: cliRoutes,
   },
   defaultCommand: "help",

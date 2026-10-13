@@ -8,6 +8,7 @@ import { deleteDatastream as gqlDeleteDatastream } from "../src/gql/datastream/d
 import { deleteDataset as gqlDeleteDataset } from "../src/gql/dataset/delete-dataset";
 import { deleteIngestToken as gqlDeleteIngestToken } from "../src/gql/ingest-token/delete-ingest-token";
 import { deleteSkill as restDeleteSkill } from "../src/rest/skill/delete-skill";
+import { deleteSourceDataset as restDeleteSourceDataset } from "../src/rest/source-dataset/delete-source-dataset";
 import type { Config } from "../src/lib/config";
 
 export async function deleteIngestToken(
@@ -35,6 +36,13 @@ export async function deleteDataset(config: Config, id: string): Promise<void> {
   if (!success) {
     throw new Error(`deleteDataset returned false for dataset ${id}`);
   }
+}
+
+export async function deleteSourceDataset(
+  config: Config,
+  id: string,
+): Promise<void> {
+  await restDeleteSourceDataset({ config, id, force: true });
 }
 
 export async function deleteSkill(config: Config, id: string): Promise<void> {
