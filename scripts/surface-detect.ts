@@ -207,15 +207,23 @@ export function contractRanges(
   return out;
 }
 
+/** Changed line numbers; `oldFile` is the base path when the file moved. */
 function changedLines(
   base: string,
   head: string,
   file: string,
   cwd?: string,
+  oldFile: string = file,
 ): [Set<number>, Set<number>] {
   const old = new Set<number>();
   const neu = new Set<number>();
-  const diff = git(["diff", "-U0", "-w", base, head, "--", file], cwd);
+  const diff =
+    oldFile === file
+      ? git(["diff", "-U0", "-w", base, head, "--", file], cwd)
+      : git(
+          ["diff", "-U0", "-w", `${base}:${oldFile}`, `${head}:${file}`],
+          cwd,
+        );
   for (const m of diff.matchAll(
     /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm,
   )) {
@@ -234,13 +242,14 @@ function touchesContract(
   file: string,
   cwd?: string,
   keys: string[] = COMMAND_CONTRACT_KEYS,
+  oldFile: string = file,
 ): boolean {
-  const [old, neu] = changedLines(base, head, file, cwd);
-  for (const [rev, lines] of [
-    [base, old],
-    [head, neu],
+  const [old, neu] = changedLines(base, head, file, cwd, oldFile);
+  for (const [rev, path, lines] of [
+    [base, oldFile, old],
+    [head, file, neu],
   ] as const) {
-    const ranges = contractRanges(show(rev, file, cwd) ?? "", keys);
+    const ranges = contractRanges(show(rev, path, cwd) ?? "", keys);
     for (const n of lines)
       if (ranges.some(([a, b]) => n >= a && n <= b)) return true;
   }
@@ -310,7 +319,20 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
     else if (!after.has(name))
       row(name, "removed", "contract", [file, ...helpers]);
     else if (changedSet.has(file)) {
-      const tag = touchesContract(base, head, file, cwd) ? "contract" : "impl";
+      // Moved command: compare against its base path, so a pure move is not a change.
+      const oldFile = before.get(name) ?? file;
+      const [o, n] = changedLines(base, head, file, cwd, oldFile);
+      if (oldFile !== file && !o.size && !n.size && !helpers.length) continue;
+      const tag = touchesContract(
+        base,
+        head,
+        file,
+        cwd,
+        COMMAND_CONTRACT_KEYS,
+        oldFile,
+      )
+        ? "contract"
+        : "impl";
       row(name, "modified", tag, [file, ...helpers]);
     } else if (helpers.length) {
       row(name, "modified", "impl", helpers);

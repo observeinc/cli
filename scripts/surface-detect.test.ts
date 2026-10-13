@@ -331,6 +331,25 @@ describe("detect: contract reach", () => {
     expect(Object.keys(got).filter((k) => k.startsWith("inc"))).toEqual([]);
   });
 
+  test("a moved command is a change only if its content changed", () => {
+    const base = commit();
+    write("src/commands/apm/svc/services.ts", SERVICES);
+    rmSync(path.join(dir, "src/commands/apm/services.ts"));
+    write(
+      "src/commands/apm/index.ts",
+      APM.replace('from "./services"', 'from "./svc/services"'),
+    );
+    expect(byName(detect(base, commit(), dir))["apm services"]).toBeUndefined();
+    const moved = commit();
+    write(
+      "src/commands/apm/svc/services.ts",
+      SERVICES.replace("Max rows", "Maximum rows"),
+    );
+    expect(byName(detect(moved, commit(), dir))["apm services"]?.tags).toEqual([
+      "contract",
+    ]);
+  });
+
   test("a routes-only edit is explained by the added child", () => {
     const base = commit();
     write(
