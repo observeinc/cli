@@ -329,6 +329,16 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
         : f
             .slice(COMMANDS_DIR.length, -"/index.ts".length)
             .replaceAll("/", " ");
+    // A whole group added or removed: its children's rows already say so.
+    if (!baseFiles.has(f) || !headFiles.has(f)) {
+      const change = baseFiles.has(f) ? "removed" : "added";
+      if (
+        out.some((s) => s.name.startsWith(`${group} `) && s.change === change)
+      )
+        attributed.add(f);
+      else row(group, change, "contract", [f]);
+      continue;
+    }
     const keys = f === ROOT_FILE ? ROUTES_CONTRACT_KEYS : GROUP_DOC_KEYS;
     const docs =
       f !== ROOT_FILE && touchesContract(base, head, f, cwd, GROUP_DOC_KEYS);

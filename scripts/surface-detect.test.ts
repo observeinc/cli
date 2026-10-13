@@ -292,6 +292,31 @@ describe("detect: contract reach", () => {
     expect(got.apm?.tags).toEqual(["contract"]);
   });
 
+  test("a new group is reported only through its added commands", () => {
+    const base = commit();
+    write(
+      "src/commands/inc/list.ts",
+      SERVICES.replace("servicesCommand", "listCommand"),
+    );
+    write(
+      "src/commands/inc/index.ts",
+      'import { buildRouteMap } from "@stricli/core";\nimport { listCommand } from "./list";\n\nexport const incRoutes = buildRouteMap({\n  routes: {\n    list: listCommand,\n  },\n  docs: { brief: "Incidents" },\n});\n',
+    );
+    write(
+      "src/app.ts",
+      APP.replace(
+        'import { queryCommand } from "./commands/query.js";',
+        'import { queryCommand } from "./commands/query.js";\nimport { incRoutes } from "./commands/inc/index.js";',
+      ).replace(
+        "    query: queryCommand,",
+        "    query: queryCommand,\n    inc: incRoutes,",
+      ),
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(got["inc list"]?.change).toBe("added");
+    expect(got.inc).toBeUndefined();
+  });
+
   test("a routes-only edit is explained by the added child", () => {
     const base = commit();
     write(
