@@ -424,6 +424,12 @@ describe("detect: contract reach", () => {
     expect(Object.keys(got).some((k) => k.startsWith("(shared"))).toBe(false);
   });
 
+  test("a whitespace-only group edit is impl", () => {
+    const base = commit();
+    write("src/commands/apm/index.ts", APM.replace("  routes:", "    routes:"));
+    expect(byName(detect(base, commit(), dir)).apm?.tags).toEqual(["impl"]);
+  });
+
   test("a routes-only edit is explained by the added child", () => {
     const base = commit();
     write(

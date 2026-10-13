@@ -377,7 +377,7 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
     attributed.add(oldFile);
     if (oldFile === file && !changedSet.has(file)) continue;
     const [o, n] = changedLines(base, head, file, cwd, oldFile);
-    if (!o.size && !n.size) {
+    if (oldFile !== file && !o.size && !n.size) {
       attributed.add(file);
       continue;
     }
