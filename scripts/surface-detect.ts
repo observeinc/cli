@@ -33,6 +33,8 @@ const COMMANDS_DIR = "src/commands/";
 // Agent-visible blocks in a defineCommand / route map.
 const COMMAND_CONTRACT_KEYS = ["parameters", "docs", "experimental"];
 const ROUTES_CONTRACT_KEYS = ["routes", "docs", "hideRoute", "defaultCommand"];
+// Route-map keys other than `routes`; an added or removed child explains `routes`.
+const GROUP_DOC_KEYS = ["docs", "hideRoute", "defaultCommand"];
 
 function git(args: string[], cwd?: string): string {
   return execFileSync("git", args, {
@@ -111,6 +113,18 @@ export function routeEntries(
   return entries;
 }
 
+/** Index of the bracket closing the `{`, `[` or `(` at `open`. */
+function matchBracket(text: string, open: number): number {
+  const pairs: Record<string, string> = { "{": "}", "[": "]", "(": ")" };
+  const close = pairs[text[open] ?? ""];
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === text[open]) depth++;
+    else if (text[i] === close && --depth === 0) return i;
+  }
+  return text.length;
+}
+
 function matchBrace(text: string, open: number): number {
   let depth = 0;
   for (let i = open; i < text.length; i++) {
@@ -160,6 +174,7 @@ export function contractRanges(
 ): [number, number][] {
   const out: [number, number][] = [];
   const lineOf = (i: number) => source.slice(0, i).split("\n").length;
+  const blocks: string[] = [];
   for (const m of source.matchAll(
     new RegExp(`\\b(${keys.join("|")})\\s*:\\s*`, "g"),
   )) {
@@ -167,6 +182,27 @@ export function contractRanges(
     const end =
       source[at] === "{" ? matchBrace(source, at) : source.indexOf("\n", at);
     out.push([lineOf(m.index), lineOf(end)]);
+    blocks.push(source.slice(at, end + 1));
+  }
+  // buildApplication options (scanner, name) shape every command's parsing.
+  for (const m of source.matchAll(/\bbuildApplication\s*\(/g)) {
+    const open = source.indexOf("{", m.index);
+    if (open >= 0) out.push([lineOf(open), lineOf(matchBrace(source, open))]);
+  }
+  // Top-level constants a contract block reads (flag values, help text).
+  const used = blocks.join("\n");
+  for (const m of source.matchAll(
+    /^(?:export\s+)?(?:const|let)\s+(\w+)\b[^=]*=\s*/gm,
+  )) {
+    const name = m[1] ?? "";
+    if (!name || !new RegExp(`\\b${name}\\b`).test(used)) continue;
+    const at = m.index + m[0].length;
+    const open = source[at];
+    const end =
+      open === "{" || open === "["
+        ? matchBracket(source, at)
+        : source.indexOf(";", at);
+    out.push([lineOf(m.index), lineOf(end < 0 ? source.length : end)]);
   }
   return out;
 }
@@ -293,16 +329,21 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
         : f
             .slice(COMMANDS_DIR.length, -"/index.ts".length)
             .replaceAll("/", " ");
-    const tag = touchesContract(base, head, f, cwd, ROUTES_CONTRACT_KEYS)
-      ? "contract"
-      : "impl";
-    const covered = out.some(
-      (s) =>
-        s.name === group ||
-        (s.name.startsWith(`${group} `) && s.tags.includes("contract")),
+    const keys = f === ROOT_FILE ? ROUTES_CONTRACT_KEYS : GROUP_DOC_KEYS;
+    const docs =
+      f !== ROOT_FILE && touchesContract(base, head, f, cwd, GROUP_DOC_KEYS);
+    const contract = docs || touchesContract(base, head, f, cwd, keys);
+    const routes = touchesContract(base, head, f, cwd, ["routes"]);
+    const childAddedOrRemoved = out.some(
+      (s) => s.name.startsWith(`${group} `) && s.change !== "modified",
     );
-    if (covered) attributed.add(f);
-    else row(group, "modified", tag, [f]);
+    // Skip only when the route-map edit is just the routes an added or
+    // removed child already explains.
+    const explained =
+      out.some((s) => s.name === group) ||
+      (!docs && routes && childAddedOrRemoved && f !== ROOT_FILE);
+    if (explained) attributed.add(f);
+    else row(group, "modified", contract || routes ? "contract" : "impl", [f]);
   }
   // Anything else under src/ (lib, rest, gql, context.ts, bin.ts, ...).
   const shared = changed.filter(

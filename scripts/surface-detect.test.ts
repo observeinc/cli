@@ -235,6 +235,85 @@ describe("detect: helpers and route maps", () => {
   });
 });
 
+describe("detect: contract reach", () => {
+  test("a top-level constant used in a flag brief is contract", () => {
+    write(
+      "src/commands/query.ts",
+      `const FIELDS = ["a", "b"];\n${QUERY.replace('brief: "Max rows"', "brief: `Fields: ${FIELDS.join()}`")}`,
+    );
+    const base = commit();
+    write(
+      "src/commands/query.ts",
+      `const FIELDS = ["a", "b", "c"];\n${QUERY.replace('brief: "Max rows"', "brief: `Fields: ${FIELDS.join()}`")}`,
+    );
+    expect(byName(detect(base, commit(), dir)).query?.tags).toEqual([
+      "contract",
+    ]);
+  });
+
+  test("buildApplication options in app.ts are contract", () => {
+    write(
+      "src/app.ts",
+      `${APP}export const app = buildApplication(routes, {\n  scanner: { caseStyle: "original" },\n});\n`,
+    );
+    const base = commit();
+    write(
+      "src/app.ts",
+      `${APP}export const app = buildApplication(routes, {\n  scanner: { caseStyle: "allow-kebab-for-camel" },\n});\n`,
+    );
+    expect(byName(detect(base, commit(), dir))["(root)"]?.tags).toEqual([
+      "contract",
+    ]);
+  });
+
+  test("a hideRoute change survives an added sibling", () => {
+    const base = commit();
+    write(
+      "src/commands/apm/envs.ts",
+      SERVICES.replace("servicesCommand", "envsCommand"),
+    );
+    write(
+      "src/commands/apm/index.ts",
+      APM.replace(
+        'import { servicesCommand } from "./services";',
+        'import { servicesCommand } from "./services";\nimport { envsCommand } from "./envs";',
+      )
+        .replace(
+          "services: servicesCommand,",
+          "services: servicesCommand,\n    envs: envsCommand,",
+        )
+        .replace(
+          'docs: { brief: "APM" }',
+          'docs: { brief: "APM" },\n  hideRoute: { services: true }',
+        ),
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(got["apm envs"]?.change).toBe("added");
+    expect(got.apm?.tags).toEqual(["contract"]);
+  });
+
+  test("a routes-only edit is explained by the added child", () => {
+    const base = commit();
+    write(
+      "src/commands/apm/envs.ts",
+      SERVICES.replace("servicesCommand", "envsCommand"),
+    );
+    write(
+      "src/commands/apm/index.ts",
+      APM.replace(
+        'import { servicesCommand } from "./services";',
+        'import { servicesCommand } from "./services";\nimport { envsCommand } from "./envs";',
+      ).replace(
+        "services: servicesCommand,",
+        "services: servicesCommand,\n    envs: envsCommand,",
+      ),
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(got["apm envs"]?.change).toBe("added");
+    expect(got.apm).toBeUndefined();
+  });
+});
+
 describe("markdown", () => {
   test("empty when nothing found", () => {
     expect(markdown([])).toBe("");
