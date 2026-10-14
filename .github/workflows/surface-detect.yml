@@ -56,9 +56,10 @@ jobs:
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          bun run scripts/surface-detect.ts --base "$BASE_SHA" --head HEAD \
+          # Checkout is refs/pull/N/merge; HEAD^1 is the base it was built on.
+          # pull_request.base.sha can lag after main moves and pull in other PRs.
+          bun run scripts/surface-detect.ts --base HEAD^1 --head HEAD \
             --json surface-report.json --markdown > surface-comment.md
           cat surface-comment.md >> "$GITHUB_STEP_SUMMARY"
 
