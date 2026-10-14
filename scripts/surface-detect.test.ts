@@ -120,6 +120,22 @@ describe("classify", () => {
     expect(got["(root)"]?.tags).toEqual(["impl"]);
   });
 
+  test("a new group explains its parent's route map edit", () => {
+    const after = { ...BASE };
+    after.logs = group("src/commands/logs/index.ts", "Logs");
+    after["logs list"] = cmd("src/commands/logs/list.ts", "List logs");
+    const got = byName(
+      classify(BASE, after, [
+        "src/app.ts",
+        "src/commands/logs/index.ts",
+        "src/commands/logs/list.ts",
+      ]),
+    );
+    expect(got["logs list"]?.change).toBe("added");
+    expect(got.logs?.change).toBe("added");
+    expect(got["(root)"]).toBeUndefined();
+  });
+
   test("a group edit with no child change is impl, a docs change contract", () => {
     expect(
       byName(classify(BASE, BASE, ["src/commands/apm/index.ts"])).apm?.tags,

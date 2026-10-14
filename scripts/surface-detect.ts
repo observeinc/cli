@@ -60,7 +60,10 @@ function run(rev: string, cwd: string, cmd: string, args: string[]): string {
     });
   } catch (err) {
     const stderr = String((err as { stderr?: unknown }).stderr ?? err);
-    const reason = stderr.split("\n").find((l) => l.trim()) ?? "unknown error";
+    // Bun prints script echoes and source frames before the error itself.
+    const lines = stderr.split("\n").filter((l) => l.trim());
+    const reason =
+      lines.find((l) => /error/i.test(l)) ?? lines.at(-1) ?? "unknown error";
     throw new Error(`cannot load the command tree at ${rev}: ${reason}`, {
       cause: err,
     });
@@ -95,7 +98,7 @@ export function dumpAt(rev: string, cwd: string = process.cwd()): Dump {
     const current =
       git(["rev-parse", rev], cwd) === git(["rev-parse", "HEAD"], cwd);
     if (current || !hasCodegen(wt)) GENERATED.forEach(link);
-    else run(rev, wt, "bun", ["run", "codegen"]);
+    else run(rev, wt, "bun", ["run", "--silent", "codegen"]);
     const out = run(rev, wt, "bun", [
       "run",
       path.join(import.meta.dir, "surface-dump.ts"),
@@ -182,11 +185,15 @@ export function classify(
       if (a.kind === "group") {
         // Wiring a direct child in or out of the route map explains it.
         const prefix = name === ROOT ? "" : `${name} `;
-        const child = out.some(
-          (s) =>
-            s.name.startsWith(prefix) &&
-            !s.name.slice(prefix.length).includes(" ") &&
-            s.change !== "modified",
+        const direct = (d: Dump) =>
+          Object.keys(d).filter(
+            (n) =>
+              n !== ROOT &&
+              n.startsWith(prefix) &&
+              !n.slice(prefix.length).includes(" "),
+          );
+        const child = [...direct(before), ...direct(after)].some(
+          (n) => !before[n] || !after[n],
         );
         if (child) continue;
       }
