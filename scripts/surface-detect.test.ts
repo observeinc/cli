@@ -106,6 +106,20 @@ describe("classify", () => {
     expect(got["(root)"]).toBeUndefined();
   });
 
+  test("only a direct child explains a group edit", () => {
+    const after = { ...BASE };
+    after["apm envs"] = cmd("src/commands/apm/envs.ts", "List environments");
+    const got = byName(
+      classify(BASE, after, [
+        "src/app.ts",
+        "src/commands/apm/envs.ts",
+        "src/commands/apm/index.ts",
+      ]),
+    );
+    expect(got.apm).toBeUndefined();
+    expect(got["(root)"]?.tags).toEqual(["impl"]);
+  });
+
   test("a group edit with no child change is impl, a docs change contract", () => {
     expect(
       byName(classify(BASE, BASE, ["src/commands/apm/index.ts"])).apm?.tags,
@@ -300,6 +314,80 @@ describe("detect (end to end)", () => {
     expect(got.query?.change).toBe("removed");
     expect(got.run?.change).toBe("added");
     expect(got["(root)"]).toBeUndefined();
+  });
+
+  test("a command importing another command's file sees its changes", () => {
+    write(
+      "src/commands/apm/services.ts",
+      `${SERVICES}\nexport const helper = () => 1;\n`,
+    );
+    write(
+      "src/commands/query.ts",
+      `import { helper } from "./apm/services.js";\n${QUERY.replace("return;", "helper();")}`,
+    );
+    const base = commit();
+    write(
+      "src/commands/apm/services.ts",
+      `${SERVICES}\nexport const helper = () => 2;\n`,
+    );
+    const got = byName(detect(base, commit(), dir));
+    expect(got["apm services"]?.tags).toEqual(["impl"]);
+    expect(got.query?.tags).toEqual(["impl"]);
+  });
+
+  test("a .graphql edit is attributed through its sibling module", () => {
+    write("src/gql/q.graphql", "query Q { a }\n");
+    write("src/gql/q.ts", 'export const fetchQ = () => "Q";\n');
+    write(
+      "src/commands/query.ts",
+      `import { fetchQ } from "../gql/q.js";\n${QUERY.replace("return;", "fetchQ();")}`,
+    );
+    const base = commit();
+    write("src/gql/q.graphql", "query Q { a b }\n");
+    expect(detect(base, commit(), dir)).toEqual([
+      {
+        kind: "cli",
+        name: "query",
+        change: "modified",
+        tags: ["indirect"],
+        files: ["src/gql/q.ts"],
+      },
+    ]);
+  });
+
+  test("the base is loaded with its own codegen output", () => {
+    // Codegen turns every line of docs.txt into an exported document.
+    write(
+      "package.json",
+      JSON.stringify({ scripts: { codegen: "bun gen.ts" } }),
+    );
+    write(
+      "gen.ts",
+      `import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+mkdirSync("src/gql/generated", { recursive: true });
+writeFileSync("src/gql/generated/index.ts", readFileSync("docs.txt", "utf-8").trim().split("\\n").map((n) => \`export const \${n} = "\${n}";\`).join("\\n") + "\\n");
+`,
+    );
+    write(".gitignore", "node_modules\nsrc/gql/generated\n");
+    write("docs.txt", "ListDoc\nDeleteDoc\n");
+    write(
+      "src/commands/query.ts",
+      `import { DeleteDoc } from "../gql/generated/index.js";\n${QUERY.replace("return;", "void DeleteDoc;")}`,
+    );
+    const base = commit();
+    // The head drops the document and the command that used it.
+    write("docs.txt", "ListDoc\n");
+    rmSync(path.join(dir, "src/commands/query.ts"));
+    write(
+      "src/app.ts",
+      APP.replace(
+        'import { queryCommand } from "./commands/query.js";\n',
+        "",
+      ).replace("query: queryCommand", ""),
+    );
+    const head = commit();
+    execFileSync("bun", ["gen.ts"], { cwd: dir });
+    expect(byName(detect(base, head, dir)).query?.change).toBe("removed");
   });
 });
 

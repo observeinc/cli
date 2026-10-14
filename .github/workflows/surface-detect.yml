@@ -51,6 +51,10 @@ jobs:
       - name: Detect
         if: steps.codegen.outputs.ran == 'true'
         env:
+          # The base commit is regenerated from its own sources.
+          OBSERVE_OPENAPI_SPEC: ${{ secrets.OBSERVE_OPENAPI_SPEC }}
+          OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
+          OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |

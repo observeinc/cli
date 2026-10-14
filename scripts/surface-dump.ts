@@ -154,10 +154,13 @@ export async function dump(root: string): Promise<Dump> {
     todo.push(...imports(root, f));
   }
 
-  // Closures: a command's imports, transitively, without entering a file
-  // that defines another surface.
-  const surfaceFiles = new Set(
-    Object.values(out).flatMap((s) => (s.file ? [s.file] : [])),
+  // Closures: a command's imports, transitively, stopping at route-map files
+  // (help.ts reaches app.ts). Another command's file is followed: its code
+  // runs too.
+  const groupFiles = new Set(
+    Object.values(out).flatMap((s) =>
+      s.kind === "group" && s.file ? [s.file] : [],
+    ),
   );
   for (const s of Object.values(out)) {
     if (s.kind === "group" || !s.file) continue;
@@ -165,7 +168,7 @@ export async function dump(root: string): Promise<Dump> {
     const stack = imports(root, s.file);
     while (stack.length) {
       const f = stack.pop() ?? "";
-      if (reach.has(f) || f === s.file || surfaceFiles.has(f)) continue;
+      if (reach.has(f) || f === s.file || groupFiles.has(f)) continue;
       reach.add(f);
       stack.push(...imports(root, f));
     }
