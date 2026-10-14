@@ -48,6 +48,22 @@ function git(args: string[], cwd?: string): string {
   });
 }
 
+/** The line of a failed command's stderr that names the error. */
+export function errorReason(stderr: string): string {
+  // Skip code-frame lines (`12 | ...`, carets), then prefer `error: ...`
+  // or `SomeError: ...` over any line merely mentioning "error".
+  const lines = stderr
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/^\d+\s*\||^\^/.test(l));
+  return (
+    lines.find((l) => /^(error:|\w*Error\b)/.test(l)) ??
+    lines.find((l) => /error/i.test(l)) ??
+    lines.at(-1) ??
+    "unknown error"
+  );
+}
+
 /** Run a command in `cwd`; on failure, throw its most error-like stderr line. */
 function run(rev: string, cwd: string, cmd: string, args: string[]): string {
   try {
@@ -59,11 +75,9 @@ function run(rev: string, cwd: string, cmd: string, args: string[]): string {
       env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
     });
   } catch (err) {
-    const stderr = String((err as { stderr?: unknown }).stderr ?? err);
-    // Bun prints script echoes and source frames before the error itself.
-    const lines = stderr.split("\n").filter((l) => l.trim());
-    const reason =
-      lines.find((l) => /error/i.test(l)) ?? lines.at(-1) ?? "unknown error";
+    const reason = errorReason(
+      String((err as { stderr?: unknown }).stderr ?? err),
+    );
     throw new Error(`cannot load the command tree at ${rev}: ${reason}`, {
       cause: err,
     });

@@ -9,7 +9,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { classify, detect, markdown, type Surface } from "./surface-detect";
+import {
+  classify,
+  detect,
+  errorReason,
+  markdown,
+  type Surface,
+} from "./surface-detect";
 import type { Dump, DumpedSurface } from "./surface-dump";
 
 const byName = (s: Surface[]) => Object.fromEntries(s.map((x) => [x.name, x]));
@@ -404,6 +410,22 @@ writeFileSync("src/gql/generated/index.ts", readFileSync("docs.txt", "utf-8").tr
     const head = commit();
     execFileSync("bun", ["gen.ts"], { cwd: dir });
     expect(byName(detect(base, head, dir)).query?.change).toBe("removed");
+  });
+});
+
+describe("errorReason", () => {
+  test("skips the code frame for the error line", () => {
+    const stderr = [
+      "$ bun codegen:gql && bun codegen:rest",
+      '12 |   throw new Error("missing spec");',
+      "                ^",
+      "error: missing spec",
+    ].join("\n");
+    expect(errorReason(stderr)).toBe("error: missing spec");
+    expect(errorReason("SyntaxError: Export named 'X' not found")).toBe(
+      "SyntaxError: Export named 'X' not found",
+    );
+    expect(errorReason("last line only\n")).toBe("last line only");
   });
 });
 
