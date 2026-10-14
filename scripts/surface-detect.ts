@@ -1,22 +1,26 @@
 /**
  * Detect observe CLI commands a PR adds, changes or removes.
  *
- * Builds the command tree statically from the Stricli route maps
- * (`defineRoutes({ routes: { ... } })`) at the base and head commits, so it
- * needs no codegen or secrets. Advisory only: CI posts the result and never
- * fails on it.
+ * Dumps the real command tree (surface-dump.ts) at the base and head commits
+ * and diffs them, so it needs node_modules and codegen output, reused from the
+ * current checkout. Both commits must therefore build against the current
+ * codegen output, as the PR base does whenever main's CI is green. Advisory
+ * only: CI posts the result and never fails on it.
  *
- * Tags: `contract` when a command's flags, positional args or docs changed,
- * or the command was added or removed; `impl` when only its code or a helper
- * it imports under src/commands changed; `indirect` for any other changed
- * src file (src/lib, src/rest, src/gql, src/context.ts, ...).
+ * Tags: `contract` when a command or group's agent-visible contract (docs,
+ * flags, positionals, aliases, hidden) changed, or it was added or removed;
+ * `impl` when only its own file or a src/commands file it imports changed;
+ * `indirect` when only another src file it imports changed. Changed src files
+ * no command imports go in one `(shared ...)` indirect row.
  *
  * Usage:
  *   bun run scripts/surface-detect.ts [--base REV] [--head REV] [--json FILE] [--markdown]
  */
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import { ROOT, type Dump } from "./surface-dump";
 
 export interface Surface {
   kind: "cli";
@@ -26,388 +30,154 @@ export interface Surface {
   files: string[];
 }
 
-const ROOT_FILE = "src/app.ts";
-const ROOT_GROUP = "(root)";
-// Route maps are built with the repo wrapper or Stricli directly.
-const ROUTES_CALL = "(?:defineRoutes|buildRouteMap)";
 const COMMANDS_DIR = "src/commands/";
-// Agent-visible blocks in a defineCommand / route map.
-const COMMAND_CONTRACT_KEYS = ["parameters", "docs", "experimental"];
-const ROUTES_CONTRACT_KEYS = ["routes", "docs", "hideRoute", "defaultCommand"];
-// Route-map keys other than `routes`; an added or removed child explains `routes`.
-const GROUP_DOC_KEYS = ["docs", "hideRoute", "defaultCommand"];
+// Untracked inputs the dump needs, reused from the current checkout.
+const SHARED_INPUTS = [
+  "node_modules",
+  "src/rest/generated",
+  "src/gql/generated",
+];
 
 function git(args: string[], cwd?: string): string {
   return execFileSync("git", args, {
     cwd,
     encoding: "utf-8",
-    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 64 * 1024 * 1024,
   });
 }
 
-function show(rev: string, file: string, cwd?: string): string | null {
+/** Dump the command tree at `rev` from a throwaway worktree. */
+export function dumpAt(rev: string, cwd: string = process.cwd()): Dump {
+  const wt = mkdtempSync(path.join(tmpdir(), "surface-"));
+  git(["worktree", "add", "-q", "--detach", wt, rev], cwd);
   try {
-    return git(["show", `${rev}:${file}`], cwd);
-  } catch {
-    return null;
-  }
-}
-
-/** Identifier -> resolved repo path for relative imports in `file`. */
-export function importMap(
-  source: string,
-  file: string,
-  exists: (p: string) => boolean,
-): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const [, names = "", rawSpec = ""] of source.matchAll(
-    /import\s*\{([^}]*)\}\s*from\s*["'](\.[^"']+)["']/g,
-  )) {
-    const spec = rawSpec.replace(/\.js$/, "");
-    const base = path.posix.normalize(
-      path.posix.join(path.posix.dirname(file), spec),
-    );
-    const target = [`${base}.ts`, `${base}/index.ts`, base].find(exists);
-    if (!target) continue;
-    for (const raw of names.split(",")) {
-      const name = (
-        raw
-          .replace(/^\s*type\s+/, "")
-          .split(/\s+as\s+/)
-          .pop() ?? ""
-      ).trim();
-      if (name) out.set(name, target);
+    for (const p of SHARED_INPUTS) {
+      const from = path.join(cwd, p);
+      if (existsSync(from) && !existsSync(path.join(wt, p)))
+        symlinkSync(from, path.join(wt, p));
     }
-  }
-  return out;
-}
-
-/** `key: ident` pairs inside the `routes: { ... }` block of a defineRoutes call. */
-export function routeEntries(
-  source: string,
-  routesIdent?: string,
-): [string, string][] {
-  let start = -1;
-  if (routesIdent) {
-    const decl = source.search(
-      new RegExp(`\\b${routesIdent}\\s*=\\s*${ROUTES_CALL}\\s*\\(`),
-    );
-    if (decl >= 0) start = source.indexOf("routes:", decl);
-  } else {
-    start = source.indexOf(
-      "routes:",
-      source.search(new RegExp(`${ROUTES_CALL}\\s*\\(`)),
-    );
-  }
-  if (start < 0) return [];
-  const open = source.indexOf("{", start);
-  const block = source
-    .slice(open + 1, matchBrace(source, open))
-    .replace(/\/\/.*$/gm, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "");
-  const entries: [string, string][] = [];
-  for (const [, key = "", ident = ""] of block.matchAll(
-    /(?:^|[,\s])["']?([\w-]+)["']?\s*:\s*(\w+)/g,
-  )) {
-    entries.push([key, ident]);
-  }
-  return entries;
-}
-
-/** Index of the bracket closing the `{`, `[` or `(` at `open`. */
-function matchBracket(text: string, open: number): number {
-  const pairs: Record<string, string> = { "{": "}", "[": "]", "(": ")" };
-  const close = pairs[text[open] ?? ""];
-  let depth = 0;
-  for (let i = open; i < text.length; i++) {
-    if (text[i] === text[open]) depth++;
-    else if (text[i] === close && --depth === 0) return i;
-  }
-  return text.length;
-}
-
-function matchBrace(text: string, open: number): number {
-  let depth = 0;
-  for (let i = open; i < text.length; i++) {
-    if (text[i] === "{") depth++;
-    else if (text[i] === "}" && --depth === 0) return i;
-  }
-  return text.length;
-}
-
-/**
- * Full command path ("monitor mute list") -> defining file, at `rev`.
- * `groups`, if given, gets each route group's path -> its route-map file.
- */
-export function commandTree(
-  rev: string,
-  cwd?: string,
-  groups?: Map<string, string>,
-): Map<string, string> {
-  const files = new Set(
-    git(["ls-tree", "-r", "--name-only", rev, "--", "src"], cwd).split("\n"),
-  );
-  const exists = (p: string) => files.has(p);
-  const tree = new Map<string, string>();
-  const walk = (
-    file: string,
-    ident: string | undefined,
-    prefix: string[],
-    depth: number,
-  ) => {
-    const source = show(rev, file, cwd);
-    if (!source || depth > 6) return;
-    const imports = importMap(source, file, exists);
-    for (const [key, target] of routeEntries(source, ident)) {
-      const childFile = imports.get(target) ?? file;
-      const childSource =
-        childFile === file ? source : show(rev, childFile, cwd);
-      const isRoutes = childSource
-        ? new RegExp(`\\b${target}\\s*=\\s*${ROUTES_CALL}\\s*\\(`).test(
-            childSource,
-          )
-        : false;
-      const name = [...prefix, key].join(" ");
-      if (isRoutes) {
-        groups?.set(name, childFile);
-        walk(childFile, target, [...prefix, key], depth + 1);
-      } else tree.set(name, childFile);
+    let out: string;
+    try {
+      out = execFileSync(
+        "bun",
+        ["run", path.join(import.meta.dir, "surface-dump.ts")],
+        {
+          cwd: wt,
+          encoding: "utf-8",
+          maxBuffer: 64 * 1024 * 1024,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+        },
+      );
+    } catch (err) {
+      const stderr = String((err as { stderr?: unknown }).stderr ?? err);
+      const reason =
+        stderr.split("\n").find((l) => l.trim()) ?? "unknown error";
+      throw new Error(`cannot load the command tree at ${rev}: ${reason}`, {
+        cause: err,
+      });
     }
-  };
-  walk(ROOT_FILE, "routes", [], 0);
-  return tree;
-}
-
-/** Line ranges (1-based) of the `keys:` blocks (default: a defineCommand's contract). */
-export function contractRanges(
-  source: string,
-  keys: string[] = COMMAND_CONTRACT_KEYS,
-): [number, number][] {
-  const out: [number, number][] = [];
-  const lineOf = (i: number) => source.slice(0, i).split("\n").length;
-  const blocks: string[] = [];
-  for (const m of source.matchAll(
-    new RegExp(`\\b(${keys.join("|")})\\s*:\\s*`, "g"),
-  )) {
-    const at = m.index + m[0].length;
-    const end =
-      source[at] === "{" ? matchBrace(source, at) : source.indexOf("\n", at);
-    out.push([lineOf(m.index), lineOf(end)]);
-    blocks.push(source.slice(at, end + 1));
+    return JSON.parse(out) as Dump;
+  } finally {
+    git(["worktree", "remove", "--force", wt], cwd);
   }
-  // buildApplication options (scanner, name) shape every command's parsing.
-  for (const m of source.matchAll(/\bbuildApplication\s*\(/g)) {
-    const open = source.indexOf("{", m.index);
-    if (open >= 0) out.push([lineOf(open), lineOf(matchBrace(source, open))]);
-  }
-  // Top-level constants a contract block reads (flag values, help text).
-  const used = blocks.join("\n");
-  for (const m of source.matchAll(
-    /^(?:export\s+)?(?:const|let)\s+(\w+)\b[^=]*=\s*/gm,
-  )) {
-    const name = m[1] ?? "";
-    if (!name || !new RegExp(`\\b${name}\\b`).test(used)) continue;
-    const at = m.index + m[0].length;
-    const open = source[at];
-    const end =
-      open === "{" || open === "["
-        ? matchBracket(source, at)
-        : source.indexOf(";", at);
-    out.push([lineOf(m.index), lineOf(end < 0 ? source.length : end)]);
-  }
-  return out;
-}
-
-/** Changed line numbers; `oldFile` is the base path when the file moved. */
-function changedLines(
-  base: string,
-  head: string,
-  file: string,
-  cwd?: string,
-  oldFile: string = file,
-): [Set<number>, Set<number>] {
-  const old = new Set<number>();
-  const neu = new Set<number>();
-  const diff =
-    oldFile === file
-      ? git(["diff", "-U0", "-w", base, head, "--", file], cwd)
-      : git(
-          ["diff", "-U0", "-w", `${base}:${oldFile}`, `${head}:${file}`],
-          cwd,
-        );
-  for (const m of diff.matchAll(
-    /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm,
-  )) {
-    const [o, oc, n, nc] = [m[1], m[2] ?? "1", m[3], m[4] ?? "1"].map(
-      Number,
-    ) as [number, number, number, number];
-    for (let i = 0; i < oc; i++) old.add(o + i);
-    for (let i = 0; i < nc; i++) neu.add(n + i);
-  }
-  return [old, neu];
-}
-
-function touchesContract(
-  base: string,
-  head: string,
-  file: string,
-  cwd?: string,
-  keys: string[] = COMMAND_CONTRACT_KEYS,
-  oldFile: string = file,
-): boolean {
-  const [old, neu] = changedLines(base, head, file, cwd, oldFile);
-  for (const [rev, path, lines] of [
-    [base, oldFile, old],
-    [head, file, neu],
-  ] as const) {
-    const ranges = contractRanges(show(rev, path, cwd) ?? "", keys);
-    for (const n of lines)
-      if (ranges.some(([a, b]) => n >= a && n <= b)) return true;
-  }
-  return false;
 }
 
 const isTest = (f: string) => /\.test\.ts$|test-helpers\.ts$/.test(f);
 
-/** Helper files under src/commands that `file` imports, transitively. */
-function commandHelpers(
-  rev: string,
-  file: string,
-  exists: (p: string) => boolean,
+/** Files that changed between `base` and `head`; identical renames don't count. */
+export function changedFiles(
+  base: string,
+  head: string,
   cwd?: string,
-): Set<string> {
-  const seen = new Set<string>();
-  const todo = [file];
-  while (todo.length) {
-    const f = todo.pop() ?? "";
-    for (const dep of new Set(
-      importMap(show(rev, f, cwd) ?? "", f, exists).values(),
-    )) {
-      if (dep.startsWith(COMMANDS_DIR) && dep !== file && !seen.has(dep)) {
-        seen.add(dep);
-        todo.push(dep);
-      }
-    }
-  }
-  return seen;
-}
-
-export function detect(base: string, head: string, cwd?: string): Surface[] {
-  // Git rename detection: identical moves (R100) are not changes; every
-  // renamed file's old path is accounted for by its new one.
-  const renamedFrom = new Set<string>();
-  const pureMoves = new Set<string>();
+): string[] {
+  const out = new Set<string>();
   for (const line of git(
     ["diff", "--name-status", "-M", base, head],
     cwd,
   ).split("\n")) {
-    const [status = "", from = "", to = ""] = line.split("\t");
-    if (!status.startsWith("R")) continue;
-    renamedFrom.add(from);
-    if (status === "R100") pureMoves.add(to);
+    const [status = "", ...files] = line.split("\t");
+    if (!status || status === "R100") continue;
+    for (const f of files) if (!isTest(f)) out.add(f);
   }
-  const changed = git(["diff", "--name-only", "--no-renames", base, head], cwd)
-    .split("\n")
-    .filter((f) => f && !isTest(f) && !pureMoves.has(f) && !renamedFrom.has(f));
+  return [...out].sort();
+}
+
+const same = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
+/** Diff two dumps into report rows, given the changed files. */
+export function classify(
+  before: Dump,
+  after: Dump,
+  changed: readonly string[],
+): Surface[] {
   const changedSet = new Set(changed);
-  const beforeGroups = new Map([[ROOT_GROUP, ROOT_FILE]]);
-  const afterGroups = new Map([[ROOT_GROUP, ROOT_FILE]]);
-  const before = commandTree(base, cwd, beforeGroups);
-  const after = commandTree(head, cwd, afterGroups);
-  const headFiles = new Set(
-    git(["ls-tree", "-r", "--name-only", head, "--", "src"], cwd).split("\n"),
-  );
-  const exists = (p: string) => headFiles.has(p);
-  const baseFiles = new Set(
-    git(["ls-tree", "-r", "--name-only", base, "--", "src"], cwd).split("\n"),
-  );
-  const baseExists = (p: string) => baseFiles.has(p);
-  const commandFiles = new Set([...before.values(), ...after.values()]);
-  const attributed = new Set<string>();
   const out: Surface[] = [];
+  const attributed = new Set<string>();
   const row = (
     name: string,
     change: Surface["change"],
     tag: string,
     files: string[],
   ) => {
-    files.forEach((f) => attributed.add(f));
-    out.push({ kind: "cli", name, change, tags: [tag], files });
+    const unique = [...new Set(files)];
+    unique.forEach((f) => attributed.add(f));
+    out.push({ kind: "cli", name, change, tags: [tag], files: unique });
   };
-  for (const name of [...new Set([...before.keys(), ...after.keys()])].sort()) {
-    const file = after.get(name) ?? before.get(name) ?? "";
-    const rev = after.has(name) ? head : base;
-    const revExists = after.has(name) ? exists : baseExists;
-    const helpers = [...commandHelpers(rev, file, revExists, cwd)].filter(
-      (h) => changedSet.has(h) && !commandFiles.has(h),
+  const names = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+  // Groups go last so they can see whether a child was added or removed.
+  names.sort(
+    (a, b) =>
+      Number((after[a] ?? before[a])?.kind === "group") -
+        Number((after[b] ?? before[b])?.kind === "group") || a.localeCompare(b),
+  );
+  for (const name of names) {
+    const b = before[name];
+    const a = after[name];
+    const own = [b?.file, a?.file].filter((f): f is string => !!f);
+    const hits = [...own, ...(b?.closure ?? []), ...(a?.closure ?? [])].filter(
+      (f) => changedSet.has(f),
     );
-    if (!before.has(name)) row(name, "added", "contract", [file, ...helpers]);
-    else if (!after.has(name))
-      row(name, "removed", "contract", [file, ...helpers]);
-    else if (changedSet.has(file) || before.get(name) !== file) {
-      // Path changed: always compare against the command's own base file, since
-      // git pairs renames by content, not by command.
-      const oldFile = before.get(name) ?? file;
-      const [o, n] = changedLines(base, head, file, cwd, oldFile);
-      if (oldFile !== file && !o.size && !n.size && !helpers.length) continue;
-      const tag = touchesContract(
-        base,
-        head,
-        file,
-        cwd,
-        COMMAND_CONTRACT_KEYS,
-        oldFile,
-      )
-        ? "contract"
-        : "impl";
-      row(name, "modified", tag, [file, ...helpers]);
-    } else if (helpers.length) {
-      row(name, "modified", "impl", helpers);
+    // A shared file (an aliased group's index.ts) is accounted for either way.
+    own.forEach((f) => attributed.add(f));
+    if (!b) row(name, "added", "contract", [...own, ...hits]);
+    else if (!a) row(name, "removed", "contract", [...own, ...hits]);
+    else if (!same(b.contract, a.contract))
+      row(name, "modified", "contract", [...own, ...hits]);
+    else if (hits.length) {
+      if (a.kind === "group") {
+        // Wiring an added or removed child into the route map explains it.
+        const prefix = name === ROOT ? "" : `${name} `;
+        const child = out.some(
+          (s) => s.name.startsWith(prefix) && s.change !== "modified",
+        );
+        if (child) continue;
+      }
+      const impl = hits.some(
+        (f) => own.includes(f) || f.startsWith(COMMANDS_DIR),
+      );
+      row(name, "modified", impl ? "impl" : "indirect", hits);
     }
   }
-  // Route maps, per group: compared against the group's own base file, so a
-  // moved or repointed group keeps its docs changes.
-  for (const [group, file] of afterGroups) {
-    const oldFile = beforeGroups.get(group);
-    // A new group: its added commands already report it.
-    if (!oldFile) {
-      attributed.add(file);
-      continue;
-    }
-    attributed.add(oldFile);
-    if (oldFile === file && !changedSet.has(file)) continue;
-    const [o, n] = changedLines(base, head, file, cwd, oldFile);
-    if (oldFile !== file && !o.size && !n.size) {
-      attributed.add(file);
-      continue;
-    }
-    const root = group === ROOT_GROUP;
-    const contractIn = (keys: string[]) =>
-      touchesContract(base, head, file, cwd, keys, oldFile);
-    const docs = !root && contractIn(GROUP_DOC_KEYS);
-    const contract = root ? contractIn(ROUTES_CONTRACT_KEYS) : docs;
-    const routes = contractIn(["routes"]);
-    const childAddedOrRemoved = out.some(
-      (s) => s.name.startsWith(`${group} `) && s.change !== "modified",
-    );
-    // Skip only when the route-map edit is just the routes an added or
-    // removed child already explains.
-    if (!docs && routes && childAddedOrRemoved && !root) attributed.add(file);
-    else
-      row(group, "modified", contract || routes ? "contract" : "impl", [file]);
-  }
-  // A removed group: its removed commands already report it.
-  for (const [group, file] of beforeGroups)
-    if (!afterGroups.has(group)) attributed.add(file);
-  // Anything else under src/ (lib, rest, gql, context.ts, bin.ts, ...).
+  // Anything else under src/ (bin.ts, unused lib code, ...).
   const shared = changed.filter(
-    (f) => f.startsWith("src/") && !attributed.has(f) && !commandFiles.has(f),
+    (f) => f.startsWith("src/") && !attributed.has(f),
   );
   if (shared.length) {
     const dirs = [...new Set(shared.map((f) => path.posix.dirname(f)))].sort();
     row(`(shared ${dirs.join(", ")})`, "modified", "indirect", shared);
   }
   return out;
+}
+
+export function detect(base: string, head: string, cwd?: string): Surface[] {
+  const dir = cwd ?? process.cwd();
+  return classify(
+    dumpAt(base, dir),
+    dumpAt(head, dir),
+    changedFiles(base, head, dir),
+  );
 }
 
 const MAX_ROWS = 20;

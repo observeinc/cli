@@ -1,62 +1,195 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import {
-  commandTree,
-  contractRanges,
-  detect,
-  markdown,
-  routeEntries,
-  type Surface,
-} from "./surface-detect";
+import { classify, detect, markdown, type Surface } from "./surface-detect";
+import type { Dump, DumpedSurface } from "./surface-dump";
 
-const APP = `import { defineRoutes } from "./lib/stricli-wrappers.js";
+const byName = (s: Surface[]) => Object.fromEntries(s.map((x) => [x.name, x]));
+
+const cmd = (
+  file: string,
+  brief: string,
+  closure: string[] = [],
+): DumpedSurface => ({ kind: "command", file, closure, contract: { brief } });
+const group = (file: string, brief: string): DumpedSurface => ({
+  kind: "group",
+  file,
+  closure: [],
+  contract: { brief },
+});
+
+const BASE: Dump = {
+  "(root)": group("src/app.ts", "Observe CLI"),
+  apm: group("src/commands/apm/index.ts", "APM"),
+  "apm services": cmd("src/commands/apm/services.ts", "List services", [
+    "src/commands/apm/apm-utils.ts",
+    "src/lib/time-window.ts",
+  ]),
+  query: cmd("src/commands/query.ts", "Run a query", [
+    "src/lib/time-window.ts",
+  ]),
+};
+
+const withSurface = (name: string, s: DumpedSurface | undefined): Dump => {
+  const next = { ...BASE };
+  if (s) next[name] = s;
+  else Reflect.deleteProperty(next, name);
+  return next;
+};
+
+describe("classify", () => {
+  test("nothing changed", () => {
+    expect(classify(BASE, BASE, [])).toEqual([]);
+  });
+
+  test("a contract change is contract", () => {
+    const after = withSurface(
+      "query",
+      cmd("src/commands/query.ts", "Run an OPAL query", [
+        "src/lib/time-window.ts",
+      ]),
+    );
+    expect(classify(BASE, after, ["src/commands/query.ts"])).toEqual([
+      {
+        kind: "cli",
+        name: "query",
+        change: "modified",
+        tags: ["contract"],
+        files: ["src/commands/query.ts"],
+      },
+    ]);
+  });
+
+  test("own file or a src/commands helper is impl", () => {
+    const got = byName(
+      classify(BASE, BASE, [
+        "src/commands/query.ts",
+        "src/commands/apm/apm-utils.ts",
+      ]),
+    );
+    expect(got.query?.tags).toEqual(["impl"]);
+    expect(got["apm services"]?.tags).toEqual(["impl"]);
+    expect(got["apm services"]?.files).toEqual([
+      "src/commands/apm/apm-utils.ts",
+    ]);
+  });
+
+  test("a shared lib file is indirect on every command importing it", () => {
+    const got = byName(classify(BASE, BASE, ["src/lib/time-window.ts"]));
+    expect(Object.keys(got).sort()).toEqual(["apm services", "query"]);
+    expect(got.query?.tags).toEqual(["indirect"]);
+  });
+
+  test("added and removed commands are contract", () => {
+    const after = withSurface("query", undefined);
+    after["apm envs"] = cmd("src/commands/apm/envs.ts", "List environments");
+    const got = byName(
+      classify(BASE, after, [
+        "src/app.ts",
+        "src/commands/apm/envs.ts",
+        "src/commands/apm/index.ts",
+        "src/commands/query.ts",
+      ]),
+    );
+    expect(got["apm envs"]?.change).toBe("added");
+    expect(got.query?.change).toBe("removed");
+    // Route maps that only wire those children in or out add no row.
+    expect(got.apm).toBeUndefined();
+    expect(got["(root)"]).toBeUndefined();
+  });
+
+  test("a group edit with no child change is impl, a docs change contract", () => {
+    expect(
+      byName(classify(BASE, BASE, ["src/commands/apm/index.ts"])).apm?.tags,
+    ).toEqual(["impl"]);
+    const after = withSurface(
+      "apm",
+      group("src/commands/apm/index.ts", "Tracing"),
+    );
+    expect(
+      byName(classify(BASE, after, ["src/commands/apm/index.ts"])).apm?.tags,
+    ).toEqual(["contract"]);
+  });
+
+  test("src files no command imports form one shared row", () => {
+    expect(classify(BASE, BASE, ["src/bin.ts", "README.md"])).toEqual([
+      {
+        kind: "cli",
+        name: "(shared src)",
+        change: "modified",
+        tags: ["indirect"],
+        files: ["src/bin.ts"],
+      },
+    ]);
+  });
+});
+
+// End to end: a tiny Stricli app in a temp repo, dumped at two commits.
+const STRICLI = path.resolve(import.meta.dir, "../node_modules");
+
+const APP = `import { buildApplication, buildRouteMap } from "@stricli/core";
 import { apmRoutes } from "./commands/apm/index.js";
 import { queryCommand } from "./commands/query.js";
 
-export const routes = defineRoutes({
-  routes: {
-    // Kept for old scripts: query: nope
-    apm: apmRoutes,
-    query: queryCommand,
-  },
+export const routes = buildRouteMap({
+  routes: { apm: apmRoutes, query: queryCommand },
   docs: { brief: "Observe CLI" },
 });
+
+export const app = buildApplication(routes, { name: "observe" });
 `;
 
 const APM = `import { buildRouteMap } from "@stricli/core";
-import { servicesCommand } from "./services";
+import { servicesCommand } from "./services.js";
 
 export const apmRoutes = buildRouteMap({
-  routes: {
-    services: servicesCommand,
-  },
+  routes: { services: servicesCommand },
   docs: { brief: "APM" },
 });
 `;
 
-const SERVICES = `import { defineCommand } from "../../lib/stricli-wrappers";
+const TIME_WINDOW = `export const timeWindowFlags = {
+  start: { kind: "parsed", parse: String, brief: "Window start", optional: true },
+} as const;
+`;
 
-async function run(limit: number) {
-  return limit + 1;
-}
+const command = (
+  ident: string,
+  brief: string,
+  body = "return;",
+) => `import { buildCommand } from "@stricli/core";
+import { timeWindowFlags } from "IMPORT";
 
-export const servicesCommand = defineCommand({
-  loader: async () => run,
+export const ${ident} = buildCommand({
+  func: () => {
+    ${body}
+  },
   parameters: {
     flags: {
-      limit: { kind: "parsed", brief: "Max rows" },
+      ...timeWindowFlags,
+      limit: { kind: "parsed", parse: Number, brief: "Max rows", optional: true },
     },
   },
-  docs: {
-    brief: "List services",
-  },
+  docs: { brief: "${brief}" },
 });
 `;
 
-const QUERY = SERVICES.replace("servicesCommand", "queryCommand");
+const SERVICES = command("servicesCommand", "List services").replace(
+  "IMPORT",
+  "../../lib/time-window.js",
+);
+const QUERY = command("queryCommand", "Run a query").replace(
+  "IMPORT",
+  "../lib/time-window.js",
+);
 
 let dir: string;
 const git = (...args: string[]) =>
@@ -70,303 +203,81 @@ const commit = () => {
   git("commit", "-q", "--allow-empty", "-m", "c");
   return git("rev-parse", "HEAD");
 };
-const byName = (s: Surface[]) => Object.fromEntries(s.map((x) => [x.name, x]));
 
-beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "surface-detect-"));
-  git("init", "-q", "-b", "main");
-  git("config", "user.email", "t@example.com");
-  git("config", "user.name", "t");
-  write("src/app.ts", APP);
-  write("src/commands/apm/index.ts", APM);
-  write("src/commands/apm/services.ts", SERVICES);
-  write("src/commands/query.ts", QUERY);
-  write("src/lib/stricli-wrappers.ts", "export const x = 1;\n");
-});
-
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
-});
-
-describe("routeEntries", () => {
-  test("reads route keys and ignores comments", () => {
-    expect(routeEntries(APP, "routes")).toEqual([
-      ["apm", "apmRoutes"],
-      ["query", "queryCommand"],
-    ]);
-  });
-});
-
-describe("commandTree", () => {
-  test("walks nested route maps", () => {
-    const base = commit();
-    expect(Object.fromEntries(commandTree(base, dir))).toEqual({
-      "apm services": "src/commands/apm/services.ts",
-      query: "src/commands/query.ts",
-    });
-  });
-});
-
-describe("contractRanges", () => {
-  test("covers parameters and docs blocks", () => {
-    const ranges = contractRanges(SERVICES);
-    const lines = SERVICES.split("\n");
-    const flagLine = lines.findIndex((l) => l.includes("Max rows")) + 1;
-    const bodyLine = lines.findIndex((l) => l.includes("limit + 1")) + 1;
-    expect(ranges.some(([a, b]) => flagLine >= a && flagLine <= b)).toBe(true);
-    expect(ranges.some(([a, b]) => bodyLine >= a && bodyLine <= b)).toBe(false);
-  });
-});
-
-describe("detect", () => {
-  test("no command change", () => {
-    const base = commit();
-    write("README.md", "hi\n");
-    expect(detect(base, commit(), dir)).toEqual([]);
+describe("detect (end to end)", () => {
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), "surface-detect-"));
+    git("init", "-q", "-b", "main");
+    git("config", "user.email", "t@example.com");
+    git("config", "user.name", "t");
+    symlinkSync(STRICLI, path.join(dir, "node_modules"));
+    write(".gitignore", "node_modules\n");
+    write("src/app.ts", APP);
+    write("src/commands/apm/index.ts", APM);
+    write("src/commands/apm/services.ts", SERVICES);
+    write("src/commands/query.ts", QUERY);
+    write("src/lib/time-window.ts", TIME_WINDOW);
   });
 
-  test("flag edit is contract, body edit is impl", () => {
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("a shared flag set brief edit is contract on every user", () => {
     const base = commit();
     write(
-      "src/commands/apm/services.ts",
-      SERVICES.replace("Max rows", "Maximum rows"),
+      "src/lib/time-window.ts",
+      TIME_WINDOW.replace("Window start", "Start (ISO 8601)"),
     );
-    write("src/commands/query.ts", QUERY.replace("limit + 1", "limit + 2"));
     const got = byName(detect(base, commit(), dir));
+    expect(got.query?.tags).toEqual(["contract"]);
     expect(got["apm services"]?.tags).toEqual(["contract"]);
-    expect(got.query?.tags).toEqual(["impl"]);
-  });
-
-  test("whitespace-only edit is impl", () => {
-    const base = commit();
-    write(
+    expect(got["apm services"]?.files).toEqual([
       "src/commands/apm/services.ts",
-      SERVICES.replace('brief: "Max rows"', 'brief:   "Max rows"'),
-    );
-    expect(byName(detect(base, commit(), dir))["apm services"]?.tags).toEqual([
-      "impl",
+      "src/lib/time-window.ts",
     ]);
   });
 
-  test("added and removed commands", () => {
+  test("a body edit is impl and a lib helper edit indirect", () => {
+    write("src/lib/fmt.ts", "export const fmt = (n: number) => String(n);\n");
+    write(
+      "src/commands/query.ts",
+      `import { fmt } from "../lib/fmt.js";\n${QUERY.replace("return;", "fmt(1);")}`,
+    );
     const base = commit();
-    write(
-      "src/commands/apm/envs.ts",
-      SERVICES.replace("servicesCommand", "envsCommand"),
-    );
-    write(
-      "src/commands/apm/index.ts",
-      APM.replace(
-        'import { servicesCommand } from "./services";',
-        'import { envsCommand } from "./envs";',
-      ).replace("services: servicesCommand", "environments: envsCommand"),
-    );
-    const got = byName(detect(base, commit(), dir));
-    expect(got["apm environments"]?.change).toBe("added");
-    expect(got["apm services"]?.change).toBe("removed");
-  });
-
-  test("shared code is indirect and tests are ignored", () => {
-    const base = commit();
-    write("src/lib/stricli-wrappers.ts", "export const x = 2;\n");
-    write("src/commands/query.test.ts", "test('x', () => {});\n");
-    const got = detect(base, commit(), dir);
-    expect(got).toHaveLength(1);
-    expect(got[0]?.tags).toEqual(["indirect"]);
-    expect(got[0]?.name).toBe("(shared src/lib)");
-  });
-});
-
-describe("detect: helpers and route maps", () => {
-  test("a changed helper marks the commands that import it", () => {
-    write(
-      "src/commands/apm/utils.ts",
-      "export const parseLimit = (n: number) => n;\n",
-    );
     write(
       "src/commands/apm/services.ts",
-      `import { parseLimit } from "./utils";\n${SERVICES}`,
+      SERVICES.replace("return;", "return undefined;"),
     );
-    const base = commit();
     write(
-      "src/commands/apm/utils.ts",
-      "export const parseLimit = (n: number) => n + 1;\n",
+      "src/lib/fmt.ts",
+      "export const fmt = (n: number) => n.toFixed(0);\n",
     );
     const got = byName(detect(base, commit(), dir));
     expect(got["apm services"]?.tags).toEqual(["impl"]);
-    expect(got["apm services"]?.files).toEqual(["src/commands/apm/utils.ts"]);
-    expect(Object.keys(got).some((k) => k.startsWith("(shared"))).toBe(false);
+    expect(got.query?.tags).toEqual(["indirect"]);
   });
 
-  test("an index.ts import-only edit is impl", () => {
+  test("hiding a route is contract on the hidden command", () => {
     const base = commit();
-    write(
-      "src/commands/apm/index.ts",
-      APM.replace('from "./services"', 'from "./services.js"'),
-    );
-    expect(byName(detect(base, commit(), dir)).apm?.tags).toEqual(["impl"]);
-  });
-
-  test("group docs edit stays when a child is only impl", () => {
-    const base = commit();
-    write(
-      "src/commands/apm/index.ts",
-      APM.replace('brief: "APM"', 'brief: "APM tools"'),
-    );
-    write(
-      "src/commands/apm/services.ts",
-      SERVICES.replace("limit + 1", "limit + 2"),
-    );
-    const got = byName(detect(base, commit(), dir));
-    expect(got["apm services"]?.tags).toEqual(["impl"]);
-    expect(got.apm?.tags).toEqual(["contract"]);
-  });
-
-  test("root app.ts and other src files are reported", () => {
-    const base = commit();
-    write(
-      "src/app.ts",
-      APP.replace('brief: "Observe CLI"', 'brief: "observe"'),
-    );
-    write("src/context.ts", "export const c = 1;\n");
-    const got = byName(detect(base, commit(), dir));
-    expect(got["(root)"]?.tags).toEqual(["contract"]);
-    expect(got["(shared src)"]?.tags).toEqual(["indirect"]);
-  });
-});
-
-describe("detect: contract reach", () => {
-  test("a top-level constant used in a flag brief is contract", () => {
-    write(
-      "src/commands/query.ts",
-      `const FIELDS = ["a", "b"];\n${QUERY.replace('brief: "Max rows"', "brief: `Fields: ${FIELDS.join()}`")}`,
-    );
-    const base = commit();
-    write(
-      "src/commands/query.ts",
-      `const FIELDS = ["a", "b", "c"];\n${QUERY.replace('brief: "Max rows"', "brief: `Fields: ${FIELDS.join()}`")}`,
-    );
-    expect(byName(detect(base, commit(), dir)).query?.tags).toEqual([
-      "contract",
-    ]);
-  });
-
-  test("buildApplication options in app.ts are contract", () => {
-    write(
-      "src/app.ts",
-      `${APP}export const app = buildApplication(routes, {\n  scanner: { caseStyle: "original" },\n});\n`,
-    );
-    const base = commit();
-    write(
-      "src/app.ts",
-      `${APP}export const app = buildApplication(routes, {\n  scanner: { caseStyle: "allow-kebab-for-camel" },\n});\n`,
-    );
-    expect(byName(detect(base, commit(), dir))["(root)"]?.tags).toEqual([
-      "contract",
-    ]);
-  });
-
-  test("a hideRoute change survives an added sibling", () => {
-    const base = commit();
-    write(
-      "src/commands/apm/envs.ts",
-      SERVICES.replace("servicesCommand", "envsCommand"),
-    );
     write(
       "src/commands/apm/index.ts",
       APM.replace(
-        'import { servicesCommand } from "./services";',
-        'import { servicesCommand } from "./services";\nimport { envsCommand } from "./envs";',
-      )
-        .replace(
-          "services: servicesCommand,",
-          "services: servicesCommand,\n    envs: envsCommand,",
-        )
-        .replace(
-          'docs: { brief: "APM" }',
-          'docs: { brief: "APM" },\n  hideRoute: { services: true }',
-        ),
-    );
-    const got = byName(detect(base, commit(), dir));
-    expect(got["apm envs"]?.change).toBe("added");
-    expect(got.apm?.tags).toEqual(["contract"]);
-  });
-
-  test("a new group is reported only through its added commands", () => {
-    const base = commit();
-    write(
-      "src/commands/inc/list.ts",
-      SERVICES.replace("servicesCommand", "listCommand"),
-    );
-    write(
-      "src/commands/inc/index.ts",
-      'import { buildRouteMap } from "@stricli/core";\nimport { listCommand } from "./list";\n\nexport const incRoutes = buildRouteMap({\n  routes: {\n    list: listCommand,\n  },\n  docs: { brief: "Incidents" },\n});\n',
-    );
-    write(
-      "src/app.ts",
-      APP.replace(
-        'import { queryCommand } from "./commands/query.js";',
-        'import { queryCommand } from "./commands/query.js";\nimport { incRoutes } from "./commands/inc/index.js";',
-      ).replace(
-        "    query: queryCommand,",
-        "    query: queryCommand,\n    inc: incRoutes,",
+        'docs: { brief: "APM" }',
+        'docs: { brief: "APM", hideRoute: { services: true } }',
       ),
     );
     const got = byName(detect(base, commit(), dir));
-    expect(got["inc list"]?.change).toBe("added");
-    expect(got.inc).toBeUndefined();
+    expect(got["apm services"]?.tags).toEqual(["contract"]);
+    expect(got.apm?.tags).toEqual(["impl"]);
   });
 
-  test("an unwired new group adds no command rows", () => {
+  test("an identical move reports only the rewired group", () => {
     const base = commit();
-    write(
-      "src/commands/inc/list.ts",
-      SERVICES.replace("servicesCommand", "listCommand"),
-    );
-    write(
-      "src/commands/inc/index.ts",
-      'import { buildRouteMap } from "@stricli/core";\nimport { listCommand } from "./list";\n\nexport const incRoutes = buildRouteMap({\n  routes: {\n    list: listCommand,\n  },\n  docs: { brief: "Incidents" },\n});\n',
-    );
-    const got = byName(detect(base, commit(), dir));
-    expect(Object.keys(got).filter((k) => k.startsWith("inc"))).toEqual([]);
-  });
-
-  test("a moved command is a change only if its content changed", () => {
-    const base = commit();
-    write("src/commands/apm/svc/services.ts", SERVICES);
-    rmSync(path.join(dir, "src/commands/apm/services.ts"));
-    write(
-      "src/commands/apm/index.ts",
-      APM.replace('from "./services"', 'from "./svc/services"'),
-    );
-    expect(byName(detect(base, commit(), dir))["apm services"]).toBeUndefined();
-    const moved = commit();
-    write(
-      "src/commands/apm/svc/services.ts",
-      SERVICES.replace("Max rows", "Maximum rows"),
-    );
-    expect(byName(detect(moved, commit(), dir))["apm services"]?.tags).toEqual([
-      "contract",
-    ]);
-  });
-
-  test("moving a group with its helper reports nothing", () => {
-    write(
-      "src/commands/apm/utils.ts",
-      "export const parseLimit = (n: number) => n;\n",
-    );
-    write(
-      "src/commands/apm/services.ts",
-      `import { parseLimit } from "./utils";\n${SERVICES}`,
-    );
-    const base = commit();
-    mkdirSync(path.join(dir, "src/commands/obs-apm"), { recursive: true });
-    for (const f of ["index.ts", "services.ts", "utils.ts"]) {
-      git("mv", `src/commands/apm/${f}`, `src/commands/obs-apm/${f}`);
-    }
+    git("mv", "src/commands/query.ts", "src/commands/run-query.ts");
     write(
       "src/app.ts",
-      APP.replace('"./commands/apm/index.js"', '"./commands/obs-apm/index.js"'),
+      APP.replace("./commands/query.js", "./commands/run-query.js"),
     );
     expect(detect(base, commit(), dir)).toEqual([
       {
@@ -379,76 +290,16 @@ describe("detect: contract reach", () => {
     ]);
   });
 
-  test("a command repointed at another command's moved file is reported", () => {
-    write("src/commands/query.ts", QUERY.replace("Max rows", "Query rows"));
+  test("a renamed route is a removed and an added command", () => {
     const base = commit();
-    rmSync(path.join(dir, "src/commands/apm/services.ts"));
-    git("mv", "src/commands/query.ts", "src/commands/apm/svc.ts");
-    write(
-      "src/commands/apm/index.ts",
-      APM.replace(
-        'import { servicesCommand } from "./services";',
-        'import { queryCommand as servicesCommand } from "./svc";',
-      ),
-    );
     write(
       "src/app.ts",
-      APP.replace(
-        'import { queryCommand } from "./commands/query.js";\n',
-        "",
-      ).replace("    query: queryCommand,\n", ""),
+      APP.replace("query: queryCommand", "run: queryCommand"),
     );
     const got = byName(detect(base, commit(), dir));
-    expect(got["apm services"]?.tags).toEqual(["contract"]);
     expect(got.query?.change).toBe("removed");
-  });
-
-  test("a moved group keeps its docs change", () => {
-    const base = commit();
-    mkdirSync(path.join(dir, "src/commands/tracing"), { recursive: true });
-    git(
-      "mv",
-      "src/commands/apm/services.ts",
-      "src/commands/tracing/services.ts",
-    );
-    rmSync(path.join(dir, "src/commands/apm/index.ts"));
-    write("src/commands/tracing/index.ts", APM.replace('"APM"', '"Tracing"'));
-    write(
-      "src/app.ts",
-      APP.replace('"./commands/apm/index.js"', '"./commands/tracing/index.js"'),
-    );
-    const got = byName(detect(base, commit(), dir));
-    expect(got.apm?.tags).toEqual(["contract"]);
-    expect(got.apm?.files).toEqual(["src/commands/tracing/index.ts"]);
-    expect(got["apm services"]).toBeUndefined();
-    expect(Object.keys(got).some((k) => k.startsWith("(shared"))).toBe(false);
-  });
-
-  test("a whitespace-only group edit is impl", () => {
-    const base = commit();
-    write("src/commands/apm/index.ts", APM.replace("  routes:", "    routes:"));
-    expect(byName(detect(base, commit(), dir)).apm?.tags).toEqual(["impl"]);
-  });
-
-  test("a routes-only edit is explained by the added child", () => {
-    const base = commit();
-    write(
-      "src/commands/apm/envs.ts",
-      SERVICES.replace("servicesCommand", "envsCommand"),
-    );
-    write(
-      "src/commands/apm/index.ts",
-      APM.replace(
-        'import { servicesCommand } from "./services";',
-        'import { servicesCommand } from "./services";\nimport { envsCommand } from "./envs";',
-      ).replace(
-        "services: servicesCommand,",
-        "services: servicesCommand,\n    envs: envsCommand,",
-      ),
-    );
-    const got = byName(detect(base, commit(), dir));
-    expect(got["apm envs"]?.change).toBe("added");
-    expect(got.apm).toBeUndefined();
+    expect(got.run?.change).toBe("added");
+    expect(got["(root)"]).toBeUndefined();
   });
 });
 
@@ -468,7 +319,8 @@ describe("markdown", () => {
         files: [],
       },
     ]);
-    expect(md).toContain("2 CLI command surface(s), 1 with a contract change");
-    expect(md.indexOf("observe b")).toBeLessThan(md.indexOf("observe a"));
+    const rows = md.split("\n").filter((l) => l.startsWith("| `"));
+    expect(rows[0]).toContain("observe b");
+    expect(md).toContain("1 with a contract change");
   });
 });

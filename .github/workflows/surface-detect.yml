@@ -26,10 +26,30 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      - run: bun install --frozen-lockfile
+
       - name: Test the detector
         run: bun test scripts/surface-detect.test.ts
 
+      # Loading the real command tree needs codegen, whose spec secrets fork
+      # PRs don't get (same as ci.yml), so forks get no report.
+      - name: Codegen
+        id: codegen
+        env:
+          OBSERVE_OPENAPI_SPEC: ${{ secrets.OBSERVE_OPENAPI_SPEC }}
+          OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
+          OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
+        run: |
+          if [ -z "$OBSERVE_OPENAPI_SPEC" ] || [ -z "$OBSERVE_GQL_SPEC" ]; then
+            echo "Codegen secrets unavailable (fork PR?); skipping surface detection." >> "$GITHUB_STEP_SUMMARY"
+            echo "ran=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          bun run codegen
+          echo "ran=true" >> "$GITHUB_OUTPUT"
+
       - name: Detect
+        if: steps.codegen.outputs.ran == 'true'
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -39,13 +59,14 @@ jobs:
           cat surface-comment.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
+        if: steps.codegen.outputs.ran == 'true'
         with:
           name: surface-report
           path: surface-report.json
 
       # Fork PRs get a read-only token, so they keep the summary and artifact only.
       - name: Comment
-        if: github.event.pull_request.head.repo.fork == false
+        if: steps.codegen.outputs.ran == 'true' && github.event.pull_request.head.repo.fork == false
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
