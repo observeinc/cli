@@ -48,7 +48,7 @@ function git(args: string[], cwd?: string): string {
   });
 }
 
-/** Run a command in `cwd`; on failure, throw its first stderr line. */
+/** Run a command in `cwd`; on failure, throw its most error-like stderr line. */
 function run(rev: string, cwd: string, cmd: string, args: string[]): string {
   try {
     return execFileSync(cmd, args, {
