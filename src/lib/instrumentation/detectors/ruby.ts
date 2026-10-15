@@ -30,6 +30,7 @@ export function detectRuby(snapshot: ProjectSnapshot) {
         name: posix.basename(directory === "." ? snapshot.root : directory),
         language: "ruby",
         runtime: "ruby",
+        version: /^\s*ruby\s+["']([^"']+)["']/m.exec(content)?.[1],
         packageManager: {
           id: "bundler",
           lockfile: lockfile ? "Gemfile.lock" : undefined,

@@ -267,6 +267,31 @@ describe("instrumentation detection", () => {
     expect(candidate?.frameworks).toEqual([{ id: "aspnet" }]);
   });
 
+  test("reads the Ruby version from the Gemfile ruby directive", () => {
+    const root = fixture({
+      Gemfile:
+        'source "https://rubygems.org"\n\nruby "3.3.4"\n\ngem "rails", "~> 7.1"\n',
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.language.version).toBe("3.3.4");
+    expect(candidate?.compatibility?.runtimeVersionSupported).toBe("yes");
+  });
+
+  test("names a Maven application after its own artifactId, not its parent's", () => {
+    const root = fixture({
+      "pom.xml":
+        "<project><parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.3.2</version></parent><artifactId>payments-service</artifactId><dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency></dependencies></project>",
+      "src/main/java/App.java":
+        "@SpringBootApplication public class App { public static void main(String[] a) {} }",
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.name).toBe("payments-service");
+  });
+
   test("a legacy class library without web markers is not an application", () => {
     const root = fixture({
       "Shared.csproj":

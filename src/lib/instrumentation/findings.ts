@@ -73,6 +73,12 @@ export const RULES = {
 
 export type RuleId = keyof typeof RULES;
 
+/** Lockfiles the audit reads a dependency graph from, per runtime. */
+const GRAPH_LOCKFILES: Partial<Record<string, string>> = {
+  nodejs: "package-lock.json or pnpm-lock.yaml",
+  python: "uv.lock",
+};
+
 export interface Finding {
   ruleId: RuleId;
   severity: DiagnosticSeverity;
@@ -369,16 +375,24 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
   // an instrumented library pulled in transitively (Npgsql under
   // Npgsql.EntityFrameworkCore.PostgreSQL) goes unreported. Say so rather than
   // let a short supported list read as complete coverage.
-  if (compat.autoInstrumentationSupported && candidate.dependencyGraph == null)
+  if (
+    compat.autoInstrumentationSupported &&
+    candidate.dependencyGraph == null
+  ) {
+    const lockfiles = GRAPH_LOCKFILES[runtime];
     out.push(
       finding({
         ruleId: "OTEL031",
         candidate,
         message:
           "Only declared dependencies were assessed; libraries pulled in transitively were not checked",
-        fix: "Commit a package-lock.json, pnpm-lock.yaml, or uv.lock, or pass --sbom with a CycloneDX file",
+        fix:
+          lockfiles == null
+            ? "Pass --sbom with a CycloneDX SBOM of this application"
+            : `Commit a ${lockfiles}, or pass --sbom with a CycloneDX file`,
       }),
     );
+  }
 
   if (compat.autoInstrumentationSupported && !compat.runtimeMetricsSupported)
     out.push(

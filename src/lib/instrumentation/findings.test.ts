@@ -145,6 +145,31 @@ describe("deriveFindings", () => {
     expect(rules).toContain("OTEL031");
   });
 
+  test("OTEL031 suggests only the graph sources the runtime supports", () => {
+    const fixFor = (files: Record<string, string>) =>
+      deriveFindings(detectApplications(snapshot(files))).find(
+        (finding) => finding.ruleId === "OTEL031",
+      )?.fix;
+    expect(
+      fixFor({
+        "package.json": JSON.stringify({
+          name: "app",
+          engines: { node: "22" },
+          scripts: { start: "node index.js" },
+          dependencies: { express: "^4.19.0" },
+        }),
+      }),
+    ).toBe(
+      "Commit a package-lock.json or pnpm-lock.yaml, or pass --sbom with a CycloneDX file",
+    );
+    expect(
+      fixFor({
+        "Api.csproj":
+          '<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>',
+      }),
+    ).toBe("Pass --sbom with a CycloneDX SBOM of this application");
+  });
+
   test("OTEL031 is not raised when a dependency graph was applied", () => {
     const detection = detectApplications(
       snapshot({
