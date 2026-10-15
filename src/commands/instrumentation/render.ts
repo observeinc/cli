@@ -47,6 +47,7 @@ function libraryStatus(
     return pkg.components && pkg.components.length > 0
       ? green("✓ covered via components")
       : muted("• aggregator (no components)");
+  if (pkg.reason === "runtime-unsupported") return red("✗ not on this runtime");
   if (pkg.versionMatch === "out-of-range") return red("✗ out of range");
   // On a code-based-auto-instrumentation-only runtime the whole app is wired in
   // by hand (stated in the header), so don't repeat it per row. On a zero-code

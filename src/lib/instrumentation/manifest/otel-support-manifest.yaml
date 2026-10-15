@@ -1,5 +1,5 @@
 schemaVersion: 1
-generatedAt: 2026-09-25T00:00:00.000Z
+generatedAt: 2026-10-15T00:00:00.000Z
 runtimes:
   cpp:
     ecosystem: cargo
@@ -13,7 +13,11 @@ runtimes:
     packages: []
   dotnet:
     ecosystem: nuget
-    supportedRuntimeVersions: ">=8.0.0"
+    # .NET Framework from 4.6.2, and officially supported .NET. .NET Core
+    # skipped version 4, so the two ranges cannot collide. Instrumentation that
+    # runs on only one of the two carries runtimeVersions: ">=4.6.2 <5.0.0" for
+    # .NET Framework or ">=8.0.0" for .NET.
+    supportedRuntimeVersions: ">=4.6.2 <5.0.0 || >=8.0.0"
     autoInstrumentationSupported: true
     runtimeMetricsSupported: true
     sdkStability:
@@ -52,6 +56,7 @@ runtimes:
         supportedVersions: ">=1.8.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
       - name: Elastic.Clients.Elasticsearch
         instrumentationOptions:
           - id: elasticsearch
@@ -74,6 +79,7 @@ runtimes:
         supportedVersions: ">=7.5.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
       - name: Grpc.Net.Client
         supportedVersions: ">=2.52.0 <3.0.0"
         inAutoInstrumentation: true
@@ -82,10 +88,27 @@ runtimes:
         supportedVersions: ">=8.0.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
+      # ASP.NET (.NET Framework) MVC and Web API, through the IIS integrated
+      # pipeline only; not on ARM64.
+      - name: Microsoft.AspNet.Mvc
+        supportedVersions: "*"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.AspNet
+        runtimeVersions: ">=4.6.2 <5.0.0"
+      - name: Microsoft.AspNet.WebApi.Core
+        aliases:
+          - Microsoft.AspNet.WebApi
+          - Microsoft.AspNet.WebApi.WebHost
+        supportedVersions: "*"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.AspNet
+        runtimeVersions: ">=4.6.2 <5.0.0"
       - name: Microsoft.AspNetCore.App
         supportedVersions: ">=8.0.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.Instrumentation.AspNetCore
+        runtimeVersions: ">=8.0.0"
       # Native OpenTelemetry tracing (ActivitySource "Azure.Cosmos.*") since
       # 3.36.0; opt-in (DisableDistributedTracing=false plus the experimental
       # Azure.Experimental.EnableActivitySource switch).
@@ -109,10 +132,12 @@ runtimes:
         supportedVersions: ">=6.0.12"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.Instrumentation.EntityFrameworkCore
+        runtimeVersions: ">=8.0.0"
       - name: Microsoft.Extensions.Logging
         supportedVersions: ">=8.0.0 <12.0.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
       - name: MongoDB.Driver
         instrumentationOptions:
           - id: contrib
@@ -135,6 +160,7 @@ runtimes:
         supportedVersions: ">=8.1.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
       - name: MySqlConnector
         supportedVersions: ">=2.0.0"
         inAutoInstrumentation: true

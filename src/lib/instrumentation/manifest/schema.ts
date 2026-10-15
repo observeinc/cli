@@ -41,6 +41,7 @@ export const instrumentationOptionSchema = z
     kind: z.enum(["native", "external"]),
     supportedVersions: z.string().trim().min(1).optional(),
     inAutoInstrumentation: z.boolean().optional(),
+    runtimeVersions: z.string().trim().min(1).optional(),
     /**
      * How telemetry starts flowing once the instrumentation is present:
      * `automatic` (zero-code / auto-instrumentation, no user action),
@@ -70,6 +71,13 @@ const packageEntrySchema = z
     inAutoInstrumentation: z.boolean().optional(),
     /** The OpenTelemetry package that instruments the library. */
     instrumentation: z.string().min(1).optional(),
+    /**
+     * Runtime versions the instrumentation runs on, when narrower than the
+     * runtime entry as a whole (e.g. `>=4.6.2 <5.0.0` for .NET Framework-only
+     * and `>=8.0.0` for .NET-only instrumentation). Absent means every runtime
+     * version the runtime entry supports.
+     */
+    runtimeVersions: z.string().min(1).optional(),
     instrumentationOptions: z
       .array(instrumentationOptionSchema)
       .min(1)
@@ -82,6 +90,7 @@ const packageEntrySchema = z
       "supportedVersions",
       "instrumentation",
       "inAutoInstrumentation",
+      "runtimeVersions",
     ] as const)
       if (entry[field] !== undefined)
         context.addIssue({

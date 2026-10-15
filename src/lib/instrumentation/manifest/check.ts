@@ -139,10 +139,12 @@ function assessOptions({
   pkg,
   ecosystem,
   declared,
+  runsOn,
 }: {
   pkg: PackageEntry;
   ecosystem: RuntimeEntry["ecosystem"];
   declared: string | undefined;
+  runsOn: (runtimeVersions: string | undefined) => boolean;
 }) {
   // The scalar/legacy fallback exists only to unify version matching; it carries
   // no activation (scalar packages have no activation concept), so it is typed
@@ -155,6 +157,7 @@ function assessOptions({
       kind: "unknown",
       supportedVersions: pkg.supportedVersions,
       inAutoInstrumentation: pkg.inAutoInstrumentation,
+      runtimeVersions: pkg.runtimeVersions,
     },
   ];
   const assessments: InstrumentationOptionAssessment[] = options.map(
@@ -167,7 +170,17 @@ function assessOptions({
       }),
     }),
   );
-  const ranges = options.flatMap((option) =>
+  // Only options that run on the application's runtime can cover it. When none
+  // does, the verdict is the runtime, not the library version; the ranges are
+  // still evaluated across every option so the library version is reported.
+  const runnable = assessments.filter((option) =>
+    runsOn(option.runtimeVersions),
+  );
+  const considered = runnable.length > 0 ? runnable : assessments;
+  const runtimeRanges = assessments.flatMap((option) =>
+    option.runtimeVersions == null ? [] : [option.runtimeVersions],
+  );
+  const ranges = considered.flatMap((option) =>
     option.supportedVersions == null ? [] : [option.supportedVersions],
   );
   const supportedVersions =
@@ -179,7 +192,7 @@ function assessOptions({
   });
   const versionMatch =
     combined !== "in-range" &&
-    assessments.some((option) => option.versionMatch === "unknown")
+    considered.some((option) => option.versionMatch === "unknown")
       ? ("unknown" as const)
       : combined;
   // Activation is a fact about the covering options — those whose version range
@@ -188,14 +201,14 @@ function assessOptions({
   // manual. When no option is known to cover the version, options whose range
   // is unknown still say how the library would be instrumented (all manual for
   // Go contrib packages, which publish no supported range).
-  const covering = assessments.filter(
+  const covering = considered.filter(
     (option) =>
       option.versionMatch === "in-range" || option.versionMatch === "overlap",
   );
   const relevant =
     covering.length > 0
       ? covering
-      : assessments.filter((option) => option.versionMatch === "unknown");
+      : considered.filter((option) => option.versionMatch === "unknown");
   const activation = !hasRealOptions
     ? undefined
     : (["automatic", "opt-in", "manual"] as const).find((level) =>
@@ -206,7 +219,10 @@ function assessOptions({
     supportedVersions,
     versionMatch,
     activation,
-    missingRange: options.some((option) => option.supportedVersions == null),
+    missingRange: considered.some((option) => option.supportedVersions == null),
+    runtimeUnsupported: runnable.length === 0,
+    runtimeVersions:
+      runtimeRanges.length === 0 ? undefined : runtimeRanges.join(" || "),
   };
 }
 
@@ -243,6 +259,10 @@ export function checkCompatibility({
   }
 
   const runtimeVersionSupported = assessRuntimeVersion(candidate, entry);
+  const runsOn = (runtimeVersions: string | undefined) =>
+    runtimeVersions == null ||
+    matchRuntime({ candidate, entry, range: runtimeVersions }) !==
+      "out-of-range";
 
   const index = indexPackages(entry);
   const key = (name: string) => nameKey(entry.ecosystem, name);
@@ -317,6 +337,7 @@ export function checkCompatibility({
       pkg,
       ecosystem: entry.ecosystem,
       declared: declaredVersion,
+      runsOn,
     });
     const versionMatch =
       pkg.instrumentationOptions == null &&
@@ -347,7 +368,13 @@ export function checkCompatibility({
     // Out-of-range is a proven incompatibility. An overlap is supported for
     // some admitted versions and is reported as a warning by the rule layer.
     // An unparseable version is a missing input, not a verdict either way.
-    if (versionMatch === "out-of-range")
+    if (options.runtimeUnsupported)
+      packages.unsupported.push({
+        ...assessment,
+        reason: "runtime-unsupported",
+        runtimeVersions: options.runtimeVersions,
+      });
+    else if (versionMatch === "out-of-range")
       packages.unsupported.push({ ...assessment, reason: "out-of-range" });
     else if (versionMatch === "unknown") packages.unverified.push(assessment);
     else packages.supported.push(assessment);
@@ -397,16 +424,21 @@ function frameworkReferenceMatch(
   }
 }
 
-function assessRuntimeVersion(
-  candidate: CandidateApplication,
-  entry: RuntimeEntry,
-): RuntimeVersionSupport {
+/** Match the application's declared runtime version against a runtime range. */
+function matchRuntime({
+  candidate,
+  entry,
+  range,
+}: {
+  candidate: CandidateApplication;
+  entry: RuntimeEntry;
+  range: string | undefined;
+}): VersionMatch {
   const declared = candidate.language.version;
-  if (declared == null || entry.supportedRuntimeVersions == null)
-    return "unknown";
+  if (declared == null || range == null) return "unknown";
   const normalized = normalizeRuntimeVersion(candidate.language.id, declared);
   if (normalized == null) return "unknown";
-  const match = matchVersion({
+  return matchVersion({
     // .NET multi-targeting (<TargetFrameworks>net6.0;net8.0</TargetFrameworks>)
     // normalizes to a semver union like "6.0.0 || 8.0.0". The nuget declared
     // grammar only parses single versions and bracket intervals, so it returns
@@ -419,6 +451,17 @@ function assessRuntimeVersion(
         ? "npm"
         : entry.ecosystem,
     declared: normalized,
+    range,
+  });
+}
+
+function assessRuntimeVersion(
+  candidate: CandidateApplication,
+  entry: RuntimeEntry,
+): RuntimeVersionSupport {
+  const match = matchRuntime({
+    candidate,
+    entry,
     range: entry.supportedRuntimeVersions,
   });
   switch (match) {

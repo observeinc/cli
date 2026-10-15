@@ -233,6 +233,53 @@ describe("instrumentation detection", () => {
     ]);
   });
 
+  test("detects an ASP.NET (.NET Framework) web application and its packages.config", () => {
+    const root = fixture({
+      "web/Orders.Web.csproj":
+        '<Project ToolsVersion="15.0"><PropertyGroup><ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids><OutputType>Library</OutputType><TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion></PropertyGroup></Project>',
+      "web/packages.config":
+        '<?xml version="1.0" encoding="utf-8"?><packages><package id="Microsoft.AspNet.Mvc" version="5.2.9" targetFramework="net472" /><package id="Microsoft.CodeDom.Providers.DotNetCompilerPlatform" version="2.0.1" targetFramework="net472" developmentDependency="true" /></packages>',
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.id).toBe("dotnet:web:Orders.Web");
+    expect(candidate?.frameworks).toEqual([{ id: "aspnet" }]);
+    expect(candidate?.language.version).toBe("v4.7.2");
+    expect(candidate?.compatibility?.runtimeVersionSupported).toBe("yes");
+    expect(
+      candidate?.dependencies.map(({ name, version }) => [name, version]),
+    ).toEqual([["Microsoft.AspNet.Mvc", "5.2.9"]]);
+    expect(
+      candidate?.compatibility?.packages.supported.map((pkg) => pkg.name),
+    ).toEqual(["Microsoft.AspNet.Mvc"]);
+  });
+
+  test("a Global.asax marks a legacy class-library project as a web application", () => {
+    const root = fixture({
+      "Portal.csproj":
+        "<Project><PropertyGroup><OutputType>Library</OutputType><TargetFrameworkVersion>v4.8</TargetFrameworkVersion></PropertyGroup></Project>",
+      "Global.asax": '<%@ Application Inherits="Portal.MvcApplication" %>',
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.frameworks).toEqual([{ id: "aspnet" }]);
+  });
+
+  test("a legacy class library without web markers is not an application", () => {
+    const root = fixture({
+      "Shared.csproj":
+        "<Project><PropertyGroup><OutputType>Library</OutputType><TargetFrameworkVersion>v4.8</TargetFrameworkVersion></PropertyGroup></Project>",
+      "packages.config":
+        '<packages><package id="Newtonsoft.Json" version="13.0.3" /></packages>',
+    });
+    expect(
+      detectApplications(createProjectSnapshot({ targetPath: root }))
+        .candidates,
+    ).toEqual([]);
+  });
+
   test("matches library coverage for each language", () => {
     const root = fixture({
       "python/requirements.txt": "fastapi==0.116.0\nrequests==2.32.0\n",

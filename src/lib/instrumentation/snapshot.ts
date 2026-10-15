@@ -373,6 +373,7 @@ const AUXILIARY_METADATA_NAMES = new Set([
   "WORKSPACE.bazel",
   "REPO.bazel",
   "pnpm-workspace.yaml",
+  "packages.config",
   ".nvmrc",
   ".node-version",
   ".ruby-version",

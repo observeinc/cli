@@ -167,7 +167,11 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     plus marker-only `native.ts` for Go/Rust/Erlang/C++/Perl). Every detector
     goes through `createCandidate` in `detectors/common.ts`. A candidate needs
     build evidence that it runs: .NET test projects (`Microsoft.NET.Test.Sdk`,
-    `IsTestProject`) and class libraries are skipped; Gradle build logic
+    `IsTestProject`) and class libraries are skipped, except ASP.NET (.NET
+    Framework) web applications, which IIS hosts as libraries and are recognized
+    by the web application project type GUID or a `Global.asax`. Legacy .NET
+    projects read `<TargetFrameworkVersion>` and `packages.config` (development
+    dependencies excluded); Gradle build logic
     (`kotlin-dsl`, `java-gradle-plugin`) is skipped, and library modules
     (`java-library`, `micronaut.library`) count only with a `main`. Java
     frameworks are matched on coordinates, never on prose. Ruby gems in
@@ -237,6 +241,12 @@ Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
     `unknown` is never filed as supported. Explicit catalog options are evaluated
     even for SDK-only runtimes and dependencies classified as `other`. Known
     option ranges form a union, preserving gaps and per-option setup requirements.
+    A package or option's `runtimeVersions` narrows the runtime versions its
+    instrumentation runs on (.NET-only vs .NET Framework-only); when no option
+    runs on the app's runtime the library is unsupported with reason
+    `runtime-unsupported` (OTEL010), suppressed when OTEL002 already reports the
+    runtime. `normalizeRuntimeVersion()` maps `net48`/`net472` and `v4.8` to
+    semver.
     Result schema v6 reports normalized options and activation as not assessed.
     Support is not proof of enablement or telemetry delivery; opt-in is not a failure.
     `activation: manual` marks instrumentation the app must wire into its own

@@ -11,7 +11,17 @@ describe("normalizeRuntimeVersion", () => {
   test("translates .NET target framework monikers", () => {
     expect(normalizeRuntimeVersion("dotnet", "net9.0")).toBe("9.0.0");
     expect(normalizeRuntimeVersion("dotnet", "netcoreapp3.1")).toBe("3.1.0");
-    expect(normalizeRuntimeVersion("dotnet", "net48")).toBeNull();
+    expect(normalizeRuntimeVersion("dotnet", "netstandard2.0")).toBeNull();
+  });
+  test("translates .NET Framework monikers and legacy versions", () => {
+    expect(normalizeRuntimeVersion("dotnet", "net48")).toBe("4.8.0");
+    expect(normalizeRuntimeVersion("dotnet", "net472")).toBe("4.7.2");
+    expect(normalizeRuntimeVersion("dotnet", "net462")).toBe("4.6.2");
+    expect(normalizeRuntimeVersion("dotnet", "v4.7.2")).toBe("4.7.2");
+    expect(normalizeRuntimeVersion("dotnet", "v4.8")).toBe("4.8.0");
+    expect(normalizeRuntimeVersion("dotnet", "net48;net8.0")).toBe(
+      "4.8.0 || 8.0.0",
+    );
   });
   test("translates legacy Java versions", () => {
     expect(normalizeRuntimeVersion("java", "1.8")).toBe("8.0.0");

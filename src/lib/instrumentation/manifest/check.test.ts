@@ -525,6 +525,80 @@ describe("bundled manifest artifact", () => {
   });
 
   test.each([
+    ["net48", "yes"],
+    ["v4.6.2", "yes"],
+    ["v4.5", "no"],
+    ["net6.0", "no"],
+    ["net8.0", "yes"],
+    ["net48;net8.0", "yes"],
+  ] as const)("dotnet runtime %s is supported: %s", (version, verdict) => {
+    expect(
+      checkCompatibility({
+        candidate: candidate({ language: "dotnet", version }),
+        manifest: loadManifest(),
+      }).runtimeVersionSupported,
+    ).toBe(verdict);
+  });
+
+  test.each([
+    // Instrumentation that runs only on .NET, never on .NET Framework.
+    ["MySql.Data", "8.1.0", "net48", "unsupported", "runtime-unsupported"],
+    ["MySql.Data", "8.1.0", "net8.0", "supported", undefined],
+    [
+      "Microsoft.EntityFrameworkCore",
+      "3.1.32",
+      "net48",
+      "unsupported",
+      "runtime-unsupported",
+    ],
+    ["GraphQL", "7.5.0", "v4.7.2", "unsupported", "runtime-unsupported"],
+    // ASP.NET MVC and Web API run only on .NET Framework.
+    ["Microsoft.AspNet.Mvc", "5.2.9", "v4.7.2", "supported", undefined],
+    [
+      "Microsoft.AspNet.Mvc",
+      "5.2.9",
+      "net8.0",
+      "unsupported",
+      "runtime-unsupported",
+    ],
+    ["Microsoft.AspNet.WebApi", "5.2.9", "v4.8", "supported", undefined],
+    // Unrestricted instrumentation is unaffected by the runtime.
+    ["StackExchange.Redis", "2.6.122", "net48", "supported", undefined],
+    // A multi-target app that includes a .NET target can use it.
+    ["MySql.Data", "8.1.0", "net48;net8.0", "supported", undefined],
+    // An unknown runtime version cannot rule the instrumentation out.
+    ["MySql.Data", "8.1.0", undefined, "supported", undefined],
+  ] as const)(
+    "dotnet %s %s on %s is %s (%s)",
+    (name, version, runtime, bucket, reason) => {
+      const profile = checkCompatibility({
+        candidate: candidate({
+          language: "dotnet",
+          version: runtime,
+          dependencies: [{ name, version }],
+        }),
+        manifest: loadManifest(),
+      });
+      const hit = profile.packages[bucket][0];
+      expect(hit?.name).toBe(name);
+      expect(hit?.reason).toBe(reason);
+    },
+  );
+
+  test("a runtime-unsupported library reports the runtimes its instrumentation needs", () => {
+    const [hit] = checkCompatibility({
+      candidate: candidate({
+        language: "dotnet",
+        version: "net48",
+        dependencies: [{ name: "MySql.Data", version: "8.1.0" }],
+      }),
+      manifest: loadManifest(),
+    }).packages.unsupported;
+    expect(hit?.runtimeVersions).toBe(">=8.0.0");
+    expect(hit?.versionMatch).toBe("in-range");
+  });
+
+  test.each([
     [
       "Elastic.Clients.Elasticsearch",
       "8.5.0",

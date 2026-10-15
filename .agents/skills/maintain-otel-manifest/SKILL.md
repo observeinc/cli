@@ -76,6 +76,11 @@ Each package entry (scalar form — the common case):
   unknown. Omission means unknown, never wildcard.
 - `inAutoInstrumentation` — optional boolean (covered by the zero-code bundle).
 - `instrumentation` — the OpenTelemetry package that instruments it.
+- `runtimeVersions` — optional semver range of runtime versions the
+  instrumentation runs on, only when narrower than the runtime entry's
+  `supportedRuntimeVersions`. .NET uses it for instrumentation upstream marks
+  "Not supported on .NET Framework" (`>=8.0.0`) or "Not supported on .NET"
+  (`>=4.6.2 <5.0.0`). With `instrumentationOptions`, set it per option instead.
 
 ## Scalar fields vs `instrumentationOptions`
 

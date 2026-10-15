@@ -362,7 +362,14 @@ export function normalizeRuntimeVersion(
     }
     const tfm = /^net(?:coreapp)?(\d+)\.(\d+)(?:-[A-Za-z0-9.]+)?$/i.exec(raw);
     if (tfm != null) return `${tfm[1]}.${tfm[2]}.0`;
-    if (/^net\d{2,3}$/i.test(raw) || /^netstandard/i.test(raw)) return null;
+    // .NET Framework TFMs are dotless: net48 is 4.8, net472 is 4.7.2.
+    const framework = /^net(\d)(\d)(\d)?$/i.exec(raw);
+    if (framework != null)
+      return `${framework[1]}.${framework[2]}.${framework[3] ?? "0"}`;
+    // Legacy project <TargetFrameworkVersion>: v4.8, v4.7.2.
+    const legacy = /^v(\d+)\.(\d+)(?:\.(\d+))?$/i.exec(raw);
+    if (legacy != null) return `${legacy[1]}.${legacy[2]}.${legacy[3] ?? "0"}`;
+    if (/^netstandard/i.test(raw)) return null;
   }
   if (runtime === "java") {
     const legacy = /^1\.(\d+)(?:\.\d+)?(?:_\d+)?$/.exec(raw);

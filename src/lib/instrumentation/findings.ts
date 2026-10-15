@@ -231,29 +231,43 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
         message:
           version == null
             ? `No ${runtime} runtime version is declared`
-            : `${runtime} ${version} admits versions outside the supported range`,
+            : compat.runtimeVersionSupported === "partial"
+              ? `${runtime} ${version} admits versions outside the supported range`
+              : `${runtime} ${version} could not be compared with the supported range`,
         fix:
           version == null
             ? "Declare the runtime version (engines, .nvmrc, .ruby-version, .python-version, .tool-versions, TargetFramework, or a Dockerfile FROM tag)"
-            : "Pin the runtime to a version inside the supported range",
+            : compat.runtimeVersionSupported === "partial"
+              ? "Pin the runtime to a version inside the supported range"
+              : "Declare the runtime as a specific version so support can be checked",
       }),
     );
 
   for (const pkg of compat.packages.unsupported) {
+    // An unsupported runtime is reported once (OTEL002), not again for every
+    // library whose verdict follows from it.
     if (
-      pkg.versionSource === "runtime" &&
-      compat.runtimeVersionSupported === "no"
+      compat.runtimeVersionSupported === "no" &&
+      (pkg.versionSource === "runtime" || pkg.reason === "runtime-unsupported")
     )
       continue;
     out.push(
-      finding({
-        ruleId: "OTEL010",
-        candidate,
-        pkg,
-        message:
-          `${pkg.name} ${pkg.declaredVersion ?? ""} is outside the instrumented range ${pkg.supportedVersions ?? ""}`.trim(),
-        fix: `Move ${pkg.name} to a version in ${pkg.supportedVersions ?? "the supported range"}`,
-      }),
+      pkg.reason === "runtime-unsupported"
+        ? finding({
+            ruleId: "OTEL010",
+            candidate,
+            pkg,
+            message: `${pkg.name} is not instrumented on ${runtime} ${version ?? ""}; its instrumentation needs ${runtime} ${pkg.runtimeVersions ?? "a different runtime"}`,
+            fix: `Instrument ${pkg.name} manually, or move the application to ${runtime} ${pkg.runtimeVersions ?? "a supported runtime"}`,
+          })
+        : finding({
+            ruleId: "OTEL010",
+            candidate,
+            pkg,
+            message:
+              `${pkg.name} ${pkg.declaredVersion ?? ""} is outside the instrumented range ${pkg.supportedVersions ?? ""}`.trim(),
+            fix: `Move ${pkg.name} to a version in ${pkg.supportedVersions ?? "the supported range"}`,
+          }),
     );
   }
 
