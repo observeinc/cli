@@ -244,7 +244,9 @@ function detectCmakeBinaries(snapshot: ProjectSnapshot) {
         const path = projectDirectory(file.path);
         return (
           posix.basename(file.path) === "CMakeLists.txt" &&
-          (path === directory || path.startsWith(`${directory}/`))
+          (directory === "." ||
+            path === directory ||
+            path.startsWith(`${directory}/`))
         );
       })
       .map((file) => file.content ?? "")

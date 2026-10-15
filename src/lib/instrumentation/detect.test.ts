@@ -93,6 +93,32 @@ describe("instrumentation detection", () => {
     ).toEqual([["requests", "==2.32.0"]]);
   });
 
+  test("hashed pip-compile pins keep a parseable version", () => {
+    const root = fixture({
+      "requirements.txt": [
+        "django==4.2.7 \\",
+        "    --hash=sha256:aaaa \\",
+        "    --hash=sha256:bbbb",
+        "requests==2.32.0 \\",
+        "    --hash=sha256:cccc",
+        "",
+      ].join("\n"),
+      "main.py": "print('hello')",
+    });
+    const candidate = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates[0];
+    expect(
+      candidate?.dependencies.map((dependency) => [
+        dependency.name,
+        dependency.version,
+      ]),
+    ).toEqual([
+      ["django", "==4.2.7"],
+      ["requests", "==2.32.0"],
+    ]);
+  });
+
   test.each([
     [
       "Pipfile",
@@ -998,6 +1024,20 @@ describe("instrumentation detection", () => {
         rule: "hardened_cc_binary",
       },
     });
+  });
+
+  test("a root CMake project includes targets from add_subdirectory children", () => {
+    const root = fixture({
+      "CMakeLists.txt": "project(app)\nadd_subdirectory(server)\n",
+      "server/CMakeLists.txt": "add_executable(server main.cpp)\n",
+      "server/main.cpp": "int main() { return 0; }",
+    });
+    const names = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    )
+      .candidates.filter((item) => item.language.id === "cpp")
+      .map((item) => item.name);
+    expect(names).toEqual(["server"]);
   });
 
   test("reports dynamic CMake targets without hiding literal executable names", () => {

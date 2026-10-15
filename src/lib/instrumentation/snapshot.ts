@@ -201,8 +201,19 @@ export function createProjectSnapshot({
       entries = readdirSync(directory, { withFileTypes: true }).sort((a, b) =>
         a.name.localeCompare(b.name),
       );
-    } catch {
+    } catch (error) {
       completeness.permissionErrors++;
+      const path = relative(root, directory).split(sep).join("/") || ".";
+      const code =
+        error != null && typeof error === "object" && "code" in error
+          ? ` (${String(error.code)})`
+          : "";
+      diagnostics.push({
+        code: "DIRECTORY_UNREADABLE",
+        severity: "error",
+        message: `Could not read directory: ${path}${code}; fix its permissions or pass --exclude ${path}`,
+        path,
+      });
       continue;
     }
 
@@ -249,13 +260,20 @@ export function createProjectSnapshot({
       completeness.filesSeen++;
 
       let size: number;
+      const basename = relativePath.slice(relativePath.lastIndexOf("/") + 1);
       try {
         size = statSync(absolutePath).size;
       } catch {
         completeness.unreadableFiles++;
+        if (isMetadataName(basename))
+          diagnostics.push({
+            code: "METADATA_UNREADABLE",
+            severity: "error",
+            message: `Could not read metadata file: ${relativePath}`,
+            path: relativePath,
+          });
         continue;
       }
-      const basename = relativePath.slice(relativePath.lastIndexOf("/") + 1);
       if (isManifestName(basename)) completeness.manifestsSeen++;
       if (isLockfileName(basename)) completeness.lockfilesSeen++;
       const metadata = isMetadataName(basename);

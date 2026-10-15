@@ -40,10 +40,12 @@ function stripLeadingV(token: string) {
 
 /**
  * Translate an ecosystem-native declared spec into the full semver range it
- * admits. A bare version is treated as exact for every ecosystem: Maven and
- * NuGet resolve a bare `3.5.0` to exactly that version in practice, and a
- * lockfile-resolved version is always exact. Returns null when the spec cannot
- * be expressed as a semver range.
+ * admits. A bare full version is treated as exact for every ecosystem: Maven
+ * and NuGet resolve a bare `3.5.0` to exactly that version in practice, and a
+ * lockfile-resolved version is always exact. A bare partial version (`5.0`) is
+ * also exact on PyPI, RubyGems, Composer, Maven and NuGet, while npm reads it
+ * as an X-range (`5` is `5.x`). Returns null when the spec cannot be expressed
+ * as a semver range.
  */
 export function declaredToSemverRange(
   ecosystem: Ecosystem,
@@ -54,6 +56,16 @@ export function declaredToSemverRange(
 
   const exact = semver.valid(stripLeadingV(raw), { loose: true });
   if (exact != null) return `=${exact}`;
+
+  if (
+    (ecosystem === "pypi" ||
+      ecosystem === "gems" ||
+      ecosystem === "composer") &&
+    /^v?\d+(?:\.\d+)?$/.test(raw)
+  ) {
+    const partial = semver.coerce(stripLeadingV(raw), { loose: true });
+    if (partial != null) return `=${partial.version}`;
+  }
 
   let candidate: string | null;
   switch (ecosystem) {
@@ -108,6 +120,16 @@ export function declaredToSemverRange(
   return null;
 }
 
+/**
+ * A Maven / NuGet release version: numeric segments (NuGet allows a fourth)
+ * plus an optional release qualifier (`4.1.100.Final`, `5.3.9.RELEASE`),
+ * which semver coercion drops. Pre-release qualifiers
+ * (`-RC1`, `-SNAPSHOT`, `.M2`) are not matched, so they stay unknown rather
+ * than being compared as the final release.
+ */
+const MAVEN_VERSION =
+  /^v?\d+(?:\.\d+)*(?:[.-](?:final|release|ga|jre|android))?$/i;
+
 interface BracketRange {
   floor?: string;
   ceilingExclusive?: string;
@@ -125,7 +147,7 @@ function parseBracketRange(raw: string): BracketRange | null {
     value,
   );
   if (interval == null) {
-    if (!/^v?\d+(?:\.\d+){0,2}$/.test(value)) return null;
+    if (!MAVEN_VERSION.test(value)) return null;
     const bare = semver.coerce(stripLeadingV(value), { loose: true });
     return bare == null ? null : { floor: bare.version };
   }
@@ -135,7 +157,7 @@ function parseBracketRange(raw: string): BracketRange | null {
       (bound) =>
         bound != null &&
         bound.trim() !== "" &&
-        !/^v?\d+(?:\.\d+){0,2}$/.test(bound.trim()),
+        !MAVEN_VERSION.test(bound.trim()),
     )
   )
     return null;

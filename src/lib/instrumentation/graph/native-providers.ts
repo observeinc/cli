@@ -91,6 +91,7 @@ const cargoMetadata = z.object({
 const goPackage = z.object({
   ImportPath: z.string(),
   Name: z.string().optional(),
+  Standard: z.boolean().optional(),
   Imports: z.array(z.string()).default([]),
   Module: z
     .object({
@@ -229,7 +230,9 @@ function goGraph(
     );
   const parsed = z.array(goPackage).safeParse(parseJsonStream(result.stdout));
   if (!parsed.success) return resolved(null, "go list");
-  const packages = parsed.data;
+  // Standard-library packages (fmt, os, internal/...) belong to the toolchain,
+  // not the module graph.
+  const packages = parsed.data.filter((pkg) => pkg.Standard !== true);
   const nodes = new Map<string, PackageNode>();
   const ids = new Map<string, string>();
   for (const pkg of packages) {

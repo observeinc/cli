@@ -34,9 +34,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function parseRequirement(requirement: string) {
+  // pip-compile --generate-hashes ends each pin with a `\` continuation before
+  // its `--hash=` lines.
   const match =
     /^([A-Za-z0-9][A-Za-z0-9_.-]*)(?:\[[^\]]*\])?\s*((?:[=<>~!].*?)?)\s*(?:[;#].*)?$/.exec(
-      requirement,
+      requirement.replace(/\s*\\\s*$/, ""),
     );
   return match?.[1] == null
     ? null

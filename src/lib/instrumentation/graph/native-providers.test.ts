@@ -137,6 +137,29 @@ describe("native resolver parsing", () => {
     expect(result?.graph?.edges).toHaveLength(1);
   });
 
+  test("Go standard-library packages are not dependencies", () => {
+    const result = resolveNative({
+      candidate,
+      snapshot,
+      run: () => ({
+        stdout: [
+          { ImportPath: "fmt", Standard: true },
+          { ImportPath: "internal/abi", Standard: true },
+          { ImportPath: "app", Name: "main", Imports: ["fmt", "dependency"] },
+          { ImportPath: "dependency", Imports: ["fmt"] },
+        ]
+          .map((pkg) => JSON.stringify(pkg))
+          .join("\n"),
+        stderr: "",
+        status: 0,
+      }),
+    });
+    expect(
+      [...(result?.graph?.nodes.values() ?? [])].map((node) => node.name),
+    ).toEqual(["app", "dependency"]);
+    expect(result?.graph?.edges).toHaveLength(1);
+  });
+
   test("Cargo parses typed package and resolution metadata", () => {
     const result = resolveNative({
       candidate: { ...candidate, language: { id: "rust" } },

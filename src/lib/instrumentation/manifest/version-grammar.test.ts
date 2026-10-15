@@ -256,6 +256,62 @@ describe("matchVersion", () => {
       range: ">=8.0.0",
       expected: "in-range",
     },
+    // A bare partial version is one release on PyPI, RubyGems and Composer.
+    {
+      ecosystem: "pypi",
+      declared: "5.0",
+      range: ">=5.0.1",
+      expected: "out-of-range",
+    },
+    {
+      ecosystem: "pypi",
+      declared: "24.2",
+      range: ">=24.0.0 <25.0.0",
+      expected: "in-range",
+    },
+    {
+      ecosystem: "gems",
+      declared: "7.1",
+      range: ">=7.1.1",
+      expected: "out-of-range",
+    },
+    {
+      ecosystem: "composer",
+      declared: "5.4",
+      range: ">=5.4.1",
+      expected: "out-of-range",
+    },
+    // Maven release qualifiers are dropped; pre-release ones stay unknown.
+    {
+      ecosystem: "maven",
+      declared: "4.1.100.Final",
+      range: ">=4.0.0 <5.0.0",
+      expected: "in-range",
+    },
+    {
+      ecosystem: "maven",
+      declared: "3.10.6.Final",
+      range: ">=4.0.0 <5.0.0",
+      expected: "out-of-range",
+    },
+    {
+      ecosystem: "maven",
+      declared: "5.3.9.RELEASE",
+      range: ">=5.0.0",
+      expected: "in-range",
+    },
+    {
+      ecosystem: "maven",
+      declared: "[4.1.0.Final,5.0)",
+      range: ">=4.0.0 <5.0.0",
+      expected: "in-range",
+    },
+    {
+      ecosystem: "maven",
+      declared: "6.0.0.M2",
+      range: ">=5.0.0",
+      expected: "unknown",
+    },
     // prerelease is considered.
     {
       ecosystem: "npm",

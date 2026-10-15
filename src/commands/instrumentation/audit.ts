@@ -208,6 +208,7 @@ export async function audit(
           "SCAN_LIMIT_REACHED",
           "METADATA_UNREADABLE",
           "METADATA_TOO_LARGE",
+          "DIRECTORY_UNREADABLE",
         ].includes(diagnostic.code),
       );
       if (incomplete != null)

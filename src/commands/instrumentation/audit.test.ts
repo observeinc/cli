@@ -442,6 +442,25 @@ describe("instrumentation audit command", () => {
     );
   });
 
+  test("exits 2 when a directory could not be read", async () => {
+    const root = tempRoot();
+    const partial = snapshot(root, cleanProject);
+    partial.diagnostics.push({
+      code: "DIRECTORY_UNREADABLE",
+      severity: "error",
+      message: "Could not read directory: services/billing (EACCES)",
+      path: "services/billing",
+    });
+    const { context, getExitCode, stderr } = createMockContext({ cwd: root });
+    await audit.call(context, { format: "json" }, ".", {
+      createSnapshot: () => partial,
+    });
+    expect(getExitCode()).toBe(2);
+    expect(JSON.parse(stderr.join("")).error.message).toContain(
+      "services/billing",
+    );
+  });
+
   test("sarif output lists one rule per rule id and one result per finding", async () => {
     const root = tempRoot();
     const { context, stdout } = createMockContext({ cwd: root });
