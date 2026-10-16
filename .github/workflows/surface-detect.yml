@@ -5,6 +5,12 @@ name: Surface detect
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      coverage_index_url:
+        description: coverage-index.json URL or leave empty for the default published copy
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -56,11 +62,16 @@ jobs:
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Monorepo Gerrit is unreachable from this workflow. The Harbor nightly
+          # copies coverage-index.json to this S3 object; override with a repo
+          # variable, workflow input, or COVERAGE_INDEX path.
+          COVERAGE_INDEX_URL: ${{ github.event.inputs.coverage_index_url || vars.COVERAGE_INDEX_URL || 'https://observeinc-o11y-agent-evals.s3.us-west-2.amazonaws.com/coverage-index/coverage-index.json' }}
         run: |
           # Checkout is refs/pull/N/merge; HEAD^1 is the base it was built on.
           # pull_request.base.sha can lag after main moves and pull in other PRs.
           bun run scripts/surface-detect.ts --base HEAD^1 --head HEAD \
-            --json surface-report.json --markdown > surface-comment.md
+            --json surface-report.json --markdown \
+            --coverage-index "$COVERAGE_INDEX_URL" > surface-comment.md
           cat surface-comment.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
