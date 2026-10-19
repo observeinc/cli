@@ -19,12 +19,12 @@ const DECISION_KEYS = [
   "iterations",
 ];
 
-const REFERENCE_LINKS: Record<string, string> = {
-  "references/add-checklist.md": "add",
-  "references/change-checklist.md": "change",
-  "references/eval-routes.md": "eval",
-  "references/docs-delta.md": "notion",
-};
+const REFERENCE_PATHS = [
+  "references/add-checklist.md",
+  "references/change-checklist.md",
+  "references/eval-routes.md",
+  "references/docs-delta.md",
+];
 
 const DOCS_DELTA_NOTION_URL =
   "https://app.notion.com/p/observeinc/Running-MCP-CLI-evals-3bb770a806fc812fa95ddbc13a288821";
@@ -56,11 +56,12 @@ function markdownLinkTargets(content: string): string[] {
       targets.push(href.trim());
     }
   }
-  // Autolinks: a URL (any scheme) or a relative/absolute path, e.g.
-  // `<https://x>`, `<../x.md>`, `<./x.md>`, `<#anchor>`. Deliberately excludes
-  // bare placeholder tokens like `<resource>` or `<command>`, which are not
-  // links.
-  const autolinkRe = /<((?:[a-z][a-z0-9+.-]*:|\.{1,2}\/|\/|#)[^<>\s]*)>/gi;
+  // Autolinks: a URL (any scheme) or a relative path, e.g. `<https://x>`,
+  // `<../x.md>`, `<./x.md>`, `<#anchor>`. Deliberately excludes bare
+  // placeholder tokens like `<resource>` or `<command>` (not links), and bare
+  // absolute paths (`\/`, dropped — it also matched HTML closing tags like
+  // `</details>`; absolute inline links are already caught by `inlineRe`).
+  const autolinkRe = /<((?:[a-z][a-z0-9+.-]*:|\.{1,2}\/|#)[^<>\s]*)>/gi;
   while ((match = autolinkRe.exec(content)) !== null) {
     const href = match[1];
     if (href) {
@@ -68,8 +69,9 @@ function markdownLinkTargets(content: string): string[] {
     }
   }
   // Reference-style link definitions, e.g. `[agents]: ../../../AGENTS.md`
-  // used elsewhere as `[see][agents]`.
-  const definitionRe = /^\s*\[[^\]]+\]:\s*(\S+)/gm;
+  // used elsewhere as `[see][agents]`. Excludes GFM footnote definitions
+  // (`[^1]: ...`), which share the same syntax but aren't links.
+  const definitionRe = /^\s*\[(?!\^)[^\]]+\]:\s*(\S+)/gm;
   while ((match = definitionRe.exec(content)) !== null) {
     const href = match[1];
     if (href) {
@@ -109,7 +111,7 @@ describe("cli-command-lifecycle project skill", () => {
     }
     expect(body).toMatch(/before eval/i);
 
-    for (const refPath of Object.keys(REFERENCE_LINKS)) {
+    for (const refPath of REFERENCE_PATHS) {
       expect(body).toContain(refPath);
     }
     expect(body).toMatch(/docs-delta\.md.*notion|notion.*docs-delta\.md/is);
@@ -130,10 +132,13 @@ describe("cli-command-lifecycle project skill", () => {
           continue;
         }
         const target = stripLinkTitle(rawTarget);
-        expect(target).not.toMatch(/^\.\.\//);
         const pathPart = target.split("#")[0] ?? target;
         const resolved = resolve(join(mdPath, ".."), pathPart);
         const rel = relative(SKILL_DIR, resolved);
+        // Catches every link that actually leaves the skill directory
+        // (`../../AGENTS.md`, absolute paths, ...). A bare `../` prefix is
+        // not itself a violation -- e.g. `../SKILL.md` from a references/
+        // page stays inside SKILL_DIR and must be allowed.
         expect(rel.startsWith("..")).toBe(false);
         expect(existsSync(resolved)).toBe(true);
       }
@@ -162,6 +167,19 @@ describe("markdownLinkTargets", () => {
     expect(targets).toContain("../x.md");
     expect(targets).not.toContain("resource");
     expect(targets).not.toContain("command");
+  });
+
+  test("does not treat HTML closing tags as absolute-path links", () => {
+    const content = "<details>\n<summary>More</summary>\ntext\n</details>\n";
+    const targets = markdownLinkTargets(content);
+    expect(targets).not.toContain("/details");
+    expect(targets).not.toContain("/summary");
+  });
+
+  test("does not treat GFM footnote definitions as link targets", () => {
+    const content = "See the note.[^1]\n\n[^1]: Harbor runs nightly\n";
+    const targets = markdownLinkTargets(content);
+    expect(targets).not.toContain("Harbor");
   });
 });
 
