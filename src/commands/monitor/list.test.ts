@@ -9,7 +9,7 @@ import {
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
-import { MonitorRuleKind, type MonitorResource } from "../../rest/generated";
+import { MonitorRuleKind, type MonitorListItem } from "../../rest/generated";
 
 const loadConfigFn = mock(
   (): Config => ({
@@ -19,24 +19,24 @@ const loadConfigFn = mock(
   }),
 );
 
-/** Build a MonitorResource stub. Only the fields the list command reads are
+/** Build a MonitorListItem stub. Only the fields the list command reads are
  *  populated; the cast keeps the stub stable as the API spec grows fields. */
 function monitorStub(
   id: string,
-  label: string,
-  overrides: Partial<MonitorResource> = {},
-): MonitorResource {
+  name: string,
+  overrides: Partial<MonitorListItem> = {},
+): MonitorListItem {
   return {
     id,
-    label,
+    name,
     description: null,
     disabled: false,
     ruleKind: MonitorRuleKind.Count,
     ...overrides,
-  } as unknown as MonitorResource;
+  } as unknown as MonitorListItem;
 }
 
-const STUB_MONITORS: MonitorResource[] = [
+const STUB_MONITORS: MonitorListItem[] = [
   monitorStub("1", "Alpha Monitor", { ruleKind: MonitorRuleKind.Count }),
   monitorStub("2", "Beta Monitor", {
     ruleKind: MonitorRuleKind.Threshold,
@@ -103,7 +103,7 @@ describe("monitor list — kind filter", () => {
       { kind: [MonitorRuleKind.Count], json: true },
       deps,
     );
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     expect(result.every((m) => m.ruleKind === MonitorRuleKind.Count)).toBe(
       true,
     );
@@ -119,7 +119,7 @@ describe("monitor list — kind filter", () => {
       },
       deps,
     );
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     expect(result.every((m) => m.ruleKind !== MonitorRuleKind.Threshold)).toBe(
       true,
     );
@@ -136,7 +136,7 @@ describe("monitor list — disabled filter", () => {
   test("--disabled returns only disabled monitors", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { disabled: true, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     expect(result.length).toBeGreaterThan(0);
     expect(result.every((m) => m.disabled)).toBe(true);
   });
@@ -144,7 +144,7 @@ describe("monitor list — disabled filter", () => {
   test("--no-disabled returns only enabled monitors", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { disabled: false, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     expect(result.length).toBeGreaterThan(0);
     expect(result.every((m) => !m.disabled)).toBe(true);
   });
@@ -156,15 +156,15 @@ describe("monitor list — sorting", () => {
   test("--sort name returns monitors in alphabetical order", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { sort: "name", json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
-    const labels = result.map((m) => m.label);
-    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)));
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
+    const names = result.map((m) => m.name);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
   });
 
   test("--sort id returns monitors in ascending numeric id order", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { sort: "id", json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     const ids = result.map((m) => Number(m.id));
     expect(ids).toEqual([...ids].sort((a, b) => a - b));
   });
@@ -173,13 +173,13 @@ describe("monitor list — sorting", () => {
 describe("monitor list — output", () => {
   beforeEach(() => listMonitorsFn.mockClear());
 
-  test("JSON output matches MonitorResource shape", async () => {
+  test("JSON output matches MonitorListItem shape", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     expect(result[0]).toMatchObject({
       id: "1",
-      label: "Alpha Monitor",
+      name: "Alpha Monitor",
       ruleKind: MonitorRuleKind.Count,
       disabled: false,
     });
@@ -199,7 +199,7 @@ describe("monitor list — pagination", () => {
   test("--limit 2 returns only the first 2 results", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { limit: 2, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     expect(result.length).toBe(2);
     expect(result[0]!.id).toBe("1");
     expect(result[1]!.id).toBe("2");
@@ -208,14 +208,14 @@ describe("monitor list — pagination", () => {
   test("--offset 1 skips the first result", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { offset: 1, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     expect(result[0]!.id).toBe("2");
   });
 
   test("--limit 2 --offset 1 returns one result starting from index 1", async () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { limit: 2, offset: 1, json: true }, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorResource[];
+    const result = JSON.parse(stdout.join("")) as MonitorListItem[];
     expect(result.length).toBe(2);
     expect(result[0]!.id).toBe("2");
     expect(result[1]!.id).toBe("3");

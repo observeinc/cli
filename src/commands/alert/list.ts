@@ -92,7 +92,7 @@ const FIELD_COLUMNS = {
       value === AlertStatus.Active ? chalk.green(value) : chalk.dim(value),
   }),
   monitorName: col.accessor(
-    (row) => row.monitor.record?.label ?? row.monitor.id,
+    (row) => row.monitor.record?.name ?? row.monitor.id,
     {
       header: "MONITOR",
     },

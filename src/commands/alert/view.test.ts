@@ -37,7 +37,7 @@ function alertStub(): AlertResource {
     monitorVersion: "1",
     monitor: {
       id: "mon-1",
-      record: { label: "High CPU", description: "cpu monitor" },
+      record: { name: "High CPU", description: "cpu monitor" },
     },
     context: [],
     capturedValues: [],

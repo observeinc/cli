@@ -29,7 +29,7 @@ const getMonitorMuteFn = mock((_args: unknown) =>
     description: "noisy deploy",
     target: {
       kind: "Monitors",
-      monitors: [{ id: "42", record: { label: "Checkout latency" } }],
+      monitors: [{ id: "42", record: { name: "Checkout latency" } }],
     },
     schedule: { kind: "OneTime", oneTime: { startTime: "t", endTime: "u" } },
     filter: null,

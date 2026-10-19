@@ -5,6 +5,28 @@ describe("isTelemetryEnabled", () => {
     const { isTelemetryEnabled } = await import("./telemetry");
     expect(isTelemetryEnabled()).toBe(false);
   });
+
+  test("returns true when a release build has a token and collect URL", async () => {
+    const { isTelemetryEnabled } = await import("./telemetry");
+    expect(
+      isTelemetryEnabled({
+        env: {},
+        token: "token",
+        collectUrl: "https://collect.example",
+      }),
+    ).toBe(true);
+  });
+
+  test("OBSERVE_DISABLE_TELEMETRY disables telemetry in a release build", async () => {
+    const { isTelemetryEnabled } = await import("./telemetry");
+    expect(
+      isTelemetryEnabled({
+        env: { OBSERVE_DISABLE_TELEMETRY: "1" },
+        token: "token",
+        collectUrl: "https://collect.example",
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("withTelemetry", () => {

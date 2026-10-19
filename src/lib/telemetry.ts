@@ -72,8 +72,17 @@ let provider:
   | import("@opentelemetry/sdk-trace-node").NodeTracerProvider
   | null = null;
 
-export function isTelemetryEnabled() {
-  return !!(TELEMETRY_TOKEN && COLLECT_URL);
+export function isTelemetryEnabled({
+  env = process.env,
+  token = TELEMETRY_TOKEN,
+  collectUrl = COLLECT_URL,
+}: {
+  env?: Record<string, string | undefined>;
+  token?: string;
+  collectUrl?: string;
+} = {}) {
+  if (env.OBSERVE_DISABLE_TELEMETRY) return false;
+  return !!(token && collectUrl);
 }
 
 async function initTracing() {

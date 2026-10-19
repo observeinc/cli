@@ -9,7 +9,7 @@ import {
 } from "bun:test";
 import { resolve } from "node:path";
 import type { Config } from "../../lib/config";
-import { MonitorRuleKind, type MonitorResource } from "../generated";
+import { MonitorRuleKind, type MonitorListItem } from "../generated";
 import { ResponseError } from "../generated/runtime";
 
 const repoRoot = resolve(import.meta.dir, "../../..");
@@ -72,8 +72,8 @@ describe("listMonitors — versioned path", () => {
   test("unwraps `monitors` from the versioned envelope", async () => {
     const monitor = {
       id: "1",
-      label: "Alpha Monitor",
-    } as unknown as MonitorResource;
+      name: "Alpha Monitor",
+    } as unknown as MonitorListItem;
     respond = () =>
       Promise.resolve({ monitors: [monitor], meta: { total: 1 } });
 
@@ -107,7 +107,7 @@ describe("listMonitors — legacy fallback on 403", () => {
         : Promise.reject(responseError(403));
   }
 
-  test("retries without the version header and maps `name` to `label`", async () => {
+  test("retries without the version header and preserves `name`", async () => {
     respond = legacyOnRetry([
       {
         id: "1",
@@ -128,16 +128,16 @@ describe("listMonitors — legacy fallback on 403", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]!.id).toBe("1");
-    expect(result[0]!.label).toBe("Legacy Monitor");
+    expect(result[0]!.name).toBe("Legacy Monitor");
     expect(result[0]!.ruleKind).toBe(MonitorRuleKind.Count);
   });
 
-  test("maps a legacy monitor with no name to an empty label", async () => {
+  test("maps a legacy monitor with no name to an empty name", async () => {
     respond = legacyOnRetry([{ id: "7" }]);
 
     const result = await listMonitors({ config: CONFIG });
 
-    expect(result[0]!.label).toBe("");
+    expect(result[0]!.name).toBe("");
   });
 
   test("returns an empty array when the legacy retry yields none", async () => {

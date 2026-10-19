@@ -2,7 +2,7 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listMonitors } from "../../rest/monitor/list-monitors";
-import { type MonitorResource, MonitorRuleKind } from "../../rest/generated";
+import { type MonitorListItem, MonitorRuleKind } from "../../rest/generated";
 import { ruleKindColor } from "./monitor-utils";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
@@ -63,15 +63,15 @@ const RULE_KIND_ORDER: Record<string, number> = {
 };
 
 function sortMonitors(
-  monitors: MonitorResource[],
+  monitors: MonitorListItem[],
   sort: SortField,
-): MonitorResource[] {
+): MonitorListItem[] {
   return [...monitors].sort((a, b) => {
     switch (sort) {
       case "id":
         return Number(a.id) - Number(b.id);
       case "name":
-        return a.label.localeCompare(b.label);
+        return a.name.localeCompare(b.name);
       case "kind":
         return (
           (RULE_KIND_ORDER[a.ruleKind] ?? 99) -
@@ -83,13 +83,13 @@ function sortMonitors(
   });
 }
 
-const col = createColumnHelper<MonitorResource>();
+const col = createColumnHelper<MonitorListItem>();
 
 const FIELD_COLUMNS = {
   id: col.accessor((row) => row.id, {
     header: "ID",
   }),
-  name: col.accessor((row) => row.label, {
+  name: col.accessor((row) => row.name, {
     header: "NAME",
   }),
   description: col.accessor((row) => row.description ?? "-", {
@@ -103,7 +103,7 @@ const FIELD_COLUMNS = {
     header: "DISABLED",
     format: (value) => (value ? chalk.yellow("Yes") : chalk.dim("No")),
   }),
-} satisfies Record<FieldName, ColumnDef<MonitorResource>>;
+} satisfies Record<FieldName, ColumnDef<MonitorListItem>>;
 
 export interface ListMonitorsDeps {
   loadConfig?: typeof loadConfig;

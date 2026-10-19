@@ -3,7 +3,7 @@ import { ObserveRestSDK } from "../client";
 import { ResponseError } from "../generated/runtime";
 import type {
   MonitorApiListMonitorsRequest,
-  MonitorResource,
+  MonitorListItem,
 } from "../generated";
 
 export async function listMonitors({
@@ -12,7 +12,7 @@ export async function listMonitors({
 }: {
   config: Config;
 } & Omit<MonitorApiListMonitorsRequest, "observeApiVersion">): Promise<
-  MonitorResource[]
+  MonitorListItem[]
 > {
   const sdk = new ObserveRestSDK(config);
 
@@ -28,9 +28,7 @@ export async function listMonitors({
       throw err;
     }
     // Feature not yet enabled for this account or cluster. Fall back to the
-    // legacy bare-array response (no Observe-Api-Version header). The legacy
-    // shape uses `name` instead of `label`; map it so the rest of the command
-    // works uniformly regardless of which path was taken.
+    // legacy bare-array response (no Observe-Api-Version header).
     const legacy = (await sdk.monitorApi.listMonitors(params)) as unknown as {
       id?: string;
       name?: string;
@@ -43,8 +41,8 @@ export async function listMonitors({
       (m) =>
         ({
           ...m,
-          label: m.name ?? "",
-        }) as unknown as MonitorResource,
+          name: m.name ?? "",
+        }) as unknown as MonitorListItem,
     );
   }
 }
