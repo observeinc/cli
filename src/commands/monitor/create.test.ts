@@ -11,9 +11,9 @@ import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
 import {
   MonitorV2RuleKind,
-  type MonitorV2,
   type MonitorV2Definition,
 } from "../../rest/generated";
+import type { Monitor } from "../../rest/monitor/types";
 
 const loadConfigFn = mock(
   (): Config => ({
@@ -34,7 +34,7 @@ const STUB_CREATE_FILE = JSON.stringify({
   definition: STUB_DEFINITION,
 });
 
-function monitorStub(overrides: Partial<MonitorV2> = {}): MonitorV2 {
+function monitorStub(overrides: Partial<Monitor> = {}): Monitor {
   return {
     id: "99001",
     name: "My Monitor",
@@ -45,12 +45,12 @@ function monitorStub(overrides: Partial<MonitorV2> = {}): MonitorV2 {
 }
 
 const createMonitorFn = mock(
-  (_params: { config: Config; monitorV2: object }): Promise<MonitorV2> =>
+  (_params: { config: Config; monitor: object }): Promise<Monitor> =>
     Promise.resolve(monitorStub()),
 );
 
 const getMonitorFn = mock(
-  (_params: { config: Config; id: number }): Promise<MonitorV2 | null> =>
+  (_params: { config: Config; id: number }): Promise<Monitor | null> =>
     Promise.resolve(monitorStub()),
 );
 
@@ -89,11 +89,11 @@ describe("monitor create — API forwarding", () => {
     await create.call(context, { file: "/fake/monitor.json" }, deps);
     expect(createMonitorFn).toHaveBeenCalledTimes(1);
     const call = createMonitorFn.mock.calls[0]![0] as unknown as {
-      monitorV2: { name: string; ruleKind: string; definition: unknown };
+      monitor: { name: string; ruleKind: string; definition: unknown };
     };
-    expect(call.monitorV2.name).toBe("My Monitor");
-    expect(call.monitorV2.ruleKind).toBe(MonitorV2RuleKind.Count);
-    expect(call.monitorV2.definition).toMatchObject(STUB_DEFINITION);
+    expect(call.monitor.name).toBe("My Monitor");
+    expect(call.monitor.ruleKind).toBe(MonitorV2RuleKind.Count);
+    expect(call.monitor.definition).toMatchObject(STUB_DEFINITION);
   });
 
   test("reads file from the provided path", async () => {
@@ -115,18 +115,18 @@ describe("monitor create — API forwarding", () => {
     const { context } = createMockContext();
     await create.call(context, { file: "/monitor.json" }, deps);
     const call = createMonitorFn.mock.calls[0]![0] as unknown as {
-      monitorV2: { actionRules: unknown[] };
+      monitor: { actionRules: unknown[] };
     };
-    expect(call.monitorV2.actionRules).toEqual(actionRules);
+    expect(call.monitor.actionRules).toEqual(actionRules);
   });
 
   test("omits actionRules when not present in --file", async () => {
     const { context } = createMockContext();
     await create.call(context, { file: "/monitor.json" }, deps);
     const call = createMonitorFn.mock.calls[0]![0] as unknown as {
-      monitorV2: object;
+      monitor: object;
     };
-    expect(call.monitorV2).not.toHaveProperty("actionRules");
+    expect(call.monitor).not.toHaveProperty("actionRules");
   });
 });
 
@@ -158,7 +158,7 @@ describe("monitor create — output", () => {
     await create.call(context, { file: "/monitor.json", json: true }, deps);
     expect(getMonitorFn).toHaveBeenCalledTimes(1);
     expect(getMonitorFn.mock.calls[0]![0]).toMatchObject({ id: 99001 });
-    const result = JSON.parse(stdout.join("")) as MonitorV2;
+    const result = JSON.parse(stdout.join("")) as Monitor;
     expect(result).toMatchObject({ id: "99001", name: "My Monitor" });
   });
 });
@@ -256,7 +256,7 @@ describe("monitor create — error handling", () => {
 
   test("createMonitor returning invalid id exits with code 1", async () => {
     createMonitorFn.mockImplementationOnce(() =>
-      Promise.resolve({ id: undefined } as unknown as MonitorV2),
+      Promise.resolve({ id: undefined } as unknown as Monitor),
     );
     const { context, stderr, getExitCode } = createMockContext();
     await create.call(context, { file: "/monitor.json" }, deps);

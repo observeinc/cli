@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Config } from "../../lib/config";
 import {
+  MonitorHealth,
   MonitorV2ActionType,
-  MonitorV2Health,
   MonitorV2RuleKind,
   type MonitorV2ActionRule,
-  type MonitorV2,
   type MonitorV2Scheduling,
 } from "../generated";
+import type { Monitor } from "./types";
 import { type ApiResponse, ResponseError } from "../generated/runtime";
 import {
   getMonitor,
@@ -21,12 +21,12 @@ const CONFIG: Config = {
   token: "test-token",
 };
 
-function parsedMonitor(overrides: Partial<MonitorV2> = {}): MonitorV2 {
+function parsedMonitor(overrides: Partial<Monitor> = {}): Monitor {
   return {
     id: "41072994",
     name: "clone-config-parity",
     ruleKind: MonitorV2RuleKind.Threshold,
-    definition: {} as MonitorV2["definition"],
+    definition: {} as Monitor["definition"],
     ...overrides,
   };
 }
@@ -46,12 +46,12 @@ describe("preserveMonitorGetFields", () => {
       ruleKind: "Threshold",
       definition: {},
       actionRules,
-      health: MonitorV2Health.Running,
+      health: MonitorHealth.Running,
       effectiveScheduling,
     });
 
     expect(result.actionRules).toEqual(actionRules);
-    expect(result.health).toBe(MonitorV2Health.Running);
+    expect(result.health).toBe(MonitorHealth.Running);
     expect(result.effectiveScheduling).toEqual(effectiveScheduling);
   });
 
@@ -73,9 +73,7 @@ describe("preserveMonitorGetFields", () => {
 let calls: Record<string, unknown>[] = [];
 
 /** Set per-test to drive the stubbed generated client's response. */
-let respond: (
-  params: Record<string, unknown>,
-) => Promise<ApiResponse<MonitorV2>>;
+let respond: (params: Record<string, unknown>) => Promise<ApiResponse<Monitor>>;
 
 const getMonitorRawFn = mock((params: Record<string, unknown>) => {
   calls.push(params);
@@ -89,10 +87,7 @@ const stubSdk: GetMonitorSdk = {
   },
 };
 
-function jsonApiResponse(
-  status: number,
-  body: unknown,
-): ApiResponse<MonitorV2> {
+function jsonApiResponse(status: number, body: unknown): ApiResponse<Monitor> {
   const raw = new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
@@ -108,8 +103,8 @@ function jsonApiResponse(
         id,
         name,
         disabled: json.disabled as boolean | undefined,
-        ruleKind: json.ruleKind as MonitorV2["ruleKind"],
-        definition: json.definition as MonitorV2["definition"],
+        ruleKind: json.ruleKind as Monitor["ruleKind"],
+        definition: json.definition as Monitor["definition"],
       });
     },
   };
@@ -153,7 +148,7 @@ describe("getMonitor — field preservation", () => {
       ruleKind: "Threshold",
       definition: { rules: [] },
       actionRules,
-      health: MonitorV2Health.Running,
+      health: MonitorHealth.Running,
       effectiveScheduling,
     };
     respond = () => Promise.resolve(jsonApiResponse(200, payload));
@@ -167,7 +162,7 @@ describe("getMonitor — field preservation", () => {
     expect(calls).toEqual([{ id: "41072994" }]);
     expect(result).not.toBeNull();
     expect(result!.actionRules).toEqual(actionRules);
-    expect(result!.health).toBe(MonitorV2Health.Running);
+    expect(result!.health).toBe(MonitorHealth.Running);
     expect(result!.effectiveScheduling).toEqual(effectiveScheduling);
     expect(result!.id).toBe("41072994");
   });
