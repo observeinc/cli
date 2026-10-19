@@ -42,6 +42,10 @@ function listMarkdownFiles(dir: string): string[] {
   return out;
 }
 
+// Any URL scheme (https:, http:, mailto:, ...), so non-https links are
+// recognized as external rather than mistakenly resolved as local files.
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+
 function markdownLinkTargets(content: string): string[] {
   const targets: string[] = [];
   const inlineRe = /\[[^\]]*\]\(([^)]+)\)/g;
@@ -52,14 +56,34 @@ function markdownLinkTargets(content: string): string[] {
       targets.push(href.trim());
     }
   }
-  const autolinkRe = /<(https:\/\/[^>\s]+)>/g;
+  // Autolinks: a URL (any scheme) or a relative/absolute path, e.g.
+  // `<https://x>`, `<../x.md>`, `<./x.md>`, `<#anchor>`. Deliberately excludes
+  // bare placeholder tokens like `<resource>` or `<command>`, which are not
+  // links.
+  const autolinkRe = /<((?:[a-z][a-z0-9+.-]*:|\.{1,2}\/|\/|#)[^<>\s]*)>/gi;
   while ((match = autolinkRe.exec(content)) !== null) {
     const href = match[1];
     if (href) {
       targets.push(href.trim());
     }
   }
+  // Reference-style link definitions, e.g. `[agents]: ../../../AGENTS.md`
+  // used elsewhere as `[see][agents]`.
+  const definitionRe = /^\s*\[[^\]]+\]:\s*(\S+)/gm;
+  while ((match = definitionRe.exec(content)) !== null) {
+    const href = match[1];
+    if (href) {
+      targets.push(href.trim());
+    }
+  }
   return targets;
+}
+
+/** Strip a markdown link target down to its path, dropping an optional
+ * trailing title (`eval-routes.md "Routes"` -> `eval-routes.md`). */
+function stripLinkTitle(target: string): string {
+  const match = /^(\S+)(?:\s+(?:"[^"]*"|'[^']*'))?$/.exec(target);
+  return match?.[1] ?? target;
 }
 
 describe("cli-command-lifecycle project skill", () => {
@@ -101,10 +125,11 @@ describe("cli-command-lifecycle project skill", () => {
 
     for (const mdPath of listMarkdownFiles(SKILL_DIR)) {
       const content = readFileSync(mdPath, "utf-8");
-      for (const target of markdownLinkTargets(content)) {
-        if (target.startsWith("https://")) {
+      for (const rawTarget of markdownLinkTargets(content)) {
+        if (URL_SCHEME_RE.test(rawTarget)) {
           continue;
         }
+        const target = stripLinkTitle(rawTarget);
         expect(target).not.toMatch(/^\.\.\//);
         const pathPart = target.split("#")[0] ?? target;
         const resolved = resolve(join(mdPath, ".."), pathPart);
@@ -121,5 +146,40 @@ describe("cli-command-lifecycle project skill", () => {
     expect(agents).not.toContain("### Adding an Experimental Command");
     expect(agents).toContain(".agents/skills/cli-command-lifecycle/SKILL.md");
     expect(agents).toContain("### Adding or changing a command");
+  });
+});
+
+describe("markdownLinkTargets", () => {
+  test("picks up reference-style link definitions", () => {
+    const content =
+      "See [agents][agents] for details.\n\n[agents]: ../../../AGENTS.md\n";
+    expect(markdownLinkTargets(content)).toContain("../../../AGENTS.md");
+  });
+
+  test("picks up non-https angle-bracket links but not bare placeholders", () => {
+    const content = "See <../x.md> for `<resource>` and `<command>` names.\n";
+    const targets = markdownLinkTargets(content);
+    expect(targets).toContain("../x.md");
+    expect(targets).not.toContain("resource");
+    expect(targets).not.toContain("command");
+  });
+});
+
+describe("link-target validation helpers", () => {
+  test("URL_SCHEME_RE matches any scheme, not just https", () => {
+    for (const url of [
+      "https://example.com",
+      "http://example.com",
+      "mailto:a@b.com",
+    ]) {
+      expect(URL_SCHEME_RE.test(url)).toBe(true);
+    }
+    expect(URL_SCHEME_RE.test("eval-routes.md")).toBe(false);
+  });
+
+  test("stripLinkTitle drops an optional trailing title", () => {
+    expect(stripLinkTitle('eval-routes.md "Routes"')).toBe("eval-routes.md");
+    expect(stripLinkTitle("eval-routes.md 'Routes'")).toBe("eval-routes.md");
+    expect(stripLinkTitle("eval-routes.md")).toBe("eval-routes.md");
   });
 });
