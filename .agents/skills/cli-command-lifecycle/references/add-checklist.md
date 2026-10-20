@@ -1,8 +1,6 @@
 # Add a command checklist
 
-End-to-end steps to add a new `observe` CLI command in `~/cli`. Ops registry,
-Harbor evals, and CI continue in `references/eval-routes.md`. This checklist
-ends at a green local `~/cli`.
+End-to-end steps to add a new `observe` CLI command.
 
 ## Before you start
 
@@ -12,11 +10,6 @@ Record a decision with these keys:
 - `command` — CLI path (for example `dataset list`)
 - `resource` — REST/GraphQL resource folder name (for example `dataset`)
 - `maturity` — `ga` or `experimental`
-- `grading-criteria` — how evals or reviewers judge success
-
-When an orchestrator handoff is present, consume it instead of re-asking. When
-working standalone, ask for the use case and grading success criteria before
-any eval or expectation work (even if you defer evals until after local green).
 
 ## API layer, only when needed
 
@@ -132,9 +125,3 @@ bun test src/commands/<resource>
 also runs codegen and needs `OBSERVE_GQL_TOKEN` and
 `OBSERVE_OPENAPI_SPEC`. If those env vars are missing, say so explicitly — do
 not treat a codegen failure as a failure of your command work.
-
-## Handoff
-
-Ops registry updates, CLI-surface task generation, Harbor trials, and CI
-trailer work continue in `references/eval-routes.md`. Stop here once local
-`~/cli` is green.

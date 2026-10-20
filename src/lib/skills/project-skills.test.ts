@@ -15,19 +15,12 @@ const DECISION_KEYS = [
   "resource",
   "maturity",
   "change-class",
-  "grading-criteria",
-  "iterations",
 ];
 
 const REFERENCE_PATHS = [
   "references/add-checklist.md",
   "references/change-checklist.md",
-  "references/eval-routes.md",
-  "references/docs-delta.md",
 ];
-
-const DOCS_DELTA_NOTION_URL =
-  "https://app.notion.com/p/observeinc/Running-MCP-CLI-evals-3bb770a806fc812fa95ddbc13a288821";
 
 function listMarkdownFiles(dir: string): string[] {
   const out: string[] = [];
@@ -82,7 +75,7 @@ function markdownLinkTargets(content: string): string[] {
 }
 
 /** Strip a markdown link target down to its path, dropping an optional
- * trailing title (`eval-routes.md "Routes"` -> `eval-routes.md`). */
+ * trailing title (`add-checklist.md "Add"` -> `add-checklist.md`). */
 function stripLinkTitle(target: string): string {
   const match = /^(\S+)(?:\s+(?:"[^"]*"|'[^']*'))?$/.exec(target);
   return match?.[1] ?? target;
@@ -109,21 +102,11 @@ describe("cli-command-lifecycle project skill", () => {
     for (const key of DECISION_KEYS) {
       expect(body).toContain(key);
     }
-    expect(body).toMatch(/before eval/i);
 
     for (const refPath of REFERENCE_PATHS) {
       expect(body).toContain(refPath);
     }
-    expect(body).toMatch(/docs-delta\.md.*notion|notion.*docs-delta\.md/is);
-    expect(body).toMatch(/eval-routes\.md.*(source of truth|command source)/is);
     expect(body).toMatch(/prettier/i);
-    expect(body).toMatch(/make evals-run-all SURFACE=observe-cli/i);
-    expect(body).toMatch(/not the how-to|is not the how-to/i);
-
-    const docsDeltaPath = join(SKILL_DIR, "references/docs-delta.md");
-    expect(markdownLinkTargets(readFileSync(docsDeltaPath, "utf-8"))).toContain(
-      DOCS_DELTA_NOTION_URL,
-    );
 
     for (const mdPath of listMarkdownFiles(SKILL_DIR)) {
       const content = readFileSync(mdPath, "utf-8");
@@ -177,9 +160,9 @@ describe("markdownLinkTargets", () => {
   });
 
   test("does not treat GFM footnote definitions as link targets", () => {
-    const content = "See the note.[^1]\n\n[^1]: Harbor runs nightly\n";
+    const content = "See the note.[^1]\n\n[^1]: Suite runs nightly\n";
     const targets = markdownLinkTargets(content);
-    expect(targets).not.toContain("Harbor");
+    expect(targets).not.toContain("Suite");
   });
 });
 
@@ -192,12 +175,12 @@ describe("link-target validation helpers", () => {
     ]) {
       expect(URL_SCHEME_RE.test(url)).toBe(true);
     }
-    expect(URL_SCHEME_RE.test("eval-routes.md")).toBe(false);
+    expect(URL_SCHEME_RE.test("add-checklist.md")).toBe(false);
   });
 
   test("stripLinkTitle drops an optional trailing title", () => {
-    expect(stripLinkTitle('eval-routes.md "Routes"')).toBe("eval-routes.md");
-    expect(stripLinkTitle("eval-routes.md 'Routes'")).toBe("eval-routes.md");
-    expect(stripLinkTitle("eval-routes.md")).toBe("eval-routes.md");
+    expect(stripLinkTitle('add-checklist.md "Add"')).toBe("add-checklist.md");
+    expect(stripLinkTitle("add-checklist.md 'Add'")).toBe("add-checklist.md");
+    expect(stripLinkTitle("add-checklist.md")).toBe("add-checklist.md");
   });
 });
