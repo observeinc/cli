@@ -48,6 +48,7 @@ src/
 │   ├── docs/           # Documentation commands (search)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
+│   ├── share-in/       # Snowflake share-in commands: setup, token, register, shares and tables (experimental: gated + hidden)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
 │   ├── tag/            # Tag commands (list); also aliased as `tag-key` (hidden)
 │   ├── tag-value/      # Tag value commands (list)
@@ -66,6 +67,7 @@ src/
 │   └── gql-codegen.config.ts  # Codegen configuration
 ├── rest/               # REST API layer
 │   ├── generated/      # Auto-generated client (DO NOT EDIT)
+│   ├── share-in/       # Hand-written client for the internal /v1/shares/inbound API
 │   ├── client.ts       # REST client factory
 │   └── config.yaml     # OpenAPI generator config
 └── lib/                # Shared utilities
