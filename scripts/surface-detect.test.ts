@@ -70,6 +70,7 @@ describe("classify", () => {
     expect(classify(BASE, after, ["src/commands/query.ts"])).toEqual([
       {
         kind: "cli",
+        node: "command",
         name: "query",
         change: "modified",
         tags: ["contract"],
@@ -143,6 +144,8 @@ describe("classify", () => {
     );
     expect(got["logs list"]?.change).toBe("added");
     expect(got.logs?.change).toBe("added");
+    expect(got.logs?.node).toBe("group");
+    expect(got["logs list"]?.node).toBe("command");
     expect(got["(root)"]).toBeUndefined();
   });
 
@@ -322,6 +325,7 @@ describe("detect (end to end)", () => {
     expect(detect(base, commit(), dir)).toEqual([
       {
         kind: "cli",
+        node: "group",
         name: "(root)",
         change: "modified",
         tags: ["impl"],
@@ -373,6 +377,7 @@ describe("detect (end to end)", () => {
     expect(detect(base, commit(), dir)).toEqual([
       {
         kind: "cli",
+        node: "command",
         name: "query",
         change: "modified",
         tags: ["indirect"],
@@ -589,6 +594,18 @@ describe("coverageOf", () => {
     expect(coverageOf(row("(shared src)"), index)).toBeUndefined();
   });
 
+  test("skips route groups", () => {
+    const groupRow: Surface = {
+      kind: "cli",
+      node: "group",
+      name: "logs",
+      change: "added",
+      tags: ["contract"],
+      files: [],
+    };
+    expect(coverageOf(groupRow, { cli: {} })).toBeUndefined();
+  });
+
   test("skips removed commands", () => {
     const removed: Surface = {
       kind: "cli",
@@ -635,6 +652,19 @@ describe("loadCoverageIndex", () => {
     }
   });
 
+  test("a remote source that is not https never prints the value", () => {
+    const secret = "s3://example-bucket/coverage-index.json";
+    const got = loadCoverageIndex({ value: secret, remote: true });
+    expect(got.ok).toBe(false);
+    if (!got.ok) {
+      expect(got.error).toBe(
+        "eval coverage index unreachable (remote URL): not an https URL",
+      );
+      expect(got.error).not.toContain(secret);
+      expect(got.error).not.toContain("example-bucket");
+    }
+  });
+
   test("rejects a missing cli map", () => {
     const file = writeIndex({ version: 1 });
     const got = loadCoverageIndex(file);
@@ -667,18 +697,23 @@ describe("coverageIndexSource", () => {
     expect(
       coverageIndexSource(["--coverage-index", "/tmp/i.json"], {
         COVERAGE_INDEX: "env-path",
-        COVERAGE_INDEX_URL: "https://x",
+        COVERAGE_INDEX_URL: "https://example.invalid",
       }),
-    ).toBe("/tmp/i.json");
+    ).toEqual({ value: "/tmp/i.json", remote: false });
     expect(
       coverageIndexSource([], {
         COVERAGE_INDEX: "env-path",
-        COVERAGE_INDEX_URL: "https://x",
+        COVERAGE_INDEX_URL: "https://example.invalid",
       }),
-    ).toBe("env-path");
-    expect(coverageIndexSource([], { COVERAGE_INDEX_URL: "https://x" })).toBe(
-      "https://x",
-    );
+    ).toEqual({ value: "env-path", remote: false });
+    expect(
+      coverageIndexSource([], {
+        COVERAGE_INDEX_URL: "https://example.invalid",
+      }),
+    ).toEqual({ value: "https://example.invalid", remote: true });
+    expect(
+      coverageIndexSource([], { COVERAGE_INDEX_URL: "not-a-url" }),
+    ).toEqual({ value: "not-a-url", remote: true });
     expect(coverageIndexSource([], {})).toBeUndefined();
   });
 });

@@ -36,11 +36,19 @@ import { ROOT, type Dump } from "./surface-dump";
 
 export interface Surface {
   kind: "cli";
+  /** Dump kind; omitted on `(shared …)` rows. Groups are not eval-gated. */
+  node?: "command" | "group";
   name: string;
   change: "added" | "modified" | "removed";
   tags: string[];
   files: string[];
   coverage?: Coverage;
+}
+
+export interface CoverageSource {
+  value: string;
+  /** True for COVERAGE_INDEX_URL and any value with a URI scheme. */
+  remote: boolean;
 }
 
 export interface Coverage {
@@ -192,10 +200,18 @@ export function classify(
     change: Surface["change"],
     tag: string,
     files: string[],
+    node?: Surface["node"],
   ) => {
     const unique = [...new Set(files)];
     unique.forEach((f) => attributed.add(f));
-    out.push({ kind: "cli", name, change, tags: [tag], files: unique });
+    out.push({
+      kind: "cli",
+      ...(node ? { node } : {}),
+      name,
+      change,
+      tags: [tag],
+      files: unique,
+    });
   };
   const names = [...new Set([...Object.keys(before), ...Object.keys(after)])];
   // Groups go last so they can see whether a child was added or removed.
@@ -213,10 +229,11 @@ export function classify(
     );
     // A shared file (an aliased group's index.ts) is accounted for either way.
     own.forEach((f) => attributed.add(f));
-    if (!b) row(name, "added", "contract", [...own, ...hits]);
-    else if (!a) row(name, "removed", "contract", [...own, ...hits]);
+    const node = (a ?? b)?.kind === "group" ? "group" : "command";
+    if (!b) row(name, "added", "contract", [...own, ...hits], node);
+    else if (!a) row(name, "removed", "contract", [...own, ...hits], node);
     else if (!same(b.contract, a.contract))
-      row(name, "modified", "contract", [...own, ...hits]);
+      row(name, "modified", "contract", [...own, ...hits], node);
     else if (hits.length) {
       if (a.kind === "group") {
         // Wiring a direct child in or out of the route map explains it.
@@ -236,7 +253,7 @@ export function classify(
       const impl = hits.some(
         (f) => own.includes(f) || f.startsWith(COMMANDS_DIR),
       );
-      row(name, "modified", impl ? "impl" : "indirect", hits);
+      row(name, "modified", impl ? "impl" : "indirect", hits, node);
     }
   }
   // Anything else under src/ (bin.ts, unused lib code, ...).
@@ -270,7 +287,8 @@ export function coverageOf(
   s: Surface,
   index: CoverageIndex,
 ): Coverage | undefined {
-  if (s.name.startsWith("(") || s.change === "removed") return undefined;
+  if (s.name.startsWith("(") || s.change === "removed" || s.node === "group")
+    return undefined;
   const key = indexKey(s.name);
   const ids = index.cli?.[key];
   if (ids === undefined) {
@@ -296,80 +314,106 @@ export function attachCoverage(
 }
 
 function curlExitStatus(err: unknown): string {
-  if (err && typeof err === "object" && "status" in err) {
-    const status = err.status;
-    if (typeof status === "number") return String(status);
+  if (err && typeof err === "object") {
+    if ("status" in err && typeof err.status === "number")
+      return String(err.status);
+    if ("code" in err && typeof err.code === "string") return err.code;
   }
   return "unknown";
 }
 
-function readIndexBytes(source: string): string {
-  if (/^https?:\/\//i.test(source)) {
-    try {
-      return execFileSync("curl", ["-fsSL", "--max-time", "20", source], {
-        encoding: "utf-8",
-        maxBuffer: 8 * 1024 * 1024,
-        // Capture stderr so curl's hostnames never hit the job log.
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-    } catch (err) {
-      throw new Error(
-        `eval coverage index unreachable (remote URL): curl exit ${curlExitStatus(err)}`,
-        { cause: err },
-      );
-    }
+function hasUriScheme(value: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(value.trim());
+}
+
+function asCoverageSource(source: string | CoverageSource): CoverageSource {
+  if (typeof source !== "string") return source;
+  return { value: source, remote: hasUriScheme(source) };
+}
+
+function fetchHttpsIndex(url: string): string {
+  try {
+    return execFileSync("curl", ["-fsSL", "--max-time", "20", url], {
+      encoding: "utf-8",
+      maxBuffer: 8 * 1024 * 1024,
+      // Capture stderr so curl's hostnames never hit the job log.
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (err) {
+    throw new Error(
+      `eval coverage index unreachable (remote URL): curl exit ${curlExitStatus(err)}`,
+      { cause: err },
+    );
   }
-  return readFileSync(source, "utf-8");
 }
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
 
-/** Local paths stay visible for tests; HTTPS hosts must not appear on public PR comments. */
-function sourceLabel(source: string): string {
-  return /^https?:\/\//i.test(source) ? "remote URL" : source;
+function parseIndex(raw: string, label: string): CoverageIndexLoad {
+  const parsed: unknown = JSON.parse(raw);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, error: `${label}: not a JSON object` };
+  }
+  const rec = parsed as Record<string, unknown>;
+  if (rec.cli === undefined) {
+    return { ok: false, error: `${label}: no cli map` };
+  }
+  if (
+    typeof rec.cli !== "object" ||
+    rec.cli === null ||
+    Array.isArray(rec.cli)
+  ) {
+    return { ok: false, error: `${label}: cli is not an object` };
+  }
+  const cli: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(rec.cli as Record<string, unknown>)) {
+    if (!isStringArray(v)) {
+      return {
+        ok: false,
+        error: `${label}: cli[${JSON.stringify(k)}] is not a string array`,
+      };
+    }
+    cli[k] = v;
+  }
+  const index: CoverageIndex = { cli };
+  if (typeof rec.version === "number") index.version = rec.version;
+  return { ok: true, index };
 }
 
-export function loadCoverageIndex(source: string): CoverageIndexLoad {
+export function loadCoverageIndex(
+  source: string | CoverageSource,
+): CoverageIndexLoad {
+  const origin = asCoverageSource(source);
+  if (origin.remote) {
+    const url = origin.value.trim();
+    if (!/^https:\/\//i.test(url)) {
+      return {
+        ok: false,
+        error:
+          "eval coverage index unreachable (remote URL): not an https URL",
+      };
+    }
+    try {
+      return parseIndex(fetchHttpsIndex(url), "remote URL");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        error: msg.startsWith("eval coverage index unreachable")
+          ? msg
+          : "eval coverage index unreachable (remote URL)",
+      };
+    }
+  }
   try {
-    const parsed: unknown = JSON.parse(readIndexBytes(source));
-    const label = sourceLabel(source);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { ok: false, error: `${label}: not a JSON object` };
-    }
-    const rec = parsed as Record<string, unknown>;
-    if (rec.cli === undefined) {
-      return { ok: false, error: `${label}: no cli map` };
-    }
-    if (
-      typeof rec.cli !== "object" ||
-      rec.cli === null ||
-      Array.isArray(rec.cli)
-    ) {
-      return { ok: false, error: `${label}: cli is not an object` };
-    }
-    const cli: Record<string, string[]> = {};
-    for (const [k, v] of Object.entries(rec.cli as Record<string, unknown>)) {
-      if (!isStringArray(v)) {
-        return {
-          ok: false,
-          error: `${label}: cli[${JSON.stringify(k)}] is not a string array`,
-        };
-      }
-      cli[k] = v;
-    }
-    const index: CoverageIndex = { cli };
-    if (typeof rec.version === "number") index.version = rec.version;
-    return { ok: true, index };
+    return parseIndex(readFileSync(origin.value, "utf-8"), origin.value);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.startsWith("eval coverage index unreachable")) {
-      return { ok: false, error: msg };
-    }
     return {
       ok: false,
-      error: `eval coverage index unreachable (${sourceLabel(source)}): ${msg}`,
+      error: `eval coverage index unreachable (${origin.value}): ${msg}`,
     };
   }
 }
@@ -377,11 +421,18 @@ export function loadCoverageIndex(source: string): CoverageIndexLoad {
 export function coverageIndexSource(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
-): string | undefined {
+): CoverageSource | undefined {
   const i = argv.indexOf("--coverage-index");
-  if (i >= 0 && argv[i + 1]) return argv[i + 1];
-  if (env.COVERAGE_INDEX) return env.COVERAGE_INDEX;
-  if (env.COVERAGE_INDEX_URL) return env.COVERAGE_INDEX_URL;
+  if (i >= 0 && argv[i + 1]) {
+    return { value: argv[i + 1], remote: hasUriScheme(argv[i + 1]) };
+  }
+  if (env.COVERAGE_INDEX)
+    return {
+      value: env.COVERAGE_INDEX,
+      remote: hasUriScheme(env.COVERAGE_INDEX),
+    };
+  if (env.COVERAGE_INDEX_URL)
+    return { value: env.COVERAGE_INDEX_URL, remote: true };
   return undefined;
 }
 
