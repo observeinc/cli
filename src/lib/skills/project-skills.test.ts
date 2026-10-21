@@ -4,7 +4,7 @@ import { join, relative, resolve } from "node:path";
 import matter from "gray-matter";
 import { parseSkillMarkdown } from "./parse";
 
-const REPO_ROOT = process.cwd();
+const REPO_ROOT = resolve(import.meta.dir, "../../..");
 const SKILL_DIR = join(REPO_ROOT, ".agents/skills/cli-command-lifecycle");
 const SKILL_MD = join(SKILL_DIR, "SKILL.md");
 const AGENTS_MD = join(REPO_ROOT, "AGENTS.md");

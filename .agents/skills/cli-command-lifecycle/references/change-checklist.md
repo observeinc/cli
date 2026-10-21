@@ -32,9 +32,11 @@ Follow the deprecated `--label` alias for `--match` in
 For a renamed flag, follow [Deprecated flag aliases](#deprecated-flag-aliases)
 above.
 
-Keep the old key in `src/app.ts` pointing to the same route object, then add
-that key to `docs.hideRoute`. Drop the alias once usage dies off. Follow the
-`tag-key` alias precedent in `src/app.ts`.
+Keep the old key pointing to the same route or command object in the route map
+that owns the renamed key (`src/app.ts` for top-level groups, or
+`src/commands/<resource>/index.ts` for subcommands), then add that key to the
+owning route map's `docs.hideRoute`. Drop the alias once usage dies off. Follow
+the `tag-key` alias precedent in `src/app.ts`.
 
 ## Rename/delete sweep
 
@@ -42,7 +44,7 @@ For a rename or deletion, search and update every location that can retain the
 old name:
 
 1. The command file.
-2. The resource `index.ts`.
+2. The resource `index.ts` routes and `docs.hideRoute`.
 3. `src/app.ts` routes and `docs.hideRoute`.
 4. The README Commands table (order matches `src/app.ts`; hidden alias keys
    such as `tag-key` stay out of the table).
