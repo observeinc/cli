@@ -295,12 +295,28 @@ export function attachCoverage(
   for (const s of surfaces) s.coverage = coverageOf(s, index);
 }
 
+function curlExitStatus(err: unknown): string {
+  if (err && typeof err === "object" && "status" in err) {
+    const status = (err as { status: unknown }).status;
+    if (typeof status === "number") return String(status);
+  }
+  return "unknown";
+}
+
 function readIndexBytes(source: string): string {
   if (/^https?:\/\//i.test(source)) {
-    return execFileSync("curl", ["-fsSL", "--max-time", "20", source], {
-      encoding: "utf-8",
-      maxBuffer: 8 * 1024 * 1024,
-    });
+    try {
+      return execFileSync("curl", ["-fsSL", "--max-time", "20", source], {
+        encoding: "utf-8",
+        maxBuffer: 8 * 1024 * 1024,
+        // Capture stderr so curl's hostnames never hit the job log.
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (err) {
+      throw new Error(
+        `eval coverage index unreachable (remote URL): curl exit ${curlExitStatus(err)}`,
+      );
+    }
   }
   return readFileSync(source, "utf-8");
 }
@@ -346,8 +362,10 @@ export function loadCoverageIndex(source: string): CoverageIndexLoad {
     if (typeof rec.version === "number") index.version = rec.version;
     return { ok: true, index };
   } catch (err) {
-    const raw = err instanceof Error ? err.message : String(err);
-    const msg = raw.replace(/https?:\/\/\S+/gi, "remote URL");
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.startsWith("eval coverage index unreachable")) {
+      return { ok: false, error: msg };
+    }
     return {
       ok: false,
       error: `eval coverage index unreachable (${sourceLabel(source)}): ${msg}`,
