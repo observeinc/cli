@@ -297,7 +297,7 @@ export function attachCoverage(
 
 function curlExitStatus(err: unknown): string {
   if (err && typeof err === "object" && "status" in err) {
-    const status = (err as { status: unknown }).status;
+    const status = err.status;
     if (typeof status === "number") return String(status);
   }
   return "unknown";
@@ -315,6 +315,7 @@ function readIndexBytes(source: string): string {
     } catch (err) {
       throw new Error(
         `eval coverage index unreachable (remote URL): curl exit ${curlExitStatus(err)}`,
+        { cause: err },
       );
     }
   }
