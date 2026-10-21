@@ -391,8 +391,7 @@ export function loadCoverageIndex(
     if (!/^https:\/\//i.test(url)) {
       return {
         ok: false,
-        error:
-          "eval coverage index unreachable (remote URL): not an https URL",
+        error: "eval coverage index unreachable (remote URL): not an https URL",
       };
     }
     try {
@@ -423,8 +422,9 @@ export function coverageIndexSource(
   env: NodeJS.ProcessEnv = process.env,
 ): CoverageSource | undefined {
   const i = argv.indexOf("--coverage-index");
-  if (i >= 0 && argv[i + 1]) {
-    return { value: argv[i + 1], remote: hasUriScheme(argv[i + 1]) };
+  const flag = i >= 0 ? argv[i + 1] : undefined;
+  if (flag) {
+    return { value: flag, remote: hasUriScheme(flag) };
   }
   if (env.COVERAGE_INDEX)
     return {
