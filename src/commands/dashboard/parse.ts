@@ -45,9 +45,6 @@ export function buildDashboardCreateRequest(
   if (typeof parsed.name !== "string" || parsed.name === "") {
     throw new Error('--file must contain a "name" field (non-empty string).');
   }
-  if (parsed.schemaVersion !== 2) {
-    throw new Error('--file must contain "schemaVersion": 2.');
-  }
   assertDashboardDefinition(parsed.definition);
 
   return {

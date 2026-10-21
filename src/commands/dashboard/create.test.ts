@@ -19,7 +19,6 @@ import type { CreateDashboardDeps } from "./create";
 const loadConfigFn = loadConfigStub();
 
 const { readFile: readFileFn, withFile } = readFileStub({
-  schemaVersion: 2,
   name: "My Dashboard",
   definition: { layout: { sections: [] } },
 });
@@ -65,7 +64,7 @@ beforeEach(() => {
 
 describe("dashboard create — file validation", () => {
   test("rejects a file without a name", async () => {
-    withFile({ schemaVersion: 2, definition: { layout: {} } });
+    withFile({ definition: { layout: {} } });
     const { context, stderr, getExitCode } = createMockContext();
     await create.call(context, { file: "d.json" }, deps);
     expect(getExitCode()).toBe(1);
@@ -74,24 +73,22 @@ describe("dashboard create — file validation", () => {
   });
 
   test("rejects an empty name", async () => {
-    withFile({ schemaVersion: 2, name: "", definition: { layout: {} } });
+    withFile({ name: "", definition: { layout: {} } });
     const { context, getExitCode } = createMockContext();
     await create.call(context, { file: "d.json" }, deps);
     expect(getExitCode()).toBe(1);
     expect(createDashboardFn).not.toHaveBeenCalled();
   });
 
-  test("rejects a schemaVersion other than 2", async () => {
+  test("ignores schemaVersion from the file", async () => {
     withFile({ schemaVersion: 1, name: "x", definition: { layout: {} } });
-    const { context, stderr, getExitCode } = createMockContext();
+    const { context } = createMockContext();
     await create.call(context, { file: "d.json" }, deps);
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("schemaVersion");
-    expect(createDashboardFn).not.toHaveBeenCalled();
+    expect(lastCreateArgs?.dashboard.schemaVersion).toBe(2);
   });
 
   test("rejects a missing definition", async () => {
-    withFile({ schemaVersion: 2, name: "x" });
+    withFile({ name: "x" });
     const { context, stderr, getExitCode } = createMockContext();
     await create.call(context, { file: "d.json" }, deps);
     expect(getExitCode()).toBe(1);
@@ -100,7 +97,7 @@ describe("dashboard create — file validation", () => {
   });
 
   test("rejects a definition without a layout", async () => {
-    withFile({ schemaVersion: 2, name: "x", definition: {} });
+    withFile({ name: "x", definition: {} });
     const { context, stderr, getExitCode } = createMockContext();
     await create.call(context, { file: "d.json" }, deps);
     expect(getExitCode()).toBe(1);
