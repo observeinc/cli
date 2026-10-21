@@ -557,8 +557,7 @@ describe("markdown", () => {
         },
       ],
       {
-        indexError:
-          "eval coverage index unreachable (https://example.invalid): timed out",
+        indexError: "eval coverage index unreachable (remote URL): timed out",
       },
     );
     expect(md).toContain("eval coverage index unreachable");

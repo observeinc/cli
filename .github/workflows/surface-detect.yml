@@ -58,8 +58,8 @@ jobs:
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          # Optional HTTPS URL. When unset, surfaces are listed without coverage.
-          COVERAGE_INDEX_URL: ${{ vars.COVERAGE_INDEX_URL }}
+          # Optional HTTPS URL (repository secret). When unset, skip coverage.
+          COVERAGE_INDEX_URL: ${{ secrets.COVERAGE_INDEX_URL }}
         run: |
           # Checkout is refs/pull/N/merge; HEAD^1 is the base it was built on.
           # pull_request.base.sha can lag after main moves and pull in other PRs.

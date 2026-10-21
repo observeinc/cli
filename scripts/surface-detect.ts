@@ -309,29 +309,35 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
 
+/** Local paths stay visible for tests; HTTPS hosts must not appear on public PR comments. */
+function sourceLabel(source: string): string {
+  return /^https?:\/\//i.test(source) ? "remote URL" : source;
+}
+
 export function loadCoverageIndex(source: string): CoverageIndexLoad {
   try {
     const parsed: unknown = JSON.parse(readIndexBytes(source));
+    const label = sourceLabel(source);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { ok: false, error: `${source}: not a JSON object` };
+      return { ok: false, error: `${label}: not a JSON object` };
     }
     const rec = parsed as Record<string, unknown>;
     if (rec.cli === undefined) {
-      return { ok: false, error: `${source}: no cli map` };
+      return { ok: false, error: `${label}: no cli map` };
     }
     if (
       typeof rec.cli !== "object" ||
       rec.cli === null ||
       Array.isArray(rec.cli)
     ) {
-      return { ok: false, error: `${source}: cli is not an object` };
+      return { ok: false, error: `${label}: cli is not an object` };
     }
     const cli: Record<string, string[]> = {};
     for (const [k, v] of Object.entries(rec.cli as Record<string, unknown>)) {
       if (!isStringArray(v)) {
         return {
           ok: false,
-          error: `${source}: cli[${JSON.stringify(k)}] is not a string array`,
+          error: `${label}: cli[${JSON.stringify(k)}] is not a string array`,
         };
       }
       cli[k] = v;
@@ -340,10 +346,11 @@ export function loadCoverageIndex(source: string): CoverageIndexLoad {
     if (typeof rec.version === "number") index.version = rec.version;
     return { ok: true, index };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const raw = err instanceof Error ? err.message : String(err);
+    const msg = raw.replace(/https?:\/\/\S+/gi, "remote URL");
     return {
       ok: false,
-      error: `eval coverage index unreachable (${source}): ${msg}`,
+      error: `eval coverage index unreachable (${sourceLabel(source)}): ${msg}`,
     };
   }
 }
