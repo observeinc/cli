@@ -622,6 +622,19 @@ describe("loadCoverageIndex", () => {
     if (!got.ok) expect(got.error).toContain("unreachable");
   });
 
+  test("a failed remote fetch reports only curl's exit status", () => {
+    const host = "example.invalid";
+    const got = loadCoverageIndex(`https://${host}/coverage-index.json`);
+    expect(got.ok).toBe(false);
+    if (!got.ok) {
+      expect(got.error).toMatch(
+        /^eval coverage index unreachable \(remote URL\): curl exit \S+$/,
+      );
+      expect(got.error).not.toContain(host);
+      expect(got.error).not.toMatch(/https?:\/\//i);
+    }
+  });
+
   test("rejects a missing cli map", () => {
     const file = writeIndex({ version: 1 });
     const got = loadCoverageIndex(file);
