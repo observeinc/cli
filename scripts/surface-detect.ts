@@ -14,6 +14,12 @@
  *
  * Usage:
  *   bun run scripts/surface-detect.ts [--base REV] [--head REV] [--json FILE] [--markdown]
+ *     [--coverage-index PATH_OR_URL]
+ *
+ * `--coverage-index` (or COVERAGE_INDEX / COVERAGE_INDEX_URL) is a
+ * coverage-index.json path or HTTPS URL. A missing or unreachable index is
+ * noted in the comment; the process still exits 0. There is no built-in
+ * default URL.
  */
 import { execFileSync } from "node:child_process";
 import {
@@ -34,7 +40,23 @@ export interface Surface {
   change: "added" | "modified" | "removed";
   tags: string[];
   files: string[];
+  coverage?: Coverage;
 }
+
+export interface Coverage {
+  status: "covered" | "uncovered" | "unmapped";
+  stems: Record<string, string[]>;
+  reason?: string;
+}
+
+export interface CoverageIndex {
+  version?: number;
+  cli?: Record<string, string[]>;
+}
+
+export type CoverageIndexLoad =
+  | { ok: true; index: CoverageIndex }
+  | { ok: false; error: string };
 
 const COMMANDS_DIR = "src/commands/";
 // Untracked codegen output; other commits regenerate it from their own sources.
@@ -240,7 +262,117 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
 const MAX_ROWS = 20;
 export const MARKER = "<!-- observe-cli-surface-detect -->";
 
-export function markdown(surfaces: Surface[]): string {
+export function indexKey(name: string): string {
+  return `observe ${name}`;
+}
+
+export function coverageOf(
+  s: Surface,
+  index: CoverageIndex,
+): Coverage | undefined {
+  if (s.name.startsWith("(") || s.change === "removed") return undefined;
+  const key = indexKey(s.name);
+  const ids = index.cli?.[key];
+  if (ids === undefined) {
+    return {
+      status: "unmapped",
+      stems: {},
+      reason: "unknown to the coverage index",
+    };
+  }
+  if (ids.length) return { status: "covered", stems: { harbor: ids } };
+  return {
+    status: "uncovered",
+    stems: {},
+    reason: "no covering stem",
+  };
+}
+
+export function attachCoverage(
+  surfaces: Surface[],
+  index: CoverageIndex,
+): void {
+  for (const s of surfaces) s.coverage = coverageOf(s, index);
+}
+
+function readIndexBytes(source: string): string {
+  if (/^https?:\/\//i.test(source)) {
+    return execFileSync("curl", ["-fsSL", "--max-time", "20", source], {
+      encoding: "utf-8",
+      maxBuffer: 8 * 1024 * 1024,
+    });
+  }
+  return readFileSync(source, "utf-8");
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === "string");
+}
+
+export function loadCoverageIndex(source: string): CoverageIndexLoad {
+  try {
+    const parsed: unknown = JSON.parse(readIndexBytes(source));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { ok: false, error: `${source}: not a JSON object` };
+    }
+    const rec = parsed as Record<string, unknown>;
+    if (rec.cli === undefined) {
+      return { ok: false, error: `${source}: no cli map` };
+    }
+    if (
+      typeof rec.cli !== "object" ||
+      rec.cli === null ||
+      Array.isArray(rec.cli)
+    ) {
+      return { ok: false, error: `${source}: cli is not an object` };
+    }
+    const cli: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(rec.cli as Record<string, unknown>)) {
+      if (!isStringArray(v)) {
+        return {
+          ok: false,
+          error: `${source}: cli[${JSON.stringify(k)}] is not a string array`,
+        };
+      }
+      cli[k] = v;
+    }
+    const index: CoverageIndex = { cli };
+    if (typeof rec.version === "number") index.version = rec.version;
+    return { ok: true, index };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      error: `eval coverage index unreachable (${source}): ${msg}`,
+    };
+  }
+}
+
+export function coverageIndexSource(
+  argv: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const i = argv.indexOf("--coverage-index");
+  if (i >= 0 && argv[i + 1]) return argv[i + 1];
+  if (env.COVERAGE_INDEX) return env.COVERAGE_INDEX;
+  if (env.COVERAGE_INDEX_URL) return env.COVERAGE_INDEX_URL;
+  return undefined;
+}
+
+function coverageCell(s: Surface): string {
+  const cov = s.coverage;
+  if (!cov) return "";
+  if (cov.status === "covered") {
+    const n = Object.values(cov.stems).reduce((a, ids) => a + ids.length, 0);
+    return `${String(n)} eval(s)`;
+  }
+  return `**none** (${cov.status})`;
+}
+
+export function markdown(
+  surfaces: Surface[],
+  opts: { indexError?: string } = {},
+): string {
   if (!surfaces.length) return "";
   const ordered = [...surfaces].sort(
     (a, b) =>
@@ -249,22 +381,54 @@ export function markdown(surfaces: Surface[]): string {
       Number(a.change === "modified") - Number(b.change === "modified") ||
       a.name.localeCompare(b.name),
   );
+  const withCoverage = surfaces.some((s) => s.coverage);
   const rows = ordered.slice(0, MAX_ROWS).map((s) => {
     const label = s.name.startsWith("(") ? s.name : `\`observe ${s.name}\``;
-    return `| ${label} | ${s.change} | ${s.tags.join(", ")} |`;
+    const base = `| ${label} | ${s.change} | ${s.tags.join(", ")} |`;
+    return withCoverage ? `${base} ${coverageCell(s)} |` : base;
   });
   if (ordered.length > MAX_ROWS)
-    rows.push(`| … ${String(ordered.length - MAX_ROWS)} more | | |`);
+    rows.push(
+      withCoverage
+        ? `| … ${String(ordered.length - MAX_ROWS)} more | | | |`
+        : `| … ${String(ordered.length - MAX_ROWS)} more | | |`,
+    );
   const contract = surfaces.filter((s) => s.tags.includes("contract")).length;
-  return [
+  const header = withCoverage
+    ? ["| Command | Change | Tags | Coverage |", "|---|---|---|---|"]
+    : ["| Command | Change | Tags |", "|---|---|---|"];
+  const out = [
     MARKER,
     `This PR touches ${String(surfaces.length)} CLI command surface(s), ${String(contract)} with a contract change. ` +
       "Advisory only: nothing is gated yet; under the eval gate each would need eval coverage.",
     "",
-    "| Command | Change | Tags |",
-    "|---|---|---|",
+    ...header,
     ...rows,
-  ].join("\n");
+  ];
+  if (opts.indexError) {
+    out.push(
+      "",
+      opts.indexError,
+      "Coverage was not checked; the PR is not blocked.",
+    );
+  }
+  const missing = ordered.filter(
+    (s) =>
+      s.coverage &&
+      (s.coverage.status === "uncovered" || s.coverage.status === "unmapped"),
+  );
+  if (missing.length) {
+    out.push("", "**Missing eval coverage:**");
+    for (const s of missing.slice(0, MAX_ROWS)) {
+      const label = `\`observe ${s.name}\``;
+      const extra =
+        s.coverage?.status === "unmapped" ? " (unmapped)" : " (uncovered)";
+      out.push(`- ${label}: ${s.coverage?.reason ?? ""}${extra}`);
+    }
+    if (missing.length > MAX_ROWS)
+      out.push(`- … ${String(missing.length - MAX_ROWS)} more`);
+  }
+  return out.join("\n");
 }
 
 function main(argv: string[]): void {
@@ -275,17 +439,32 @@ function main(argv: string[]): void {
   const base = arg("--base") ?? "HEAD^";
   const head = arg("--head") ?? "HEAD";
   const surfaces = detect(base, head);
+  const source = coverageIndexSource(argv);
+  let indexError: string | undefined;
+  let indexLoaded = false;
+  if (source) {
+    const loaded = loadCoverageIndex(source);
+    if (loaded.ok) {
+      attachCoverage(surfaces, loaded.index);
+      indexLoaded = true;
+    } else {
+      indexError = loaded.error;
+    }
+  }
   const report = {
     repo: "observeinc/cli",
     base: git(["rev-parse", base]).trim(),
     head: git(["rev-parse", head]).trim(),
     pr: process.env.PR_NUMBER ?? null,
     would_gate: surfaces.length > 0,
+    coverage_index: indexLoaded,
+    coverage_error: indexError ?? null,
     surfaces,
   };
   const json = arg("--json");
   if (json) writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
-  if (argv.includes("--markdown")) process.stdout.write(markdown(surfaces));
+  if (argv.includes("--markdown"))
+    process.stdout.write(markdown(surfaces, { indexError }));
   else if (!json) process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 }
 
