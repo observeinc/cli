@@ -9,5 +9,5 @@ export async function deleteMonitor({
   id: number;
 }): Promise<void> {
   const sdk = new ObserveRestSDK(config);
-  await sdk.monitorApi.deleteMonitor({ id });
+  await sdk.monitorApi.deleteMonitor({ id: String(id) });
 }

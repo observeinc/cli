@@ -11,9 +11,9 @@ import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
 import {
   MonitorV2RuleKind,
-  type MonitorV2,
   type MonitorV2Definition,
 } from "../../rest/generated";
+import type { Monitor } from "../../rest/monitor/types";
 
 const TEST_MONITOR_ID = "41076897";
 
@@ -30,7 +30,7 @@ const STUB_DEFINITION: MonitorV2Definition = {
   rules: [],
 };
 
-function monitorStub(overrides: Partial<MonitorV2> = {}): MonitorV2 {
+function monitorStub(overrides: Partial<Monitor> = {}): Monitor {
   return {
     id: TEST_MONITOR_ID,
     name: "Joe - Test Monitor",
@@ -47,7 +47,7 @@ const updateMonitorFn = mock(
 );
 
 const getMonitorFn = mock(
-  (_params: { config: Config; id: number }): Promise<MonitorV2 | null> =>
+  (_params: { config: Config; id: number }): Promise<Monitor | null> =>
     Promise.resolve(monitorStub()),
 );
 
@@ -228,7 +228,7 @@ describe("monitor update — output", () => {
       TEST_MONITOR_ID,
       deps,
     );
-    const result = JSON.parse(stdout.join("")) as MonitorV2;
+    const result = JSON.parse(stdout.join("")) as Monitor;
     expect(result).toMatchObject({ id: TEST_MONITOR_ID, name: "Updated Name" });
   });
 });

@@ -9,7 +9,8 @@ import {
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
-import { MonitorV2RuleKind, type MonitorV2 } from "../../rest/generated";
+import { MonitorV2RuleKind } from "../../rest/generated";
+import type { Monitor } from "../../rest/monitor/types";
 
 const TEST_MONITOR_ID = "41076897";
 
@@ -21,12 +22,12 @@ const loadConfigFn = mock(
   }),
 );
 
-function monitorStub(overrides: Partial<MonitorV2> = {}): MonitorV2 {
+function monitorStub(overrides: Partial<Monitor> = {}): Monitor {
   return {
     id: TEST_MONITOR_ID,
     name: "Joe - Test Monitor",
     ruleKind: MonitorV2RuleKind.Count,
-    definition: {} as MonitorV2["definition"],
+    definition: {} as Monitor["definition"],
     disabled: true,
     ...overrides,
   };
@@ -38,7 +39,7 @@ const updateMonitorFn = mock(
 );
 
 const getMonitorFn = mock(
-  (_params: { config: Config; id: number }): Promise<MonitorV2 | null> =>
+  (_params: { config: Config; id: number }): Promise<Monitor | null> =>
     Promise.resolve(monitorStub({ disabled: true })),
 );
 
@@ -142,7 +143,7 @@ describe("monitor disable — output", () => {
     );
     const { context, stdout } = createMockContext();
     await disable.call(context, { json: true }, TEST_MONITOR_ID, deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2;
+    const result = JSON.parse(stdout.join("")) as Monitor;
     expect(result).toMatchObject({
       id: TEST_MONITOR_ID,
       name: "Joe - Test Monitor",

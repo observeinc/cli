@@ -10,12 +10,12 @@ import {
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
 import {
+  MonitorHealth,
   MonitorV2ActionType,
-  MonitorV2Health,
   MonitorV2RuleKind,
-  type MonitorV2,
   type MonitorV2ActionRule,
 } from "../../rest/generated";
+import type { Monitor } from "../../rest/monitor/types";
 
 const loadConfigFn = mock(
   (): Config => ({
@@ -25,21 +25,18 @@ const loadConfigFn = mock(
   }),
 );
 
-function monitorStub(
-  id: string,
-  overrides: Partial<MonitorV2> = {},
-): MonitorV2 {
+function monitorStub(id: string, overrides: Partial<Monitor> = {}): Monitor {
   return {
     id,
     name: "Test Monitor",
     ruleKind: MonitorV2RuleKind.Count,
-    definition: {} as MonitorV2["definition"],
+    definition: {} as Monitor["definition"],
     ...overrides,
   };
 }
 
 const getMonitorFn = mock(
-  (_params: { config: Config; id: number }): Promise<MonitorV2 | null> =>
+  (_params: { config: Config; id: number }): Promise<Monitor | null> =>
     Promise.resolve(monitorStub("42")),
 );
 
@@ -114,7 +111,7 @@ describe("monitor view — API forwarding", () => {
 describe("monitor view — output", () => {
   beforeEach(() => getMonitorFn.mockClear());
 
-  test("JSON output matches MonitorV2 shape", async () => {
+  test("JSON output matches Monitor shape", async () => {
     getMonitorFn.mockImplementationOnce(() =>
       Promise.resolve(
         monitorStub("42", {
@@ -125,7 +122,7 @@ describe("monitor view — output", () => {
     );
     const { context, stdout } = createMockContext();
     await view.call(context, { json: true }, "42", deps);
-    const result = JSON.parse(stdout.join("")) as MonitorV2;
+    const result = JSON.parse(stdout.join("")) as Monitor;
     expect(result).toMatchObject({
       id: "42",
       name: "My Monitor",
@@ -151,7 +148,7 @@ describe("monitor view — output", () => {
         monitorStub("41072994", {
           name: "clone-config-parity",
           actionRules,
-          health: MonitorV2Health.Running,
+          health: MonitorHealth.Running,
           effectiveScheduling,
         }),
       ),
@@ -161,7 +158,7 @@ describe("monitor view — output", () => {
     const result = JSON.parse(stdout.join("")) as Record<string, unknown>;
     expect(result).toMatchObject({
       actionRules,
-      health: MonitorV2Health.Running,
+      health: MonitorHealth.Running,
       effectiveScheduling,
     });
   });
