@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 # A newer push supersedes an older run, so the sticky comment never goes stale.
 concurrency:
@@ -48,6 +49,36 @@ jobs:
           bun run codegen
           echo "ran=true" >> "$GITHUB_OUTPUT"
 
+      # Optional private S3 index. Role ARN is a repo variable; URI is a secret
+      # so the bucket name is not in git. Forks never assume the role.
+      - name: Coverage index config
+        id: cov
+        if: steps.codegen.outputs.ran == 'true' && github.event.pull_request.head.repo.fork == false
+        env:
+          COVERAGE_INDEX_ROLE_ARN: ${{ vars.COVERAGE_INDEX_ROLE_ARN }}
+          COVERAGE_INDEX_S3_URI: ${{ secrets.COVERAGE_INDEX_S3_URI }}
+        run: |
+          if [ -n "$COVERAGE_INDEX_ROLE_ARN" ] && [ -n "$COVERAGE_INDEX_S3_URI" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.cov.outputs.enabled == 'true'
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.COVERAGE_INDEX_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Download coverage index
+        if: steps.cov.outputs.enabled == 'true'
+        continue-on-error: true
+        env:
+          COVERAGE_INDEX_S3_URI: ${{ secrets.COVERAGE_INDEX_S3_URI }}
+        run: aws s3 cp --quiet "$COVERAGE_INDEX_S3_URI" coverage-index.json
+
       - name: Detect
         if: steps.codegen.outputs.ran == 'true'
         env:
@@ -56,13 +87,15 @@ jobs:
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          # Optional HTTPS URL (repository secret). When unset, skip coverage.
-          COVERAGE_INDEX_URL: ${{ secrets.COVERAGE_INDEX_URL }}
         run: |
           # Checkout is refs/pull/N/merge; HEAD^1 is the base it was built on.
           # pull_request.base.sha can lag after main moves and pull in other PRs.
+          idx=()
+          if [ -f coverage-index.json ]; then
+            idx=(--coverage-index coverage-index.json)
+          fi
           bun run scripts/surface-detect.ts --base HEAD^1 --head HEAD \
-            --json surface-report.json --markdown > surface-comment.md
+            --json surface-report.json --markdown "${idx[@]}" > surface-comment.md
           cat surface-comment.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
