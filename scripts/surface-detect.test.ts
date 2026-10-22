@@ -683,6 +683,18 @@ describe("loadCoverageIndex", () => {
     expect(strGot.ok).toBe(false);
     if (!strGot.ok) expect(strGot.error).toContain("not a string array");
   });
+
+  test("invalid JSON is a parse error, not unreachable", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cov-index-"));
+    const file = path.join(dir, "coverage-index.json");
+    writeFileSync(file, "<html>not json</html>");
+    const got = loadCoverageIndex(file);
+    expect(got.ok).toBe(false);
+    if (!got.ok) {
+      expect(got.error).toBe(`${file}: not valid JSON`);
+      expect(got.error).not.toContain("unreachable");
+    }
+  });
 });
 
 function writeIndex(body: unknown): string {
@@ -715,5 +727,29 @@ describe("coverageIndexSource", () => {
       coverageIndexSource([], { COVERAGE_INDEX_URL: "not-a-url" }),
     ).toEqual({ value: "not-a-url", remote: true });
     expect(coverageIndexSource([], {})).toBeUndefined();
+  });
+
+  test("a colon in a local path is not a URI scheme", () => {
+    expect(
+      coverageIndexSource(["--coverage-index", "cov:2026.json"], {}),
+    ).toEqual({ value: "cov:2026.json", remote: false });
+    expect(
+      coverageIndexSource(
+        ["--coverage-index", "C:\\work\\coverage-index.json"],
+        {},
+      ),
+    ).toEqual({ value: "C:\\work\\coverage-index.json", remote: false });
+    expect(
+      coverageIndexSource(
+        ["--coverage-index", "https://example.invalid/i.json"],
+        {},
+      ),
+    ).toEqual({ value: "https://example.invalid/i.json", remote: true });
+    const got = loadCoverageIndex("cov:2026.json");
+    expect(got.ok).toBe(false);
+    if (!got.ok) {
+      expect(got.error).not.toContain("not an https URL");
+      expect(got.error).toContain("cov:2026.json");
+    }
   });
 });
