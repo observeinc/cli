@@ -31,6 +31,14 @@ describe("share-in setup", () => {
     expect(out).not.toContain("<your_share_name>");
   });
 
+  test("shell-quotes a quoted share name in the token create hint", async () => {
+    const { context, stdout } = createMockContext();
+    await setup.call(context, { shareName: '"My Share"' }, deps);
+    const out = stdout.join("");
+    expect(out).toContain('ALTER SHARE "My Share" ADD ACCOUNTS');
+    expect(out).toContain(`token create --share-name '"My Share"'`);
+  });
+
   test("--json prints the response unchanged", async () => {
     const { context, stdout } = createMockContext();
     await setup.call(context, { json: true }, deps);

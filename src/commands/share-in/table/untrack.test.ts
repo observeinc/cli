@@ -51,11 +51,28 @@ describe("share-in table untrack", () => {
     });
   });
 
-  test("aborts on no", async () => {
-    const { context, getExitCode } = createMockContext();
+  test("aborts on no, saying so on stderr", async () => {
+    const { context, stderr, getExitCode } = createMockContext();
     await untrack.call(context, {}, "41000100", "41000200", depsWith(false));
     expect(untrackFn).not.toHaveBeenCalled();
     expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("Aborted");
+  });
+
+  test("--json without --yes fails before prompting", async () => {
+    const { context, stdout, stderr, getExitCode } = createMockContext();
+    await untrack.call(
+      context,
+      { json: true },
+      "41000100",
+      "41000200",
+      depsWith(true),
+    );
+    expect(getFn).not.toHaveBeenCalled();
+    expect(untrackFn).not.toHaveBeenCalled();
+    expect(getExitCode()).toBe(1);
+    expect(stdout.join("")).toBe("");
+    expect(stderr.join("")).toContain("--json needs --yes");
   });
 
   test("--yes skips the lookup and the prompt", async () => {

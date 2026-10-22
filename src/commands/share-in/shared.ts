@@ -24,6 +24,25 @@ export async function confirm(
   }
 }
 
+/**
+ * Destructive commands prompt on stdout and print their warnings with the
+ * status writer, both of which would corrupt or hide output under --json.
+ * Returns false (and sets the exit code) when --json is set without --yes.
+ */
+export function requireYesWithJson(
+  this: LocalContext,
+  flags: { yes?: boolean; json?: boolean },
+): boolean {
+  if (flags.json && !flags.yes) {
+    this.writer.error(
+      "--json needs --yes: this command asks for confirmation, which cannot be answered with JSON output.",
+    );
+    this.process.exitCode = 1;
+    return false;
+  }
+  return true;
+}
+
 /** The `type` field of a REST error body, if there is one. */
 export async function errorType(error: unknown): Promise<string | undefined> {
   if (!(error instanceof ResponseError)) return undefined;

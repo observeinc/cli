@@ -6,7 +6,7 @@ import { deleteShare } from "../../rest/share-in/delete-share";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
-import { confirm, errorType } from "./shared";
+import { confirm, errorType, requireYesWithJson } from "./shared";
 
 interface DeleteShareFlags {
   yes?: boolean;
@@ -35,6 +35,7 @@ export async function remove(
   } = deps;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
+  if (!requireYesWithJson.call(this, flags)) return;
 
   try {
     const config = loadConfigImpl();
@@ -52,7 +53,7 @@ export async function remove(
       );
       const confirmed = await confirmImpl("Delete this share?");
       if (!confirmed) {
-        writer.info("Aborted. Re-run with --yes to skip this prompt.");
+        writer.error("Aborted. Re-run with --yes to skip this prompt.");
         process.exitCode = 1;
         return;
       }
@@ -101,7 +102,7 @@ export const deleteCommand = defineCommand({
       },
       json: {
         kind: "boolean",
-        brief: "Output the result as JSON",
+        brief: "Output the result as JSON (requires --yes)",
         optional: true,
       },
     },

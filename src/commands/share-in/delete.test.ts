@@ -36,11 +36,36 @@ describe("share-in delete", () => {
     expect(stdout.join("")).toContain("Deleted share");
   });
 
-  test("aborts on no without deleting", async () => {
-    const { context, getExitCode } = createMockContext();
+  test("aborts on no without deleting, saying so on stderr", async () => {
+    const { context, stderr, getExitCode } = createMockContext();
     await remove.call(context, {}, "41000100", depsWith(false));
     expect(deleteFn).not.toHaveBeenCalled();
     expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("Aborted");
+  });
+
+  test("--json without --yes fails before prompting", async () => {
+    const { context, stdout, stderr, getExitCode } = createMockContext();
+    await remove.call(context, { json: true }, "41000100", depsWith(true));
+    expect(getFn).not.toHaveBeenCalled();
+    expect(deleteFn).not.toHaveBeenCalled();
+    expect(getExitCode()).toBe(1);
+    expect(stdout.join("")).toBe("");
+    expect(stderr.join("")).toContain("--json needs --yes");
+  });
+
+  test("--json --yes prints only the JSON result", async () => {
+    const { context, stdout } = createMockContext();
+    await remove.call(
+      context,
+      { json: true, yes: true },
+      "41000100",
+      depsWith(false),
+    );
+    expect(JSON.parse(stdout.join(""))).toEqual({
+      success: true,
+      id: "41000100",
+    });
   });
 
   test("--force is separate from --yes and warns", async () => {

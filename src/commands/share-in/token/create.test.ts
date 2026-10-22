@@ -31,6 +31,20 @@ describe("share-in token create", () => {
     );
   });
 
+  test("shell-quotes the register command but not the SQL", async () => {
+    const { context, stdout } = createMockContext();
+    await create.call(
+      context,
+      { shareName: '"Sales $hare"', providerAccount: "ACME.PROD" },
+      deps,
+    );
+    const out = stdout.join("");
+    expect(out).toContain(`ALTER SHARE "Sales $hare" SET COMMENT`);
+    expect(out).toContain(
+      `register --share-name '"Sales $hare"' --provider-account ACME.PROD`,
+    );
+  });
+
   test("--json keeps the response shape", async () => {
     const { context, stdout } = createMockContext();
     await create.call(context, { ...flags, json: true }, deps);

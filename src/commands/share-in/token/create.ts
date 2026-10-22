@@ -5,7 +5,7 @@ import { createRegistrationToken } from "../../../rest/share-in/create-registrat
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
 import { muteStatusWriter } from "../../../lib/writer";
-import { parseShareName, withShareName, writeSteps } from "../sql";
+import { parseShareName, shellQuote, withShareName, writeSteps } from "../sql";
 
 interface CreateTokenFlags {
   shareName: string;
@@ -61,7 +61,7 @@ export async function create(
     writer.write("Then register the share:");
     writer.write(
       chalk.cyan(
-        `   observe share-in register --share-name ${flags.shareName} --provider-account ${flags.providerAccount}`,
+        `   observe share-in register --share-name ${shellQuote(flags.shareName)} --provider-account ${shellQuote(flags.providerAccount)}`,
       ),
     );
     writer.write("");

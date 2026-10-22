@@ -5,7 +5,7 @@ import { getSetupInfo } from "../../rest/share-in/get-setup-info";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
-import { parseShareName, withShareName, writeSteps } from "./sql";
+import { parseShareName, shellQuote, withShareName, writeSteps } from "./sql";
 
 interface SetupFlags {
   shareName?: string;
@@ -72,7 +72,7 @@ export async function setup(
     write("Then create a registration token and register the share:");
     write(
       chalk.cyan(
-        `   observe share-in token create --share-name ${flags.shareName ?? "<your_share_name>"} --provider-account <ORG>.<ACCOUNT>`,
+        `   observe share-in token create --share-name ${flags.shareName ? shellQuote(flags.shareName) : "<your_share_name>"} --provider-account <ORG>.<ACCOUNT>`,
       ),
     );
   } catch (error) {

@@ -23,6 +23,15 @@ export function parseShareName(value: string): string {
   );
 }
 
+/**
+ * Quote a value for a command line the user copies into a POSIX shell, so
+ * that double-quoted share names keep their quotes and `$` is not expanded.
+ */
+export function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_.-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 /** Fill the share-name placeholder in server-provided SQL, when known. */
 export function withShareName(
   steps: SetupSqlStep[],

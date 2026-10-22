@@ -6,7 +6,7 @@ import { untrackShareTable } from "../../../rest/share-in/untrack-share-table";
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
 import { muteStatusWriter } from "../../../lib/writer";
-import { confirm } from "../shared";
+import { confirm, requireYesWithJson } from "../shared";
 
 interface UntrackTableFlags {
   yes?: boolean;
@@ -35,6 +35,7 @@ export async function untrack(
   } = deps;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
+  if (!requireYesWithJson.call(this, flags)) return;
 
   try {
     const config = loadConfigImpl();
@@ -52,7 +53,7 @@ export async function untrack(
       );
       const confirmed = await confirmImpl("Untrack this table?");
       if (!confirmed) {
-        writer.info("Aborted. Re-run with --yes to skip this prompt.");
+        writer.error("Aborted. Re-run with --yes to skip this prompt.");
         process.exitCode = 1;
         return;
       }
@@ -91,7 +92,7 @@ export const untrackCommand = defineCommand({
       },
       json: {
         kind: "boolean",
-        brief: "Output the result as JSON",
+        brief: "Output the result as JSON (requires --yes)",
         optional: true,
       },
     },
