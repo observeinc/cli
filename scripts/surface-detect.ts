@@ -39,6 +39,8 @@ export interface Surface {
   /** Dump kind; omitted on `(shared …)` rows. Groups are not eval-gated. */
   node?: "command" | "group";
   name: string;
+  /** Primary command this row aliases; skipped for eval-coverage lookup. */
+  aliasOf?: string;
   change: "added" | "modified" | "removed";
   tags: string[];
   files: string[];
@@ -201,6 +203,7 @@ export function classify(
     tag: string,
     files: string[],
     node?: Surface["node"],
+    aliasOf?: string,
   ) => {
     const unique = [...new Set(files)];
     unique.forEach((f) => attributed.add(f));
@@ -208,6 +211,7 @@ export function classify(
       kind: "cli",
       ...(node ? { node } : {}),
       name,
+      ...(aliasOf ? { aliasOf } : {}),
       change,
       tags: [tag],
       files: unique,
@@ -230,10 +234,12 @@ export function classify(
     // A shared file (an aliased group's index.ts) is accounted for either way.
     own.forEach((f) => attributed.add(f));
     const node = (a ?? b)?.kind === "group" ? "group" : "command";
-    if (!b) row(name, "added", "contract", [...own, ...hits], node);
-    else if (!a) row(name, "removed", "contract", [...own, ...hits], node);
+    const aliasOf = (a ?? b)?.aliasOf;
+    if (!b) row(name, "added", "contract", [...own, ...hits], node, aliasOf);
+    else if (!a)
+      row(name, "removed", "contract", [...own, ...hits], node, aliasOf);
     else if (!same(b.contract, a.contract))
-      row(name, "modified", "contract", [...own, ...hits], node);
+      row(name, "modified", "contract", [...own, ...hits], node, aliasOf);
     else if (hits.length) {
       if (a.kind === "group") {
         // Wiring a direct child in or out of the route map explains it.
@@ -253,7 +259,7 @@ export function classify(
       const impl = hits.some(
         (f) => own.includes(f) || f.startsWith(COMMANDS_DIR),
       );
-      row(name, "modified", impl ? "impl" : "indirect", hits, node);
+      row(name, "modified", impl ? "impl" : "indirect", hits, node, aliasOf);
     }
   }
   // Anything else under src/ (bin.ts, unused lib code, ...).
@@ -287,7 +293,12 @@ export function coverageOf(
   s: Surface,
   index: CoverageIndex,
 ): Coverage | undefined {
-  if (s.name.startsWith("(") || s.change === "removed" || s.node === "group")
+  if (
+    s.name.startsWith("(") ||
+    s.change === "removed" ||
+    s.node === "group" ||
+    s.aliasOf
+  )
     return undefined;
   const key = indexKey(s.name);
   const ids = index.cli?.[key];

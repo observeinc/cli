@@ -60,6 +60,20 @@ describe("classify", () => {
     expect(classify(BASE, BASE, [])).toEqual([]);
   });
 
+  test("copies aliasOf from the dump", () => {
+    const before: Dump = {
+      ...BASE,
+      "tag list": cmd("src/commands/tag/list.ts", "List tags"),
+      "tag-key list": {
+        ...cmd("src/commands/tag/list.ts", "List tags"),
+        aliasOf: "tag list",
+      },
+    };
+    const got = byName(classify(before, before, ["src/commands/tag/list.ts"]));
+    expect(got["tag list"]?.aliasOf).toBeUndefined();
+    expect(got["tag-key list"]?.aliasOf).toBe("tag list");
+  });
+
   test("a contract change is contract", () => {
     const after = withSurface(
       "query",
@@ -511,6 +525,30 @@ describe("markdown", () => {
     expect(md).not.toContain("`observe (shared");
   });
 
+  test("does not list an alias mount as missing coverage", () => {
+    const surfaces: Surface[] = [
+      {
+        kind: "cli",
+        name: "tag list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+      {
+        kind: "cli",
+        name: "tag-key list",
+        aliasOf: "tag list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+    ];
+    attachCoverage(surfaces, { cli: { "observe tag list": ["110"] } });
+    const md = markdown(surfaces);
+    expect(md).not.toContain("**Missing eval coverage:**");
+    expect(md).toContain("`observe tag-key list`");
+  });
+
   test("does not list a removed command as missing coverage", () => {
     const surfaces: Surface[] = [
       {
@@ -616,6 +654,20 @@ describe("coverageOf", () => {
     };
     expect(
       coverageOf(removed, { cli: { "observe monitor list": ["s1"] } }),
+    ).toBeUndefined();
+  });
+
+  test("skips alias mounts of the same route", () => {
+    const alias: Surface = {
+      kind: "cli",
+      name: "tag-key list",
+      aliasOf: "tag list",
+      change: "modified",
+      tags: ["impl"],
+      files: [],
+    };
+    expect(
+      coverageOf(alias, { cli: { "observe tag-key list": [] } }),
     ).toBeUndefined();
   });
 });
