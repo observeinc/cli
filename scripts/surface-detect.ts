@@ -47,7 +47,7 @@ export interface Surface {
 
 export interface CoverageSource {
   value: string;
-  /** True for COVERAGE_INDEX_URL and any value with a URI scheme. */
+  /** True for COVERAGE_INDEX_URL and any value with a `scheme://` prefix. */
   remote: boolean;
 }
 
@@ -323,7 +323,7 @@ function curlExitStatus(err: unknown): string {
 }
 
 function hasUriScheme(value: string): boolean {
-  return /^[a-z][a-z0-9+.-]*:/i.test(value.trim());
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(value.trim());
 }
 
 function asCoverageSource(source: string | CoverageSource): CoverageSource {
@@ -352,7 +352,12 @@ function isStringArray(v: unknown): v is string[] {
 }
 
 function parseIndex(raw: string, label: string): CoverageIndexLoad {
-  const parsed: unknown = JSON.parse(raw);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: `${label}: not valid JSON` };
+  }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return { ok: false, error: `${label}: not a JSON object` };
   }
