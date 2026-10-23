@@ -105,6 +105,20 @@ describe("dashboard create — file validation", () => {
     expect(createDashboardFn).not.toHaveBeenCalled();
   });
 
+  test.each([
+    ["null", null],
+    ["array", []],
+    ["string", "text"],
+    ["number", 1],
+  ] as const)("rejects a non-object %s file", async (_label, body) => {
+    withFile(body);
+    const { context, stderr, getExitCode } = createMockContext();
+    await create.call(context, { file: "d.json" }, deps);
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("JSON object");
+    expect(createDashboardFn).not.toHaveBeenCalled();
+  });
+
   test("rejects malformed JSON", async () => {
     readFileFn.mockImplementationOnce(() => "{not json");
     const { context, stderr, getExitCode } = createMockContext();

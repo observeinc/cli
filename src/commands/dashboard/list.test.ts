@@ -144,6 +144,25 @@ describe("dashboard list — pagination and sorting", () => {
     expect(stdout.join("")).not.toContain("--offset");
   });
 
+  test("hints at the next page when every item on a full page was omitted", async () => {
+    listDashboardsFn.mockImplementationOnce((args: ListArgs) => {
+      lastListArgs = args;
+      return Promise.resolve(
+        listEnvelope([], {
+          errors: [
+            { id: "1", type: "PermissionDenied", message: "no" },
+            { id: "2", type: "PermissionDenied", message: "no" },
+          ],
+        }),
+      );
+    });
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 2, offset: 2 }, deps);
+    const out = stdout.join("");
+    expect(out).toContain("No dashboards found.");
+    expect(out).toContain("--offset 4");
+  });
+
   test("counts omitted items toward a full page when hinting", async () => {
     // One readable row plus one omitted row fills a limit of 2, so there may
     // still be a next page even though only one row was rendered.

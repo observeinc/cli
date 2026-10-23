@@ -40,8 +40,9 @@ function assertDashboardDefinition(
  * document taken from `dashboard view --json` can be used as a template.
  */
 export function buildDashboardCreateRequest(
-  parsed: Record<string, unknown>,
+  parsed: unknown,
 ): DashboardCreateRequest {
+  assertDashboardFileObject(parsed);
   if (typeof parsed.name !== "string" || parsed.name === "") {
     throw new Error('--file must contain a "name" field (non-empty string).');
   }
@@ -69,8 +70,9 @@ export function buildDashboardCreateRequest(
  * nulls a field the API does not allow to be cleared.
  */
 export function buildDashboardPatch(
-  parsed: Record<string, unknown>,
+  parsed: unknown,
 ): DashboardUpdateRequest {
+  assertDashboardFileObject(parsed);
   for (const field of PATCHABLE_FIELDS) {
     // `description` is the one field where null is meaningful: it clears the
     // value. Every other field is omitted to leave it unchanged.
@@ -107,6 +109,14 @@ export function buildDashboardPatch(
   }
 
   return patch;
+}
+
+function assertDashboardFileObject(
+  value: unknown,
+): asserts value is Record<string, unknown> {
+  if (!isPlainObject(value)) {
+    throw new Error("--file must contain a JSON object.");
+  }
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

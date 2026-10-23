@@ -153,22 +153,21 @@ export async function list(
 
     if (dashboards.length === 0) {
       writer.warn("No dashboards found.");
-      return;
+    } else {
+      // `meta.totalCount` is -1 when the API cannot compute a population total.
+      const summary =
+        totalCount >= 0
+          ? `Found ${dashboards.length} dashboard(s) (${totalCount} total):\n`
+          : `Found ${dashboards.length} dashboard(s):\n`;
+      writer.write(chalk.green(summary));
+
+      const columns = fieldNames.map((field) => FIELD_COLUMNS[field]);
+      writer.write(formatTable(dashboards, columns));
     }
 
-    // `meta.totalCount` is -1 when the API cannot compute a population total.
-    const summary =
-      totalCount >= 0
-        ? `Found ${dashboards.length} dashboard(s) (${totalCount} total):\n`
-        : `Found ${dashboards.length} dashboard(s):\n`;
-    writer.write(chalk.green(summary));
-
-    const columns = fieldNames.map((field) => FIELD_COLUMNS[field]);
-    writer.write(formatTable(dashboards, columns));
-
     // Omitted items still consume slots in the page, so count them here;
-    // otherwise a page filled with some unreadable dashboards looks short and
-    // the user is told there is nothing left to fetch.
+    // otherwise a page filled with unreadable dashboards looks empty and the
+    // user is told there is nothing left to fetch.
     if (dashboards.length + response.errors.length === flags.limit) {
       const nextOffset = (flags.offset ?? 0) + flags.limit;
       writer.info(

@@ -149,6 +149,20 @@ describe("dashboard update — rejected payloads", () => {
     expect(updateDashboardFn).not.toHaveBeenCalled();
   });
 
+  test.each([
+    ["null", null],
+    ["array", []],
+    ["string", "text"],
+    ["number", 1],
+  ] as const)("rejects a non-object %s file", async (_label, body) => {
+    withFile(body);
+    const { context, stderr, getExitCode } = createMockContext();
+    await update.call(context, { file: "d.json" }, TEST_DASHBOARD_ID, deps);
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("JSON object");
+    expect(updateDashboardFn).not.toHaveBeenCalled();
+  });
+
   test("rejects malformed JSON", async () => {
     readFileFn.mockImplementationOnce(() => "{not json");
     const { context, stderr, getExitCode } = createMockContext();
