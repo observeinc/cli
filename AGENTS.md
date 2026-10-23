@@ -88,48 +88,10 @@ src/
     └── format-error.ts # Error formatting
 ```
 
-### Adding a New Command
+### Adding or changing a command
 
-1. **Create GraphQL query** (if needed):
-   - Add `src/gql/<resource>/<operation>.graphql`
-   - Add `src/gql/<resource>/<operation>.ts` wrapper
-   - Run `bun codegen:gql` to generate types
-
-2. **Create command file**:
-   - Add `src/commands/<resource>/<command>.ts`
-   - Follow existing patterns (see `dataset/list.ts` as reference)
-   - Use `defineCommand` from `lib/stricli-wrappers` (not stricli's `buildCommand` directly)
-
-3. **Register in routes**:
-   - Export from `src/commands/<resource>/index.ts`, building the route map with `defineRoutes` from `lib/stricli-wrappers` (not stricli's `buildRouteMap` directly)
-   - Add to `src/app.ts` routes. New routes should be added at the bottom of the route map, but the `cli` command must always remain last.
-
-4. **Update documentation**:
-   - Update the **Project Structure** section in this `AGENTS.md` to include the new command/resource.
-   - Update the **Commands** table in `README.md`. The README command order must always match the route order in `src/app.ts`.
-
-### Adding an Experimental Command
-
-`defineCommand`/`defineRoutes` are thin wrappers over stricli's builders that
-add support for custom declarative fields; today the only field is
-`experimental`. Mark a command experimental by setting it:
-
-```typescript
-export const predictCommand = defineCommand({
-  experimental: true, // the only change vs a normal command
-  loader: async () => predict,
-  parameters: {
-    /* ... */
-  },
-  docs: { brief: "Predict dataset usage" },
-});
-```
-
-An experimental command is hidden from help and refuses to run unless
-`OBSERVE_CLI_EXPERIMENTAL=1`, and shows an `[experimental]` badge when visible.
-A route group becomes experimental automatically once **all** of its children
-are — no annotation needed on the `defineRoutes` call. Promote to GA by deleting
-the `experimental: true` line. The feature lives in `lib/experimental.ts`.
+Follow `.agents/skills/cli-command-lifecycle/SKILL.md`. It covers a new
+command, an experimental command, and a change to an existing command.
 
 ### REST-Backed List Commands
 
