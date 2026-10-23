@@ -87,5 +87,16 @@ describe("source-dataset delete", () => {
     await remove.call(context, { yes: true }, "41000001", depsWith(true));
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("an enabled ingest token sends here");
+    expect(stderr.join("")).toContain("Disable or delete the token first");
+  });
+
+  test("suggests --force when dependents block the delete", async () => {
+    deleteFn.mockImplementationOnce(() =>
+      Promise.reject(apiError(409, "dependents_exist", "has dependents")),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    await remove.call(context, { yes: true }, "41000001", depsWith(true));
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("Re-run with --force");
   });
 });

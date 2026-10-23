@@ -80,5 +80,6 @@ describe("source-dataset create", () => {
     await create.call(context, { label: "Logs/checkout" }, deps);
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("label already exists");
+    expect(stderr.join("")).toContain("observe source-dataset update");
   });
 });

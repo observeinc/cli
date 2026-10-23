@@ -83,6 +83,9 @@ export interface SourceDatasetResource {
   correlationTags: unknown[];
   ingestStatus: SourceDatasetIngestStatus;
   ingestStats?: {
+    /** Per-minute series over the last hour. */
+    observations: { time: string; value: number }[];
+    volumeBytes: { time: string; value: number }[];
     observationsLastHour: number | null;
     bytesLastHour: number | null;
     firstIngest: string | null;

@@ -32,6 +32,29 @@ describe("source-dataset view", () => {
     expect(out).toContain("OtelLogs");
   });
 
+  test("shows the one-hour totals, not the per-minute series", async () => {
+    getFn.mockImplementationOnce(() =>
+      Promise.resolve(
+        sourceDatasetStub({
+          ingestStats: {
+            observations: [{ time: "2026-10-23T10:00:00Z", value: 7 }],
+            volumeBytes: [{ time: "2026-10-23T10:00:00Z", value: 512 }],
+            observationsLastHour: 4242,
+            bytesLastHour: 99999,
+            firstIngest: "2026-10-01T00:00:00Z",
+            lastIngest: "2026-10-23T10:00:00Z",
+          },
+        }),
+      ),
+    );
+    const { context, stdout } = createMockContext();
+    await view.call(context, { expand: true }, "41000001", deps);
+    const out = stdout.join("");
+    expect(out).toContain("4242");
+    expect(out).toContain("99999");
+    expect(out).not.toContain("512");
+  });
+
   test("gives a not-found message on 404", async () => {
     getFn.mockImplementationOnce(() =>
       Promise.reject(apiError(404, "not_found", "nope")),

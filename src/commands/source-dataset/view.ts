@@ -69,7 +69,14 @@ export async function view(
         name: f.name,
         type: f.type.tag,
       })),
-      ingestStats: dataset.ingestStats ?? undefined,
+      ingestStats: dataset.ingestStats
+        ? {
+            observationsLastHour: dataset.ingestStats.observationsLastHour,
+            bytesLastHour: dataset.ingestStats.bytesLastHour,
+            firstIngest: dataset.ingestStats.firstIngest,
+            lastIngest: dataset.ingestStats.lastIngest,
+          }
+        : undefined,
       createdAt: dataset.createdAt,
       updatedAt: dataset.updatedAt,
     };

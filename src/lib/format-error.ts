@@ -41,16 +41,28 @@ export const FEATURE_NOT_ENABLED_MESSAGE =
 export async function isFeatureNotEnabled(
   response: Response,
 ): Promise<boolean> {
+  return (await responseErrorType(response)) === "feature_not_enabled";
+}
+
+/** The `type` field of a REST error body, if there is one. */
+export async function errorType(error: unknown): Promise<string | undefined> {
+  if (!(error instanceof ResponseError)) return undefined;
+  return responseErrorType(error.response);
+}
+
+async function responseErrorType(
+  response: Response,
+): Promise<string | undefined> {
   try {
     const parsed: unknown = JSON.parse(await response.clone().text());
-    return (
-      parsed != null &&
-      typeof parsed === "object" &&
-      (parsed as Record<string, unknown>).type === "feature_not_enabled"
-    );
+    if (parsed != null && typeof parsed === "object") {
+      const type = (parsed as Record<string, unknown>).type;
+      return typeof type === "string" ? type : undefined;
+    }
   } catch {
-    return false;
+    // not JSON
   }
+  return undefined;
 }
 
 async function readResponseErrorBody(response: Response): Promise<string> {

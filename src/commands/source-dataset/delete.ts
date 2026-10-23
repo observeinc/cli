@@ -5,7 +5,7 @@ import type { LocalContext } from "../../context";
 import { getSourceDataset } from "../../rest/source-dataset/get-source-dataset";
 import { deleteSourceDataset } from "../../rest/source-dataset/delete-source-dataset";
 import { loadConfig } from "../../lib/config";
-import { formatApiError } from "../../lib/format-error";
+import { errorType, formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
 
 interface DeleteSourceDatasetFlags {
@@ -92,6 +92,16 @@ export async function remove(
     writer.write(chalk.green(`Deleted source dataset ${chalk.bold(id)}.`));
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
+    const type = await errorType(error);
+    if (type === "dependents_exist") {
+      writer.error(
+        "Other datasets are built on this one. Re-run with --force to delete it anyway; they are kept and rebuilt.",
+      );
+    } else if (type === "ingest_token_active") {
+      writer.error(
+        "An enabled ingest token still sends data to this dataset. Disable or delete the token first; --force does not skip this.",
+      );
+    }
     process.exitCode = 1;
   }
 }

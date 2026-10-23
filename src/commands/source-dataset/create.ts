@@ -8,7 +8,7 @@ import type {
   SourceDatasetStorage,
 } from "../../rest/source-dataset/types";
 import { loadConfig } from "../../lib/config";
-import { formatApiError } from "../../lib/format-error";
+import { errorType, formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
 import { buildObjectTags, parseRetentionDays, parseTag } from "./parse";
 
@@ -102,6 +102,11 @@ export async function create(
     );
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
+    if ((await errorType(error)) === "already_exists") {
+      writer.error(
+        "Pick another name, or change the existing dataset with `observe source-dataset update`.",
+      );
+    }
     process.exitCode = 1;
   }
 }
