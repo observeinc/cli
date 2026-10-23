@@ -45,6 +45,15 @@ describe("source-dataset delete", () => {
     expect(getExitCode()).toBe(1);
   });
 
+  test("--json without --yes is refused before any request", async () => {
+    const { context, stderr, getExitCode } = createMockContext();
+    await remove.call(context, { json: true }, "41000001", depsWith(true));
+    expect(getFn).not.toHaveBeenCalled();
+    expect(deleteFn).not.toHaveBeenCalled();
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("--json needs --yes");
+  });
+
   test("--yes skips the prompt and does not force", async () => {
     const { context } = createMockContext();
     await remove.call(context, { yes: true }, "41000001", depsWith(false));

@@ -52,6 +52,13 @@ export async function remove(
   } = deps;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
+  if (flags.json && !flags.yes) {
+    writer.error(
+      "--json needs --yes: this command asks for confirmation, which cannot be answered with JSON output.",
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   try {
     const config = loadConfigImpl();
@@ -69,7 +76,7 @@ export async function remove(
       );
       const confirmed = await confirmImpl("Delete this source dataset?");
       if (!confirmed) {
-        writer.info("Aborted. Re-run with --yes to skip this prompt.");
+        writer.error("Aborted. Re-run with --yes to skip this prompt.");
         process.exitCode = 1;
         return;
       }
@@ -117,7 +124,7 @@ export const deleteCommand = defineCommand({
       },
       json: {
         kind: "boolean",
-        brief: "Output the result as JSON",
+        brief: "Output the result as JSON (requires --yes)",
         optional: true,
       },
     },

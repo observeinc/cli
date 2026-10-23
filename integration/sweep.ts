@@ -18,6 +18,7 @@ import { listDatastreams } from "../src/gql/datastream/list-datastreams";
 import { listDatasets } from "../src/rest/dataset/list-datasets";
 import { listSkills } from "../src/rest/skill/list-skills";
 import { listSourceDatasets } from "../src/rest/source-dataset/list-source-datasets";
+import { isFeatureNotEnabled } from "../src/lib/format-error";
 import { ResponseError } from "../src/rest/generated/runtime";
 import type { Config } from "../src/lib/config";
 import {
@@ -64,8 +65,12 @@ const SWEEPERS: readonly Sweeper[] = [
           });
           return sourceDatasets.map((d) => ({ id: d.id, name: d.label }));
         } catch (error) {
-          // Pre-GA: tenants without the API flag answer 403; nothing to sweep.
-          if (error instanceof ResponseError && error.response.status === 403) {
+          // Pre-GA: tenants without the API flag answer 403 feature_not_enabled.
+          if (
+            error instanceof ResponseError &&
+            error.response.status === 403 &&
+            (await isFeatureNotEnabled(error.response))
+          ) {
             return [];
           }
           throw error;

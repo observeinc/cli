@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { isFeatureNotEnabled } from "../src/lib/format-error";
 import { ResponseError } from "../src/rest/generated/runtime";
 import { listSourceDatasets } from "../src/rest/source-dataset/list-source-datasets";
 import { deleteSourceDataset } from "./cleanup";
 import {
+  INTEGRATION_TIMEOUT,
   loadTenantConfig,
   parseJsonOutput,
   testPrefix,
@@ -23,7 +25,11 @@ async function apiEnabled(): Promise<boolean> {
     await listSourceDatasets({ config: tenant, limit: 1 });
     return true;
   } catch (error) {
-    if (error instanceof ResponseError && error.response.status === 403) {
+    if (
+      error instanceof ResponseError &&
+      error.response.status === 403 &&
+      (await isFeatureNotEnabled(error.response))
+    ) {
       return false;
     }
     throw error;
@@ -33,54 +39,58 @@ async function apiEnabled(): Promise<boolean> {
 const testIfEnabled = (await apiEnabled()) ? test : test.skip;
 
 describe("source-dataset CLI integration", () => {
-  testIfEnabled("create, list, view, update, and delete", async () => {
-    const prefix = testPrefix();
-    const label = `${prefix}/source-dataset`;
+  testIfEnabled(
+    "create, list, view, update, and delete",
+    async () => {
+      const prefix = testPrefix();
+      const label = `${prefix}/source-dataset`;
 
-    await withIntegrationFixture(tenant, async (fixture) => {
-      const createResult = await fixture.runCli`
+      await withIntegrationFixture(tenant, async (fixture) => {
+        const createResult = await fixture.runCli`
         observe source-dataset create \
           --label ${label} \
           --description ${JSON.stringify("integration test")} \
           --json
       `;
-      const created = parseJsonOutput(createResult) as SourceDatasetJson;
-      let deleted = false;
-      fixture.registerCleanup(async () => {
-        if (!deleted) await deleteSourceDataset(tenant, created.id);
-      });
+        const created = parseJsonOutput(createResult) as SourceDatasetJson;
+        let deleted = false;
+        fixture.registerCleanup(async () => {
+          if (!deleted) await deleteSourceDataset(tenant, created.id);
+        });
 
-      expect(created.label).toBe(label);
+        expect(created.label).toBe(label);
 
-      const listResult = await fixture.runCli`
+        const listResult = await fixture.runCli`
         observe source-dataset list --match ${prefix} --json
       `;
-      const listed = parseJsonOutput(listResult) as SourceDatasetJson[];
-      expect(listed.some((d) => d.id === created.id)).toBe(true);
+        const listed = parseJsonOutput(listResult) as SourceDatasetJson[];
+        expect(listed.some((d) => d.id === created.id)).toBe(true);
 
-      const viewResult = await fixture.runCli`
+        const viewResult = await fixture.runCli`
         observe source-dataset view ${created.id} --json
       `;
-      const viewed = parseJsonOutput(viewResult) as SourceDatasetJson;
-      expect(viewed.description).toBe("integration test");
+        const viewed = parseJsonOutput(viewResult) as SourceDatasetJson;
+        expect(viewed.description).toBe("integration test");
 
-      const updateResult = await fixture.runCli`
+        const updateResult = await fixture.runCli`
         observe source-dataset update ${created.id} --clear-description --json
       `;
-      const updated = parseJsonOutput(updateResult) as SourceDatasetJson;
-      expect(updated.description).toBeNull();
+        const updated = parseJsonOutput(updateResult) as SourceDatasetJson;
+        expect(updated.description).toBeNull();
 
-      const deleteResult = await fixture.runCli`
+        const deleteResult = await fixture.runCli`
         observe source-dataset delete ${created.id} --yes --json
       `;
-      expect(deleteResult.exitCode).toBe(0);
-      deleted = true;
+        expect(deleteResult.exitCode).toBe(0);
+        deleted = true;
 
-      const viewDeleted = await fixture.runCli`
+        const viewDeleted = await fixture.runCli`
         observe source-dataset view ${created.id}
       `;
-      expect(viewDeleted.exitCode).toBe(1);
-      expect(viewDeleted.stderr).toContain("Source dataset not found");
-    });
-  });
+        expect(viewDeleted.exitCode).toBe(1);
+        expect(viewDeleted.stderr).toContain("Source dataset not found");
+      });
+    },
+    { timeout: INTEGRATION_TIMEOUT.graphRebuild },
+  );
 });

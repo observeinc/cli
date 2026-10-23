@@ -38,7 +38,9 @@ export const FEATURE_NOT_ENABLED_MESSAGE =
 // Pre-GA APIs answer `403 feature_not_enabled` while their backend flag is off
 // for the customer; any other 403 type (e.g. failed_authorization) is a real
 // permission error and keeps the server message.
-async function isFeatureNotEnabled(response: Response): Promise<boolean> {
+export async function isFeatureNotEnabled(
+  response: Response,
+): Promise<boolean> {
   try {
     const parsed: unknown = JSON.parse(await response.clone().text());
     return (
