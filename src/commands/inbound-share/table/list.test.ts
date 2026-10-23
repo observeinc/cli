@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../../test-helpers";
+import type { listAllTrackedTables } from "../../../rest/inbound-share/list-all-tracked-tables";
 import type { listShareTables } from "../../../rest/inbound-share/list-share-tables";
 import type { listUntrackedShareTables } from "../../../rest/inbound-share/list-untracked-share-tables";
 import { list } from "./list";
@@ -16,16 +17,44 @@ const listUntrackedFn = mock<typeof listUntrackedShareTables>(() =>
     meta: { totalCount: 1 },
   }),
 );
+const listAllFn = mock<typeof listAllTrackedTables>(() =>
+  Promise.resolve({
+    tables: [tableStub({ share: { id: "41000900" } })],
+    meta: { totalCount: 1 },
+  }),
+);
 const deps = {
   loadConfig: loadConfigStub,
   listShareTables: listFn,
+  listAllTrackedTables: listAllFn,
   listUntrackedShareTables: listUntrackedFn,
 };
 
 describe("inbound-share table list", () => {
   beforeEach(() => {
     listFn.mockClear();
+    listAllFn.mockClear();
     listUntrackedFn.mockClear();
+  });
+
+  test("without --share-id lists tracked tables of all shares", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 20, match: "ord" }, deps);
+    expect(listFn).not.toHaveBeenCalled();
+    expect(listAllFn.mock.calls[0]![0]).toMatchObject({ limit: 20 });
+    expect(listAllFn.mock.calls[0]![0].filter).toContain("ord");
+    const out = stdout.join("");
+    expect(out).toContain("SHARE");
+    expect(out).toContain("41000900");
+  });
+
+  test("--untracked without --share-id fails before calling the API", async () => {
+    const { context, stderr, getExitCode } = createMockContext();
+    await list.call(context, { limit: 20, untracked: true }, deps);
+    expect(listUntrackedFn).not.toHaveBeenCalled();
+    expect(listAllFn).not.toHaveBeenCalled();
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("--untracked needs --share-id");
   });
 
   test("lists the tracked tables of --share-id", async () => {

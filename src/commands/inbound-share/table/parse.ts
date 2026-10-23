@@ -1,6 +1,8 @@
 import { parseJsonFile } from "../../../lib/parsers";
 import type {
+  AttachDatasetRequest,
   DatasetKind,
+  DatasetSpec,
   SchemaMapping,
   TableUpdateRequest,
   TrackTableRequest,
@@ -27,8 +29,13 @@ export interface TrackFlags {
   schemaMapping?: SchemaMapping;
 }
 
+export type DatasetFlags = Pick<
+  TrackFlags,
+  "datasetLabel" | "kind" | "validFrom" | "validTo" | "schemaMapping"
+>;
+
 /** Event needs --valid-from; Interval needs both; Table takes neither. */
-export function buildTrackBody(flags: TrackFlags): TrackTableRequest {
+function checkKindFields(flags: DatasetFlags): void {
   const hasFrom = flags.validFrom !== undefined;
   const hasTo = flags.validTo !== undefined;
   if (flags.kind === "Table" && (hasFrom || hasTo)) {
@@ -40,6 +47,10 @@ export function buildTrackBody(flags: TrackFlags): TrackTableRequest {
   if (flags.kind === "Interval" && (!hasFrom || !hasTo)) {
     throw new Error("--kind Interval needs both --valid-from and --valid-to.");
   }
+}
+
+export function buildTrackBody(flags: TrackFlags): TrackTableRequest {
+  checkKindFields(flags);
   const body: TrackTableRequest = {
     schemaName: flags.schema,
     tableName: flags.table,
@@ -47,12 +58,26 @@ export function buildTrackBody(flags: TrackFlags): TrackTableRequest {
     datasetKind: flags.kind,
   };
   if (flags.description !== undefined) body.description = flags.description;
-  if (hasFrom) body.validFromField = flags.validFrom;
-  if (hasTo) body.validToField = flags.validTo;
+  if (flags.validFrom !== undefined) body.validFromField = flags.validFrom;
+  if (flags.validTo !== undefined) body.validToField = flags.validTo;
   if (flags.schemaMapping !== undefined) {
     body.schemaMapping = flags.schemaMapping;
   }
   return body;
+}
+
+export function buildAttachBody(flags: DatasetFlags): AttachDatasetRequest {
+  checkKindFields(flags);
+  const dataset: DatasetSpec = {
+    label: flags.datasetLabel,
+    kind: flags.kind,
+  };
+  if (flags.validFrom !== undefined) dataset.validFromField = flags.validFrom;
+  if (flags.validTo !== undefined) dataset.validToField = flags.validTo;
+  if (flags.schemaMapping !== undefined) {
+    dataset.schemaMapping = flags.schemaMapping;
+  }
+  return { dataset };
 }
 
 export interface TableUpdateFlags {

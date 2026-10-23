@@ -4,7 +4,9 @@ import {
   type HTTPQuery,
 } from "../generated/runtime";
 import type {
+  AttachDatasetRequest,
   HealthStatus,
+  InboundOfferListResponse,
   RegisterShareRequest,
   RegistrationToken,
   SetupInfo,
@@ -13,6 +15,7 @@ import type {
   ShareState,
   TableListResponse,
   TableResource,
+  TableSchema,
   TableUpdateRequest,
   TrackTableRequest,
   UntrackedTableListResponse,
@@ -242,6 +245,83 @@ export class InboundShareApi extends BaseAPI {
   }): Promise<void> {
     await this.request({
       path: InboundShareApi.tablePath(params.shareId, params.tableId),
+      method: "DELETE",
+      headers: await this.headers(false),
+    });
+  }
+
+  async listInboundOffers(params: {
+    limit?: number;
+    offset?: number;
+  }): Promise<InboundOfferListResponse> {
+    const query: HTTPQuery = {};
+    if (params.limit !== undefined) query.limit = params.limit;
+    if (params.offset !== undefined) query.offset = params.offset;
+    const response = await this.request({
+      path: "/v1/shares/inbound-offers",
+      method: "GET",
+      headers: await this.headers(false),
+      query,
+    });
+    return (await response.json()) as InboundOfferListResponse;
+  }
+
+  async listAllTrackedTables(params: {
+    filter?: string;
+    orderBy?: string;
+    limit?: number;
+    offset?: number;
+    expand?: boolean;
+  }): Promise<TableListResponse> {
+    const query: HTTPQuery = {};
+    if (params.filter) query.filter = params.filter;
+    if (params.orderBy) query.orderBy = params.orderBy;
+    if (params.limit !== undefined) query.limit = params.limit;
+    if (params.offset !== undefined) query.offset = params.offset;
+    if (params.expand) query.expand = true;
+    const response = await this.request({
+      path: "/v1/shares/inbound/tables",
+      method: "GET",
+      headers: await this.headers(false),
+      query,
+    });
+    return (await response.json()) as TableListResponse;
+  }
+
+  async getUntrackedTableSchema(params: {
+    shareId: string;
+    schemaName: string;
+    tableName: string;
+  }): Promise<TableSchema> {
+    const response = await this.request({
+      path: `${InboundShareApi.sharePath(params.shareId)}/untracked-tables/${encodeURIComponent(params.tableName)}/schema`,
+      method: "GET",
+      headers: await this.headers(false),
+      query: { schemaName: params.schemaName },
+    });
+    return (await response.json()) as TableSchema;
+  }
+
+  async attachTableDataset(params: {
+    shareId: string;
+    tableId: string;
+    body: AttachDatasetRequest;
+  }): Promise<TableResource> {
+    const response = await this.request({
+      path: `${InboundShareApi.tablePath(params.shareId, params.tableId)}/dataset`,
+      method: "POST",
+      headers: await this.headers(true),
+      body: params.body,
+    });
+    return (await response.json()) as TableResource;
+  }
+
+  async detachTableDataset(params: {
+    shareId: string;
+    tableId: string;
+  }): Promise<void> {
+    await this.request({
+      path: `${InboundShareApi.tablePath(params.shareId, params.tableId)}/dataset`,
       method: "DELETE",
       headers: await this.headers(false),
     });

@@ -126,9 +126,7 @@ export interface TableResource {
       contentType: string;
     };
   } | null;
-  tableSchema?: {
-    columns: { name: string; type: string; nullable: boolean }[];
-  } | null;
+  tableSchema?: TableSchema | null;
   createdBy: UserRef | null;
   createdAt: string;
   updatedBy: UserRef | null;
@@ -150,6 +148,37 @@ export interface UntrackedTable {
 export interface UntrackedTableListResponse {
   tables: UntrackedTable[];
   meta: { totalCount: number };
+}
+
+export interface TableSchema {
+  columns: { name: string; type: string; nullable: boolean }[];
+}
+
+/** A share offered by an already-registered provider account. */
+export interface InboundOffer {
+  providerAccount: string;
+  shareName: string;
+  description: string | null;
+  owner: string | null;
+  createdAt: string | null;
+  suggestedLocalName: string | null;
+}
+
+export interface InboundOfferListResponse {
+  offers: InboundOffer[];
+  meta: { totalCount: number };
+}
+
+export interface DatasetSpec {
+  label: string;
+  kind: DatasetKind;
+  validFromField?: string | null;
+  validToField?: string | null;
+  schemaMapping?: SchemaMapping | null;
+}
+
+export interface AttachDatasetRequest {
+  dataset: DatasetSpec;
 }
 
 export interface TrackTableRequest {

@@ -1,6 +1,7 @@
 import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
+import { listAllTrackedTables } from "../../../rest/inbound-share/list-all-tracked-tables";
 import { listShareTables } from "../../../rest/inbound-share/list-share-tables";
 import { listUntrackedShareTables } from "../../../rest/inbound-share/list-untracked-share-tables";
 import type {
@@ -28,7 +29,7 @@ import {
 } from "../shared";
 
 interface ListTablesFlags {
-  shareId: string;
+  shareId?: string;
   untracked?: boolean;
   match?: string;
   filter?: string;
@@ -42,11 +43,12 @@ interface ListTablesFlags {
 
 const col = createColumnHelper<TableResource>();
 
-const COLUMNS: ColumnDef<TableResource>[] = [
-  col.accessor((row) => row.id, {
-    header: "ID",
-    format: (value) => chalk.cyan(value),
-  }),
+const ID_COLUMN = col.accessor((row) => row.id, {
+  header: "ID",
+  format: (value) => chalk.cyan(value),
+});
+
+const DETAIL_COLUMNS: ColumnDef<TableResource>[] = [
   col.accessor((row) => `${row.schemaName}.${row.tableName}`, {
     header: "TABLE",
   }),
@@ -57,6 +59,14 @@ const COLUMNS: ColumnDef<TableResource>[] = [
   col.accessor((row) => row.health, { header: "HEALTH" }),
   col.accessor((row) => row.cdcStatus, { header: "CDC" }),
   col.accessor((row) => row.sourceDataset?.id ?? "", { header: "DATASET" }),
+];
+
+const COLUMNS: ColumnDef<TableResource>[] = [ID_COLUMN, ...DETAIL_COLUMNS];
+
+const ALL_SHARES_COLUMNS: ColumnDef<TableResource>[] = [
+  ID_COLUMN,
+  col.accessor((row) => row.share.id, { header: "SHARE" }),
+  ...DETAIL_COLUMNS,
 ];
 
 const untrackedCol = createColumnHelper<UntrackedTable>();
@@ -74,6 +84,7 @@ const UNTRACKED_COLUMNS: ColumnDef<UntrackedTable>[] = [
 export interface ListTablesDeps {
   loadConfig?: typeof loadConfig;
   listShareTables?: typeof listShareTables;
+  listAllTrackedTables?: typeof listAllTrackedTables;
   listUntrackedShareTables?: typeof listUntrackedShareTables;
 }
 
@@ -86,6 +97,7 @@ export async function list(
   const {
     loadConfig: loadConfigImpl = loadConfig,
     listShareTables: listImpl = listShareTables,
+    listAllTrackedTables: listAllImpl = listAllTrackedTables,
     listUntrackedShareTables: listUntrackedImpl = listUntrackedShareTables,
   } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
@@ -93,6 +105,12 @@ export async function list(
   const writer = muteStatusWriter(_writer, {
     muted: format === "json" || format === "csv",
   });
+
+  if (flags.untracked && shareId === undefined) {
+    writer.error("--untracked needs --share-id.");
+    process.exitCode = 1;
+    return;
+  }
 
   try {
     const config = loadConfigImpl();
@@ -102,7 +120,7 @@ export async function list(
       flags.filter,
     ]);
 
-    if (flags.untracked) {
+    if (flags.untracked && shareId !== undefined) {
       writer.info("Fetching untracked tables...");
       const response = await listUntrackedImpl({
         config,
@@ -139,15 +157,18 @@ export async function list(
 
     writer.info("Fetching tracked tables...");
 
-    const response = await listImpl({
+    const query = {
       config,
-      shareId,
       filter,
       orderBy: flags.sort,
       limit: flags.limit,
       offset: flags.offset,
       expand: flags.expand,
-    });
+    };
+    const response =
+      shareId === undefined
+        ? await listAllImpl(query)
+        : await listImpl({ ...query, shareId });
     const tables = response.tables;
 
     if (format === "json") {
@@ -170,7 +191,9 @@ export async function list(
         `Found ${tables.length} tracked table(s) (${response.meta.totalCount} total):\n`,
       ),
     );
-    writer.write(formatTable(tables, COLUMNS));
+    writer.write(
+      formatTable(tables, shareId === undefined ? ALL_SHARES_COLUMNS : COLUMNS),
+    );
 
     if (tables.length === flags.limit) {
       const nextOffset = (flags.offset ?? 0) + flags.limit;
@@ -179,7 +202,7 @@ export async function list(
       );
     }
   } catch (error) {
-    if (isNotFound(error)) {
+    if (shareId !== undefined && isNotFound(error)) {
       writer.error(`Share not found: ${shareId}`);
     } else {
       writer.error(`Error: ${await formatApiError(error)}`);
@@ -197,12 +220,14 @@ export const listCommand = defineCommand({
       shareId: {
         kind: "parsed",
         parse: String,
-        brief: "ID of the share the table belongs to",
-        optional: false,
+        brief:
+          "ID of the share to list (default: tracked tables of all shares)",
+        optional: true,
       },
       untracked: {
         kind: "boolean",
-        brief: "List the tables in the share that are not tracked yet",
+        brief:
+          "List the tables in the share that are not tracked yet (needs --share-id)",
         optional: true,
       },
       match: {
@@ -261,6 +286,6 @@ export const listCommand = defineCommand({
   },
   docs: {
     brief:
-      "List the tracked (or, with --untracked, untracked) tables in a share",
+      "List tracked tables, across all shares or in one (--untracked: not tracked yet)",
   },
 });

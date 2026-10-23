@@ -1,6 +1,7 @@
 import { defineRoutes } from "../../lib/stricli-wrappers";
 import { setupCommand } from "./setup";
 import { inboundShareTokenRoutes } from "./token";
+import { offersCommand } from "./offers";
 import { registerCommand } from "./register";
 import { listCommand } from "./list";
 import { viewCommand } from "./view";
@@ -12,6 +13,7 @@ export const inboundShareRoutes = defineRoutes({
   routes: {
     setup: setupCommand,
     token: inboundShareTokenRoutes,
+    offers: offersCommand,
     register: registerCommand,
     list: listCommand,
     view: viewCommand,

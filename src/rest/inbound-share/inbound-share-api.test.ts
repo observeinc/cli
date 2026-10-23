@@ -160,6 +160,54 @@ describe("InboundShareApi", () => {
     );
   });
 
+  test("offers and all tracked tables hit the top-level paths", async () => {
+    const { api, calls } = apiWith(() =>
+      json({ offers: [], tables: [], meta: { totalCount: 0 } }),
+    );
+    await api.listInboundOffers({ limit: 5 });
+    await api.listAllTrackedTables({ filter: 'status == "Active"' });
+    const offersUrl = new URL(calls[0]!.url);
+    expect(offersUrl.pathname).toBe("/v1/shares/inbound-offers");
+    expect(offersUrl.searchParams.get("limit")).toBe("5");
+    const allUrl = new URL(calls[1]!.url);
+    expect(allUrl.pathname).toBe("/v1/shares/inbound/tables");
+    expect(allUrl.searchParams.get("filter")).toBe('status == "Active"');
+  });
+
+  test("untracked schema encodes the table name and sends schemaName", async () => {
+    const { api, calls } = apiWith(() => json({ columns: [] }));
+    await api.getUntrackedTableSchema({
+      shareId: "7",
+      schemaName: "PUBLIC",
+      tableName: "a/b",
+    });
+    const url = new URL(calls[0]!.url);
+    expect(calls[0]!.url).toContain(
+      "/v1/shares/inbound/7/untracked-tables/a%2Fb/schema",
+    );
+    expect(url.searchParams.get("schemaName")).toBe("PUBLIC");
+  });
+
+  test("dataset attach is a POST and detach a DELETE on .../dataset", async () => {
+    const { api, calls } = apiWith(() => json({ id: "9" }, 201));
+    await api.attachTableDataset({
+      shareId: "7",
+      tableId: "9",
+      body: { dataset: { label: "Orders", kind: "Table" } },
+    });
+    await api.detachTableDataset({ shareId: "7", tableId: "9" });
+    expect(calls[0]!.init.method).toBe("POST");
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      dataset: { label: "Orders", kind: "Table" },
+    });
+    expect(calls[1]!.init.method).toBe("DELETE");
+    for (const call of calls) {
+      expect(new URL(call.url).pathname).toBe(
+        "/v1/shares/inbound/7/tables/9/dataset",
+      );
+    }
+  });
+
   test("a non-2xx response throws ResponseError", async () => {
     const { api } = apiWith(() =>
       json({ type: "share_has_tracked_tables", message: "has tables" }, 409),
