@@ -65,7 +65,7 @@ describe("inbound-share table schema", () => {
     expect(stderr.join("")).toContain(
       "Share or untracked table not found: PUBLIC.NOPE in share 41000100",
     );
-    expect(stderr.join("")).toContain("table not found");
+    expect(stderr.join("")).toContain("(HTTP 404: table not found)");
   });
 
   test("shell-quotes names in the track hint", async () => {
