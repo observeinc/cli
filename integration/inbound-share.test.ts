@@ -46,4 +46,25 @@ describe("inbound-share CLI integration", () => {
       expect(Array.isArray(parseJsonOutput(listResult))).toBe(true);
     });
   });
+
+  testIfEnabled("offers and tracked tables across shares list", async () => {
+    await withIntegrationFixture(tenant, async (fixture) => {
+      const offersResult = await fixture.runCli`
+        observe inbound-share offers --json
+      `;
+      expect(offersResult.exitCode).toBe(0);
+      expect(Array.isArray(parseJsonOutput(offersResult))).toBe(true);
+
+      const tablesResult = await fixture.runCli`
+        observe inbound-share table list --json --limit 5
+      `;
+      expect(tablesResult.exitCode).toBe(0);
+      const tables = parseJsonOutput(tablesResult) as {
+        share: { id: string };
+      }[];
+      for (const table of tables) {
+        expect(table.share.id).toBeTruthy();
+      }
+    });
+  });
 });

@@ -13,6 +13,7 @@ import {
 } from "../../../lib/formatters/table";
 import { renderAsCSV } from "../../../lib/formatters/csv";
 import { isNotFound, type OutputFormat } from "../shared";
+import { shellQuote } from "../sql";
 
 interface SchemaFlags {
   shareId: string;
@@ -82,12 +83,12 @@ export async function schema(
     writer.write(chalk.bold.white(fullName) + "\n");
     writer.write(formatTable(columns, COLUMNS));
     writer.info(
-      `\nTrack it with: observe inbound-share table track --share-id ${shareId} --schema ${flags.schema} --table ${tableName} ...`,
+      `\nTrack it with: observe inbound-share table track --share-id ${shareId} --schema ${shellQuote(flags.schema)} --table ${shellQuote(tableName)} ...`,
     );
   } catch (error) {
     if (isNotFound(error)) {
       writer.error(
-        `Untracked table not found: ${fullName} in share ${shareId}`,
+        `Share or untracked table not found: ${fullName} in share ${shareId} (${await formatApiError(error)})`,
       );
     } else {
       writer.error(`Error: ${await formatApiError(error)}`);

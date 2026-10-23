@@ -63,7 +63,21 @@ describe("inbound-share table schema", () => {
     );
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain(
-      "Untracked table not found: PUBLIC.NOPE in share 41000100",
+      "Share or untracked table not found: PUBLIC.NOPE in share 41000100",
+    );
+    expect(stderr.join("")).toContain("table not found");
+  });
+
+  test("shell-quotes names in the track hint", async () => {
+    const { context, stdout, stderr } = createMockContext();
+    await schema.call(
+      context,
+      { shareId: "41000100", schema: "PUBLIC" },
+      "Order Items",
+      deps,
+    );
+    expect(stdout.join("") + stderr.join("")).toContain(
+      "--schema PUBLIC --table 'Order Items'",
     );
   });
 });
