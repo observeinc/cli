@@ -16,6 +16,7 @@ import { ingestTokenRoutes } from "./commands/ingest-token/index.js";
 import { metricRoutes } from "./commands/metric/index.js";
 import { monitorRoutes } from "./commands/monitor/index.js";
 import { queryCommand } from "./commands/query.js";
+import { inboundShareRoutes } from "./commands/inbound-share/index.js";
 import { skillRoutes } from "./commands/skill/index.js";
 import { tagRoutes } from "./commands/tag/index.js";
 import { tagValueRoutes } from "./commands/tag-value/index.js";
@@ -45,6 +46,7 @@ export const routes = defineRoutes({
     "data-connection": dataConnectionRoutes,
     datastream: datastreamRoutes,
     "datastream-token": datastreamTokenRoutes,
+    "inbound-share": inboundShareRoutes,
     docs: docsRoutes,
     cli: cliRoutes,
   },

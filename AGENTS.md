@@ -46,6 +46,7 @@ src/
 │   ├── dataset/        # Dataset commands (list, view)
 │   ├── datastream/     # Datastream commands (create, list, view, update)
 │   ├── docs/           # Documentation commands (search)
+│   ├── inbound-share/  # Snowflake inbound-share commands: setup, token, offers, register, shares, tables and their datasets (experimental: gated + hidden)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
@@ -66,6 +67,7 @@ src/
 │   └── gql-codegen.config.ts  # Codegen configuration
 ├── rest/               # REST API layer
 │   ├── generated/      # Auto-generated client (DO NOT EDIT)
+│   ├── inbound-share/  # Hand-written client for the internal /v1/shares/inbound API
 │   ├── client.ts       # REST client factory
 │   └── config.yaml     # OpenAPI generator config
 └── lib/                # Shared utilities
