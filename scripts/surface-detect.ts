@@ -14,6 +14,12 @@
  *
  * Usage:
  *   bun run scripts/surface-detect.ts [--base REV] [--head REV] [--json FILE] [--markdown]
+ *     [--coverage-index PATH_OR_URL]
+ *
+ * `--coverage-index` (or COVERAGE_INDEX / COVERAGE_INDEX_URL) is a
+ * coverage-index.json path or HTTPS URL. A missing or unreachable index is
+ * noted in the comment; the process still exits 0. There is no built-in
+ * default URL.
  */
 import { execFileSync } from "node:child_process";
 import {
@@ -30,11 +36,37 @@ import { ROOT, type Dump } from "./surface-dump";
 
 export interface Surface {
   kind: "cli";
+  /** Dump kind; omitted on `(shared …)` rows. Groups are not eval-gated. */
+  node?: "command" | "group";
   name: string;
+  /** Primary command this row aliases; skipped for eval-coverage lookup. */
+  aliasOf?: string;
   change: "added" | "modified" | "removed";
   tags: string[];
   files: string[];
+  coverage?: Coverage;
 }
+
+export interface CoverageSource {
+  value: string;
+  /** True for COVERAGE_INDEX_URL and any value with a `scheme://` prefix. */
+  remote: boolean;
+}
+
+export interface Coverage {
+  status: "covered" | "uncovered" | "unmapped";
+  stems: Record<string, string[]>;
+  reason?: string;
+}
+
+export interface CoverageIndex {
+  version?: number;
+  cli?: Record<string, string[]>;
+}
+
+export type CoverageIndexLoad =
+  | { ok: true; index: CoverageIndex }
+  | { ok: false; error: string };
 
 const COMMANDS_DIR = "src/commands/";
 // Untracked codegen output; other commits regenerate it from their own sources.
@@ -170,10 +202,20 @@ export function classify(
     change: Surface["change"],
     tag: string,
     files: string[],
+    node?: Surface["node"],
+    aliasOf?: string,
   ) => {
     const unique = [...new Set(files)];
     unique.forEach((f) => attributed.add(f));
-    out.push({ kind: "cli", name, change, tags: [tag], files: unique });
+    out.push({
+      kind: "cli",
+      ...(node ? { node } : {}),
+      name,
+      ...(aliasOf ? { aliasOf } : {}),
+      change,
+      tags: [tag],
+      files: unique,
+    });
   };
   const names = [...new Set([...Object.keys(before), ...Object.keys(after)])];
   // Groups go last so they can see whether a child was added or removed.
@@ -191,10 +233,13 @@ export function classify(
     );
     // A shared file (an aliased group's index.ts) is accounted for either way.
     own.forEach((f) => attributed.add(f));
-    if (!b) row(name, "added", "contract", [...own, ...hits]);
-    else if (!a) row(name, "removed", "contract", [...own, ...hits]);
+    const node = (a ?? b)?.kind === "group" ? "group" : "command";
+    const aliasOf = (a ?? b)?.aliasOf;
+    if (!b) row(name, "added", "contract", [...own, ...hits], node, aliasOf);
+    else if (!a)
+      row(name, "removed", "contract", [...own, ...hits], node, aliasOf);
     else if (!same(b.contract, a.contract))
-      row(name, "modified", "contract", [...own, ...hits]);
+      row(name, "modified", "contract", [...own, ...hits], node, aliasOf);
     else if (hits.length) {
       if (a.kind === "group") {
         // Wiring a direct child in or out of the route map explains it.
@@ -214,7 +259,7 @@ export function classify(
       const impl = hits.some(
         (f) => own.includes(f) || f.startsWith(COMMANDS_DIR),
       );
-      row(name, "modified", impl ? "impl" : "indirect", hits);
+      row(name, "modified", impl ? "impl" : "indirect", hits, node, aliasOf);
     }
   }
   // Anything else under src/ (bin.ts, unused lib code, ...).
@@ -240,7 +285,187 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
 const MAX_ROWS = 20;
 export const MARKER = "<!-- observe-cli-surface-detect -->";
 
-export function markdown(surfaces: Surface[]): string {
+export function indexKey(name: string): string {
+  return `observe ${name}`;
+}
+
+export function coverageOf(
+  s: Surface,
+  index: CoverageIndex,
+): Coverage | undefined {
+  if (
+    s.name.startsWith("(") ||
+    s.change === "removed" ||
+    s.node === "group" ||
+    s.aliasOf
+  )
+    return undefined;
+  const key = indexKey(s.name);
+  const ids = index.cli?.[key];
+  if (ids === undefined) {
+    return {
+      status: "unmapped",
+      stems: {},
+      reason: "unknown to the coverage index",
+    };
+  }
+  if (ids.length) return { status: "covered", stems: { harbor: ids } };
+  return {
+    status: "uncovered",
+    stems: {},
+    reason: "no covering stem",
+  };
+}
+
+export function attachCoverage(
+  surfaces: Surface[],
+  index: CoverageIndex,
+): void {
+  for (const s of surfaces) s.coverage = coverageOf(s, index);
+}
+
+function curlExitStatus(err: unknown): string {
+  if (err && typeof err === "object") {
+    if ("status" in err && typeof err.status === "number")
+      return String(err.status);
+    if ("code" in err && typeof err.code === "string") return err.code;
+  }
+  return "unknown";
+}
+
+function hasUriScheme(value: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(value.trim());
+}
+
+function asCoverageSource(source: string | CoverageSource): CoverageSource {
+  if (typeof source !== "string") return source;
+  return { value: source, remote: hasUriScheme(source) };
+}
+
+function fetchHttpsIndex(url: string): string {
+  try {
+    return execFileSync("curl", ["-fsSL", "--max-time", "20", url], {
+      encoding: "utf-8",
+      maxBuffer: 8 * 1024 * 1024,
+      // Capture stderr so curl's hostnames never hit the job log.
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (err) {
+    throw new Error(
+      `eval coverage index unreachable (remote URL): curl exit ${curlExitStatus(err)}`,
+      { cause: err },
+    );
+  }
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === "string");
+}
+
+function parseIndex(raw: string, label: string): CoverageIndexLoad {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: `${label}: not valid JSON` };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, error: `${label}: not a JSON object` };
+  }
+  const rec = parsed as Record<string, unknown>;
+  if (rec.cli === undefined) {
+    return { ok: false, error: `${label}: no cli map` };
+  }
+  if (
+    typeof rec.cli !== "object" ||
+    rec.cli === null ||
+    Array.isArray(rec.cli)
+  ) {
+    return { ok: false, error: `${label}: cli is not an object` };
+  }
+  const cli: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(rec.cli as Record<string, unknown>)) {
+    if (!isStringArray(v)) {
+      return {
+        ok: false,
+        error: `${label}: cli[${JSON.stringify(k)}] is not a string array`,
+      };
+    }
+    cli[k] = v;
+  }
+  const index: CoverageIndex = { cli };
+  if (typeof rec.version === "number") index.version = rec.version;
+  return { ok: true, index };
+}
+
+export function loadCoverageIndex(
+  source: string | CoverageSource,
+): CoverageIndexLoad {
+  const origin = asCoverageSource(source);
+  if (origin.remote) {
+    const url = origin.value.trim();
+    if (!/^https:\/\//i.test(url)) {
+      return {
+        ok: false,
+        error: "eval coverage index unreachable (remote URL): not an https URL",
+      };
+    }
+    try {
+      return parseIndex(fetchHttpsIndex(url), "remote URL");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        error: msg.startsWith("eval coverage index unreachable")
+          ? msg
+          : "eval coverage index unreachable (remote URL)",
+      };
+    }
+  }
+  try {
+    return parseIndex(readFileSync(origin.value, "utf-8"), origin.value);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      error: `eval coverage index unreachable (${origin.value}): ${msg}`,
+    };
+  }
+}
+
+export function coverageIndexSource(
+  argv: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): CoverageSource | undefined {
+  const i = argv.indexOf("--coverage-index");
+  const flag = i >= 0 ? argv[i + 1] : undefined;
+  if (flag) {
+    return { value: flag, remote: hasUriScheme(flag) };
+  }
+  if (env.COVERAGE_INDEX)
+    return {
+      value: env.COVERAGE_INDEX,
+      remote: hasUriScheme(env.COVERAGE_INDEX),
+    };
+  if (env.COVERAGE_INDEX_URL)
+    return { value: env.COVERAGE_INDEX_URL, remote: true };
+  return undefined;
+}
+
+function coverageCell(s: Surface): string {
+  const cov = s.coverage;
+  if (!cov) return "";
+  if (cov.status === "covered") {
+    const n = Object.values(cov.stems).reduce((a, ids) => a + ids.length, 0);
+    return `${String(n)} eval(s)`;
+  }
+  return `**none** (${cov.status})`;
+}
+
+export function markdown(
+  surfaces: Surface[],
+  opts: { indexError?: string } = {},
+): string {
   if (!surfaces.length) return "";
   const ordered = [...surfaces].sort(
     (a, b) =>
@@ -249,22 +474,54 @@ export function markdown(surfaces: Surface[]): string {
       Number(a.change === "modified") - Number(b.change === "modified") ||
       a.name.localeCompare(b.name),
   );
+  const withCoverage = surfaces.some((s) => s.coverage);
   const rows = ordered.slice(0, MAX_ROWS).map((s) => {
     const label = s.name.startsWith("(") ? s.name : `\`observe ${s.name}\``;
-    return `| ${label} | ${s.change} | ${s.tags.join(", ")} |`;
+    const base = `| ${label} | ${s.change} | ${s.tags.join(", ")} |`;
+    return withCoverage ? `${base} ${coverageCell(s)} |` : base;
   });
   if (ordered.length > MAX_ROWS)
-    rows.push(`| … ${String(ordered.length - MAX_ROWS)} more | | |`);
+    rows.push(
+      withCoverage
+        ? `| … ${String(ordered.length - MAX_ROWS)} more | | | |`
+        : `| … ${String(ordered.length - MAX_ROWS)} more | | |`,
+    );
   const contract = surfaces.filter((s) => s.tags.includes("contract")).length;
-  return [
+  const header = withCoverage
+    ? ["| Command | Change | Tags | Coverage |", "|---|---|---|---|"]
+    : ["| Command | Change | Tags |", "|---|---|---|"];
+  const out = [
     MARKER,
     `This PR touches ${String(surfaces.length)} CLI command surface(s), ${String(contract)} with a contract change. ` +
       "Advisory only: nothing is gated yet; under the eval gate each would need eval coverage.",
     "",
-    "| Command | Change | Tags |",
-    "|---|---|---|",
+    ...header,
     ...rows,
-  ].join("\n");
+  ];
+  if (opts.indexError) {
+    out.push(
+      "",
+      opts.indexError,
+      "Coverage was not checked; the PR is not blocked.",
+    );
+  }
+  const missing = ordered.filter(
+    (s) =>
+      s.coverage &&
+      (s.coverage.status === "uncovered" || s.coverage.status === "unmapped"),
+  );
+  if (missing.length) {
+    out.push("", "**Missing eval coverage:**");
+    for (const s of missing.slice(0, MAX_ROWS)) {
+      const label = `\`observe ${s.name}\``;
+      const extra =
+        s.coverage?.status === "unmapped" ? " (unmapped)" : " (uncovered)";
+      out.push(`- ${label}: ${s.coverage?.reason ?? ""}${extra}`);
+    }
+    if (missing.length > MAX_ROWS)
+      out.push(`- … ${String(missing.length - MAX_ROWS)} more`);
+  }
+  return out.join("\n");
 }
 
 function main(argv: string[]): void {
@@ -275,17 +532,32 @@ function main(argv: string[]): void {
   const base = arg("--base") ?? "HEAD^";
   const head = arg("--head") ?? "HEAD";
   const surfaces = detect(base, head);
+  const source = coverageIndexSource(argv);
+  let indexError: string | undefined;
+  let indexLoaded = false;
+  if (source) {
+    const loaded = loadCoverageIndex(source);
+    if (loaded.ok) {
+      attachCoverage(surfaces, loaded.index);
+      indexLoaded = true;
+    } else {
+      indexError = loaded.error;
+    }
+  }
   const report = {
     repo: "observeinc/cli",
     base: git(["rev-parse", base]).trim(),
     head: git(["rev-parse", head]).trim(),
     pr: process.env.PR_NUMBER ?? null,
     would_gate: surfaces.length > 0,
+    coverage_index: indexLoaded,
+    coverage_error: indexError ?? null,
     surfaces,
   };
   const json = arg("--json");
   if (json) writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
-  if (argv.includes("--markdown")) process.stdout.write(markdown(surfaces));
+  if (argv.includes("--markdown"))
+    process.stdout.write(markdown(surfaces, { indexError }));
   else if (!json) process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 }
 
