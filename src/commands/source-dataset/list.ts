@@ -102,15 +102,20 @@ export async function list(
       return;
     }
 
-    writer.write(
-      chalk.green(
-        `Found ${datasets.length} source dataset(s) (${response.meta.totalCount} total):\n`,
-      ),
-    );
+    const totalCount = response.meta.totalCount;
+    const summary =
+      totalCount >= 0
+        ? `Found ${datasets.length} source dataset(s) (${totalCount} total):\n`
+        : `Found ${datasets.length} source dataset(s):\n`;
+    writer.write(chalk.green(summary));
     writer.write(formatTable(datasets, COLUMNS));
 
-    if (datasets.length === flags.limit) {
-      const nextOffset = (flags.offset ?? 0) + flags.limit;
+    const nextOffset = (flags.offset ?? 0) + datasets.length;
+    const more =
+      totalCount >= 0
+        ? nextOffset < totalCount
+        : datasets.length === flags.limit;
+    if (more) {
       writer.info(
         `\nMore results may be available. Use --offset ${nextOffset} to see the next page.`,
       );
@@ -121,7 +126,8 @@ export async function list(
   }
 }
 
-const MAX_LIMIT = 1000;
+// The API caps a page at 100 without an error.
+const MAX_LIMIT = 100;
 const MIN_LIMIT = 1;
 const DEFAULT_LIMIT = 100;
 

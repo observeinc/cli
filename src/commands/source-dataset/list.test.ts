@@ -49,6 +49,34 @@ describe("source-dataset list", () => {
     expect(out).toContain("Receiving");
   });
 
+  test("points at the next page when the server returns fewer than asked", async () => {
+    listFn.mockImplementationOnce(() =>
+      Promise.resolve({
+        sourceDatasets: [sourceDatasetStub()],
+        meta: { totalCount: 3 },
+      }),
+    );
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 100, offset: 1 }, deps);
+    const out = stdout.join("");
+    expect(out).toContain("(3 total)");
+    expect(out).toContain("--offset 2");
+  });
+
+  test("omits the total and the hint on the last page of an unknown total", async () => {
+    listFn.mockImplementationOnce(() =>
+      Promise.resolve({
+        sourceDatasets: [sourceDatasetStub()],
+        meta: { totalCount: -1 },
+      }),
+    );
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 100 }, deps);
+    const out = stdout.join("");
+    expect(out).not.toContain("total");
+    expect(out).not.toContain("--offset");
+  });
+
   test("shows the friendly message when the API is not enabled", async () => {
     listFn.mockImplementationOnce(() =>
       Promise.reject(
