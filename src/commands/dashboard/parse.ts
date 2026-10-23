@@ -69,9 +69,7 @@ export function buildDashboardCreateRequest(
  * the file are sent, so omitted fields stay unchanged. Throws when the file
  * nulls a field the API does not allow to be cleared.
  */
-export function buildDashboardPatch(
-  parsed: unknown,
-): DashboardUpdateRequest {
+export function buildDashboardPatch(parsed: unknown): DashboardUpdateRequest {
   assertDashboardFileObject(parsed);
   for (const field of PATCHABLE_FIELDS) {
     // `description` is the one field where null is meaningful: it clears the
