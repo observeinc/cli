@@ -21,9 +21,14 @@ export function escapeCelString(value: string) {
  * Build a CEL `.matches()` expression for case-insensitive substring matching.
  * Uses the `(?i)` regex flag since some Observe REST APIs (e.g. alerts)
  * don't support `.lowerAscii()`.
+ *
+ * The search term is escaped twice, and the order matters: regex-escaping
+ * makes it a literal pattern, then CEL-escaping keeps the result inside the
+ * string literal. Skipping the second pass lets a `"` terminate the literal,
+ * which the API rejects as a syntax error.
  */
 export function celMatchesInsensitive(field: string, search: string) {
-  return `${field}.matches("(?i)${escapeRegex(search)}")`;
+  return `${field}.matches("(?i)${escapeCelString(escapeRegex(search))}")`;
 }
 
 /**

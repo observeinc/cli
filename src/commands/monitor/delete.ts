@@ -1,9 +1,9 @@
-import * as readline from "node:readline";
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
 import { deleteMonitor } from "../../rest/monitor/delete-monitor";
 import { getMonitor } from "../../rest/monitor/get-monitor";
 import { loadConfig } from "../../lib/config";
+import { makeDeleteConfirm } from "../../lib/confirm";
 import { formatApiError } from "../../lib/format-error";
 import { parseMonitorId } from "../../lib/parsers";
 
@@ -16,27 +16,6 @@ export interface DeleteMonitorDeps {
   deleteMonitor?: typeof deleteMonitor;
   getMonitor?: typeof getMonitor;
   confirmFn?: (monitorName: string) => Promise<boolean>;
-}
-
-function makeDefaultConfirm(proc: NodeJS.Process) {
-  return (name: string): Promise<boolean> =>
-    new Promise((resolve) => {
-      const rl = readline.createInterface({
-        input: proc.stdin,
-        output: proc.stdout,
-      });
-      rl.question(
-        `Are you sure you want to delete monitor "${name}"? This action is irreversible. [y/N]: `,
-        (answer) => {
-          rl.close();
-          resolve(answer.trim().toLowerCase() === "y");
-        },
-      );
-      rl.on("SIGINT", () => {
-        rl.close();
-        resolve(false);
-      });
-    });
 }
 
 export async function deleteMonitorCommand(
@@ -87,7 +66,8 @@ export async function deleteMonitorCommand(
         return;
       }
 
-      const confirm = confirmFn ?? makeDefaultConfirm(process);
+      const confirm =
+        confirmFn ?? makeDeleteConfirm({ process, resourceKind: "monitor" });
       const confirmed = await confirm(monitor.name);
       if (!confirmed) {
         writer.error("Deletion cancelled.");
