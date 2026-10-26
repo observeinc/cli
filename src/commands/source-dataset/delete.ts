@@ -1,10 +1,10 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
-import { createInterface } from "node:readline/promises";
 import type { LocalContext } from "../../context";
 import { getSourceDataset } from "../../rest/source-dataset/get-source-dataset";
 import { deleteSourceDataset } from "../../rest/source-dataset/delete-source-dataset";
 import { loadConfig } from "../../lib/config";
+import { makeDeleteConfirm } from "../../lib/confirm";
 import { errorType, formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
 
@@ -14,28 +14,11 @@ interface DeleteSourceDatasetFlags {
   json?: boolean;
 }
 
-async function confirm(this: LocalContext, question: string): Promise<boolean> {
-  const { process } = this;
-  if (!process.stdin.isTTY) {
-    return false;
-  }
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  try {
-    const answer = await rl.question(`${question} [y/N] `);
-    return /^y(es)?$/i.test(answer.trim());
-  } finally {
-    rl.close();
-  }
-}
-
 export interface DeleteSourceDatasetDeps {
   loadConfig?: typeof loadConfig;
   getSourceDataset?: typeof getSourceDataset;
   deleteSourceDataset?: typeof deleteSourceDataset;
-  confirm?: (question: string) => Promise<boolean>;
+  confirmFn?: (label: string) => Promise<boolean>;
 }
 
 export async function remove(
@@ -48,7 +31,7 @@ export async function remove(
     loadConfig: loadConfigImpl = loadConfig,
     getSourceDataset: getSD = getSourceDataset,
     deleteSourceDataset: deleteSD = deleteSourceDataset,
-    confirm: confirmImpl = (question: string) => confirm.call(this, question),
+    confirmFn,
   } = deps;
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
@@ -70,13 +53,26 @@ export async function remove(
     }
 
     if (!flags.yes) {
+      if (
+        !confirmFn &&
+        !(process.stdin as NodeJS.ReadStream | undefined)?.isTTY
+      ) {
+        writer.error(
+          "Deleting a source dataset is irreversible. Use --yes to confirm deletion in non-interactive mode.",
+        );
+        process.exitCode = 1;
+        return;
+      }
       const dataset = await getSD({ config, id });
       writer.warn(
         `Deleting source dataset ${chalk.bold(id)} ("${dataset.label}") removes its data. This cannot be undone.`,
       );
-      const confirmed = await confirmImpl("Delete this source dataset?");
+      const confirm =
+        confirmFn ??
+        makeDeleteConfirm({ process, resourceKind: "source dataset" });
+      const confirmed = await confirm(dataset.label);
       if (!confirmed) {
-        writer.error("Aborted. Re-run with --yes to skip this prompt.");
+        writer.error("Deletion cancelled.");
         process.exitCode = 1;
         return;
       }

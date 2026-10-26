@@ -12,12 +12,15 @@ const getFn = mock<typeof getSourceDataset>(() =>
 );
 const deleteFn = mock<typeof deleteSourceDataset>(() => Promise.resolve());
 
+const confirmFn = mock((_label: string) => Promise.resolve(true));
+
 function depsWith(answer: boolean) {
+  confirmFn.mockImplementation(() => Promise.resolve(answer));
   return {
     loadConfig: loadConfigStub,
     getSourceDataset: getFn,
     deleteSourceDataset: deleteFn,
-    confirm: () => Promise.resolve(answer),
+    confirmFn,
   };
 }
 
@@ -25,12 +28,14 @@ describe("source-dataset delete", () => {
   beforeEach(() => {
     getFn.mockClear();
     deleteFn.mockClear();
+    confirmFn.mockClear();
   });
 
   test("asks for confirmation and deletes on yes", async () => {
     const { context, stdout } = createMockContext();
     await remove.call(context, {}, "41000001", depsWith(true));
     expect(getFn).toHaveBeenCalledTimes(1);
+    expect(confirmFn.mock.calls[0]![0]).toBe("Logs/checkout");
     expect(deleteFn.mock.calls[0]![0]).toMatchObject({
       id: "41000001",
       force: undefined,
@@ -43,6 +48,19 @@ describe("source-dataset delete", () => {
     await remove.call(context, {}, "41000001", depsWith(false));
     expect(deleteFn).not.toHaveBeenCalled();
     expect(getExitCode()).toBe(1);
+  });
+
+  test("without a TTY and without --yes, stops before any request", async () => {
+    const { context, stderr, getExitCode } = createMockContext();
+    await remove.call(context, {}, "41000001", {
+      loadConfig: loadConfigStub,
+      getSourceDataset: getFn,
+      deleteSourceDataset: deleteFn,
+    });
+    expect(getFn).not.toHaveBeenCalled();
+    expect(deleteFn).not.toHaveBeenCalled();
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("Use --yes");
   });
 
   test("--json without --yes is refused before any request", async () => {
