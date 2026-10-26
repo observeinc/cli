@@ -58,8 +58,9 @@ jobs:
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        # Coverage comes from scripts/eval-coverage.json in this checkout,
-        # per-command counts the observe monorepo's Harbor nightly commits.
+        # Coverage comes from scripts/eval-coverage.json as committed at the
+        # base (HEAD^1), per-command counts the observe Harbor nightly
+        # maintains, so the PR's own copy cannot mark itself covered.
         run: |
           # Checkout is refs/pull/N/merge; HEAD^1 is the base it was built on.
           # pull_request.base.sha can lag after main moves and pull in other PRs.

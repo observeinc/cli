@@ -17,11 +17,12 @@
  *     [--coverage-index PATH]
  *
  * `--coverage-index` (or COVERAGE_INDEX) is a JSON file mapping each
- * `observe <command>` to how many eval stems cover it. It defaults to
- * scripts/eval-coverage.json, which the observe monorepo's Harbor nightly
- * commits here. Counts only: stem ids stay private. A missing default means
- * no coverage column; an unreadable index is noted in the comment. The
- * process always exits 0.
+ * `observe <command>` to how many eval stems cover it. Without one, the
+ * detector reads scripts/eval-coverage.json as committed at the base, which
+ * the observe monorepo's Harbor nightly maintains, so a PR cannot mark its
+ * own commands covered. Counts only: stem ids stay private. No file at the
+ * base means no coverage column; an unreadable index is noted in the
+ * comment. The process always exits 0.
  */
 import { execFileSync } from "node:child_process";
 import {
@@ -67,11 +68,8 @@ export type CoverageIndexLoad =
   | { ok: false; error: string };
 
 const COMMANDS_DIR = "src/commands/";
-export const DEFAULT_COVERAGE_INDEX = path.join(
-  ROOT,
-  "scripts",
-  "eval-coverage.json",
-);
+/** Repo path of the counts file the observe Harbor nightly maintains. */
+export const COVERAGE_INDEX_PATH = "scripts/eval-coverage.json";
 // Untracked codegen output; other commits regenerate it from their own sources.
 const GENERATED = ["src/rest/generated", "src/gql/generated"];
 
@@ -379,17 +377,37 @@ export function loadCoverageIndex(file: string): CoverageIndexLoad {
   }
 }
 
-/** --coverage-index, then COVERAGE_INDEX, then the checked-in file if present. */
+/** An explicit index: --coverage-index, then COVERAGE_INDEX. */
 export function coverageIndexSource(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
-  fallback: string = DEFAULT_COVERAGE_INDEX,
 ): string | undefined {
   const i = argv.indexOf("--coverage-index");
   const flag = i >= 0 ? argv[i + 1] : undefined;
   if (flag) return flag;
   if (env.COVERAGE_INDEX) return env.COVERAGE_INDEX;
-  return existsSync(fallback) ? fallback : undefined;
+  return undefined;
+}
+
+/**
+ * The counts file as committed at `base`, so a PR cannot mark its own
+ * commands covered. undefined when `base` has no such file yet.
+ */
+export function baseCoverageIndex(
+  base: string,
+  cwd?: string,
+): CoverageIndexLoad | undefined {
+  let raw: string;
+  try {
+    raw = execFileSync("git", ["show", `${base}:${COVERAGE_INDEX_PATH}`], {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    return undefined;
+  }
+  return parseIndex(raw, `${base}:${COVERAGE_INDEX_PATH}`);
 }
 
 function coverageCell(s: Surface): string {
@@ -472,8 +490,8 @@ function main(argv: string[]): void {
   const source = coverageIndexSource(argv);
   let indexError: string | undefined;
   let indexLoaded = false;
-  if (source) {
-    const loaded = loadCoverageIndex(source);
+  const loaded = source ? loadCoverageIndex(source) : baseCoverageIndex(base);
+  if (loaded) {
     if (loaded.ok) {
       attachCoverage(surfaces, loaded.index);
       indexLoaded = true;

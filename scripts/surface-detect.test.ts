@@ -11,7 +11,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   attachCoverage,
+  baseCoverageIndex,
   classify,
+  COVERAGE_INDEX_PATH,
   coverageIndexSource,
   coverageOf,
   detect,
@@ -734,21 +736,50 @@ function writeIndex(body: unknown): string {
 }
 
 describe("coverageIndexSource", () => {
-  test("flag, then COVERAGE_INDEX, then the checked-in file if present", () => {
-    const present = writeIndex({ cli: {} });
+  test("flag, then COVERAGE_INDEX, else none", () => {
     expect(
-      coverageIndexSource(
-        ["--coverage-index", "/tmp/i.json"],
-        { COVERAGE_INDEX: "env-path" },
-        present,
-      ),
+      coverageIndexSource(["--coverage-index", "/tmp/i.json"], {
+        COVERAGE_INDEX: "env-path",
+      }),
     ).toBe("/tmp/i.json");
-    expect(
-      coverageIndexSource([], { COVERAGE_INDEX: "env-path" }, present),
-    ).toBe("env-path");
-    expect(coverageIndexSource([], {}, present)).toBe(present);
-    expect(
-      coverageIndexSource([], {}, "/no/such/eval-coverage.json"),
-    ).toBeUndefined();
+    expect(coverageIndexSource([], { COVERAGE_INDEX: "env-path" })).toBe(
+      "env-path",
+    );
+    expect(coverageIndexSource([], {})).toBeUndefined();
+  });
+});
+
+describe("baseCoverageIndex", () => {
+  const sh = (dir: string, ...args: string[]) =>
+    execFileSync("git", args, { cwd: dir, encoding: "utf-8" }).trim();
+
+  test("reads the base commit's file and ignores the PR's edit", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cov-base-"));
+    sh(dir, "init", "-q", "-b", "main");
+    sh(dir, "config", "user.email", "t@example.com");
+    sh(dir, "config", "user.name", "t");
+    mkdirSync(path.join(dir, "scripts"));
+    const file = path.join(dir, COVERAGE_INDEX_PATH);
+    writeFileSync(file, JSON.stringify({ cli: { "observe query": 0 } }));
+    sh(dir, "add", ".");
+    sh(dir, "commit", "-q", "-m", "base");
+    const base = sh(dir, "rev-parse", "HEAD");
+    writeFileSync(file, JSON.stringify({ cli: { "observe query": 5 } }));
+    sh(dir, "commit", "-q", "-am", "pr marks itself covered");
+
+    const got = baseCoverageIndex(base, dir);
+    expect(got?.ok).toBe(true);
+    if (got?.ok) expect(got.index.cli).toEqual({ "observe query": 0 });
+  });
+
+  test("no file at the base is no index, not an error", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cov-base-"));
+    sh(dir, "init", "-q", "-b", "main");
+    sh(dir, "config", "user.email", "t@example.com");
+    sh(dir, "config", "user.name", "t");
+    writeFileSync(path.join(dir, "README"), "x");
+    sh(dir, "add", ".");
+    sh(dir, "commit", "-q", "-m", "base");
+    expect(baseCoverageIndex("HEAD", dir)).toBeUndefined();
   });
 });
