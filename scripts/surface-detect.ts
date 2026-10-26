@@ -14,12 +14,14 @@
  *
  * Usage:
  *   bun run scripts/surface-detect.ts [--base REV] [--head REV] [--json FILE] [--markdown]
- *     [--coverage-index PATH_OR_URL]
+ *     [--coverage-index PATH]
  *
- * `--coverage-index` (or COVERAGE_INDEX / COVERAGE_INDEX_URL) is a
- * coverage-index.json path or HTTPS URL. A missing or unreachable index is
- * noted in the comment; the process still exits 0. There is no built-in
- * default URL.
+ * `--coverage-index` (or COVERAGE_INDEX) is a JSON file mapping each
+ * `observe <command>` to how many eval stems cover it. It defaults to
+ * scripts/eval-coverage.json, which the observe monorepo's Harbor nightly
+ * commits here. Counts only: stem ids stay private. A missing default means
+ * no coverage column; an unreadable index is noted in the comment. The
+ * process always exits 0.
  */
 import { execFileSync } from "node:child_process";
 import {
@@ -47,21 +49,17 @@ export interface Surface {
   coverage?: Coverage;
 }
 
-export interface CoverageSource {
-  value: string;
-  /** True for COVERAGE_INDEX_URL and any value with a `scheme://` prefix. */
-  remote: boolean;
-}
-
 export interface Coverage {
   status: "covered" | "uncovered" | "unmapped";
-  stems: Record<string, string[]>;
+  /** Eval stems covering the command. */
+  evals: number;
   reason?: string;
 }
 
 export interface CoverageIndex {
   version?: number;
-  cli?: Record<string, string[]>;
+  /** `observe <command>` -> number of covering stems. */
+  cli?: Record<string, number>;
 }
 
 export type CoverageIndexLoad =
@@ -69,6 +67,11 @@ export type CoverageIndexLoad =
   | { ok: false; error: string };
 
 const COMMANDS_DIR = "src/commands/";
+export const DEFAULT_COVERAGE_INDEX = path.join(
+  ROOT,
+  "scripts",
+  "eval-coverage.json",
+);
 // Untracked codegen output; other commits regenerate it from their own sources.
 const GENERATED = ["src/rest/generated", "src/gql/generated"];
 
@@ -300,21 +303,16 @@ export function coverageOf(
     s.aliasOf
   )
     return undefined;
-  const key = indexKey(s.name);
-  const ids = index.cli?.[key];
-  if (ids === undefined) {
+  const n = index.cli?.[indexKey(s.name)];
+  if (n === undefined) {
     return {
       status: "unmapped",
-      stems: {},
+      evals: 0,
       reason: "unknown to the coverage index",
     };
   }
-  if (ids.length) return { status: "covered", stems: { harbor: ids } };
-  return {
-    status: "uncovered",
-    stems: {},
-    reason: "no covering stem",
-  };
+  if (n > 0) return { status: "covered", evals: n };
+  return { status: "uncovered", evals: 0, reason: "no covering stem" };
 }
 
 export function attachCoverage(
@@ -324,42 +322,12 @@ export function attachCoverage(
   for (const s of surfaces) s.coverage = coverageOf(s, index);
 }
 
-function curlExitStatus(err: unknown): string {
-  if (err && typeof err === "object") {
-    if ("status" in err && typeof err.status === "number")
-      return String(err.status);
-    if ("code" in err && typeof err.code === "string") return err.code;
-  }
-  return "unknown";
-}
-
-function hasUriScheme(value: string): boolean {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(value.trim());
-}
-
-function asCoverageSource(source: string | CoverageSource): CoverageSource {
-  if (typeof source !== "string") return source;
-  return { value: source, remote: hasUriScheme(source) };
-}
-
-function fetchHttpsIndex(url: string): string {
-  try {
-    return execFileSync("curl", ["-fsSL", "--max-time", "20", url], {
-      encoding: "utf-8",
-      maxBuffer: 8 * 1024 * 1024,
-      // Capture stderr so curl's hostnames never hit the job log.
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (err) {
-    throw new Error(
-      `eval coverage index unreachable (remote URL): curl exit ${curlExitStatus(err)}`,
-      { cause: err },
-    );
-  }
-}
-
-function isStringArray(v: unknown): v is string[] {
-  return Array.isArray(v) && v.every((x) => typeof x === "string");
+/** A stem count, or a stem id list counted on load so ids go no further. */
+function stemCount(v: unknown): number | undefined {
+  if (typeof v === "number" && Number.isInteger(v) && v >= 0) return v;
+  if (Array.isArray(v) && v.every((x) => typeof x === "string"))
+    return v.length;
+  return undefined;
 }
 
 function parseIndex(raw: string, label: string): CoverageIndexLoad {
@@ -383,82 +351,51 @@ function parseIndex(raw: string, label: string): CoverageIndexLoad {
   ) {
     return { ok: false, error: `${label}: cli is not an object` };
   }
-  const cli: Record<string, string[]> = {};
+  const cli: Record<string, number> = {};
   for (const [k, v] of Object.entries(rec.cli as Record<string, unknown>)) {
-    if (!isStringArray(v)) {
+    const n = stemCount(v);
+    if (n === undefined) {
       return {
         ok: false,
-        error: `${label}: cli[${JSON.stringify(k)}] is not a string array`,
+        error: `${label}: cli[${JSON.stringify(k)}] is not a stem count`,
       };
     }
-    cli[k] = v;
+    cli[k] = n;
   }
   const index: CoverageIndex = { cli };
   if (typeof rec.version === "number") index.version = rec.version;
   return { ok: true, index };
 }
 
-export function loadCoverageIndex(
-  source: string | CoverageSource,
-): CoverageIndexLoad {
-  const origin = asCoverageSource(source);
-  if (origin.remote) {
-    const url = origin.value.trim();
-    if (!/^https:\/\//i.test(url)) {
-      return {
-        ok: false,
-        error: "eval coverage index unreachable (remote URL): not an https URL",
-      };
-    }
-    try {
-      return parseIndex(fetchHttpsIndex(url), "remote URL");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        ok: false,
-        error: msg.startsWith("eval coverage index unreachable")
-          ? msg
-          : "eval coverage index unreachable (remote URL)",
-      };
-    }
-  }
+export function loadCoverageIndex(file: string): CoverageIndexLoad {
   try {
-    return parseIndex(readFileSync(origin.value, "utf-8"), origin.value);
+    return parseIndex(readFileSync(file, "utf-8"), file);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      error: `eval coverage index unreachable (${origin.value}): ${msg}`,
+      error: `eval coverage index unreachable (${file}): ${msg}`,
     };
   }
 }
 
+/** --coverage-index, then COVERAGE_INDEX, then the checked-in file if present. */
 export function coverageIndexSource(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
-): CoverageSource | undefined {
+  fallback: string = DEFAULT_COVERAGE_INDEX,
+): string | undefined {
   const i = argv.indexOf("--coverage-index");
   const flag = i >= 0 ? argv[i + 1] : undefined;
-  if (flag) {
-    return { value: flag, remote: hasUriScheme(flag) };
-  }
-  if (env.COVERAGE_INDEX)
-    return {
-      value: env.COVERAGE_INDEX,
-      remote: hasUriScheme(env.COVERAGE_INDEX),
-    };
-  if (env.COVERAGE_INDEX_URL)
-    return { value: env.COVERAGE_INDEX_URL, remote: true };
-  return undefined;
+  if (flag) return flag;
+  if (env.COVERAGE_INDEX) return env.COVERAGE_INDEX;
+  return existsSync(fallback) ? fallback : undefined;
 }
 
 function coverageCell(s: Surface): string {
   const cov = s.coverage;
   if (!cov) return "";
-  if (cov.status === "covered") {
-    const n = Object.values(cov.stems).reduce((a, ids) => a + ids.length, 0);
-    return `${String(n)} eval(s)`;
-  }
+  if (cov.status === "covered") return `${String(cov.evals)} eval(s)`;
   return `**none** (${cov.status})`;
 }
 

@@ -506,8 +506,8 @@ describe("markdown", () => {
     ];
     attachCoverage(surfaces, {
       cli: {
-        "observe query": ["110"],
-        "observe tag-key list": [],
+        "observe query": 1,
+        "observe tag-key list": 0,
       },
     });
     const md = markdown(surfaces);
@@ -543,7 +543,7 @@ describe("markdown", () => {
         files: [],
       },
     ];
-    attachCoverage(surfaces, { cli: { "observe tag list": ["110"] } });
+    attachCoverage(surfaces, { cli: { "observe tag list": 1 } });
     const md = markdown(surfaces);
     expect(md).not.toContain("**Missing eval coverage:**");
     expect(md).toContain("`observe tag-key list`");
@@ -566,7 +566,7 @@ describe("markdown", () => {
         files: [],
       },
     ];
-    attachCoverage(surfaces, { cli: { "observe query": ["110"] } });
+    attachCoverage(surfaces, { cli: { "observe query": 1 } });
     const md = markdown(surfaces);
     const missing = md.slice(md.indexOf("**Missing eval coverage:**"));
     expect(missing).not.toContain("`observe gone`");
@@ -600,7 +600,8 @@ describe("markdown", () => {
         },
       ],
       {
-        indexError: "eval coverage index unreachable (remote URL): timed out",
+        indexError:
+          "eval coverage index unreachable (scripts/eval-coverage.json): ENOENT",
       },
     );
     expect(md).toContain("eval coverage index unreachable");
@@ -619,14 +620,14 @@ describe("coverageOf", () => {
   });
 
   test("exact observe <command> key", () => {
-    const index = { cli: { "observe monitor list": ["s1", "s2"] } };
+    const index = { cli: { "observe monitor list": 2 } };
     expect(coverageOf(row("monitor list"), index)).toEqual({
       status: "covered",
-      stems: { harbor: ["s1", "s2"] },
+      evals: 2,
     });
     expect(coverageOf(row("monitor create"), index)?.status).toBe("unmapped");
     expect(
-      coverageOf(row("monitor list"), { cli: { "observe monitor list": [] } })
+      coverageOf(row("monitor list"), { cli: { "observe monitor list": 0 } })
         ?.status,
     ).toBe("uncovered");
     expect(coverageOf(row("(shared src)"), index)).toBeUndefined();
@@ -653,7 +654,7 @@ describe("coverageOf", () => {
       files: [],
     };
     expect(
-      coverageOf(removed, { cli: { "observe monitor list": ["s1"] } }),
+      coverageOf(removed, { cli: { "observe monitor list": 1 } }),
     ).toBeUndefined();
   });
 
@@ -667,54 +668,32 @@ describe("coverageOf", () => {
       files: [],
     };
     expect(
-      coverageOf(alias, { cli: { "observe tag-key list": [] } }),
+      coverageOf(alias, { cli: { "observe tag-key list": 0 } }),
     ).toBeUndefined();
   });
 });
 
 describe("loadCoverageIndex", () => {
-  test("reads a path", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "cov-index-"));
-    const file = path.join(dir, "coverage-index.json");
-    writeFileSync(
-      file,
-      JSON.stringify({ version: 1, cli: { "observe query": ["110"] } }),
-    );
+  test("reads counts, and counts a stem id list without keeping the ids", () => {
+    const file = writeIndex({
+      version: 1,
+      cli: { "observe query": 3, "observe monitor list": ["acme-1", "300"] },
+    });
     const got = loadCoverageIndex(file);
     expect(got.ok).toBe(true);
-    if (got.ok) expect(got.index.cli?.["observe query"]).toEqual(["110"]);
+    if (got.ok) {
+      expect(got.index.cli).toEqual({
+        "observe query": 3,
+        "observe monitor list": 2,
+      });
+      expect(JSON.stringify(got.index)).not.toContain("acme-1");
+    }
   });
 
   test("missing file is unreachable, not a throw", () => {
-    const got = loadCoverageIndex("/no/such/coverage-index.json");
+    const got = loadCoverageIndex("/no/such/eval-coverage.json");
     expect(got.ok).toBe(false);
     if (!got.ok) expect(got.error).toContain("unreachable");
-  });
-
-  test("a failed remote fetch reports only curl's exit status", () => {
-    const host = "example.invalid";
-    const got = loadCoverageIndex(`https://${host}/coverage-index.json`);
-    expect(got.ok).toBe(false);
-    if (!got.ok) {
-      expect(got.error).toMatch(
-        /^eval coverage index unreachable \(remote URL\): curl exit \S+$/,
-      );
-      expect(got.error).not.toContain(host);
-      expect(got.error).not.toMatch(/https?:\/\//i);
-    }
-  });
-
-  test("a remote source that is not https never prints the value", () => {
-    const secret = "s3://example-bucket/coverage-index.json";
-    const got = loadCoverageIndex({ value: secret, remote: true });
-    expect(got.ok).toBe(false);
-    if (!got.ok) {
-      expect(got.error).toBe(
-        "eval coverage index unreachable (remote URL): not an https URL",
-      );
-      expect(got.error).not.toContain(secret);
-      expect(got.error).not.toContain("example-bucket");
-    }
   });
 
   test("rejects a missing cli map", () => {
@@ -724,21 +703,19 @@ describe("loadCoverageIndex", () => {
     if (!got.ok) expect(got.error).toContain("no cli map");
   });
 
-  test("rejects a null or non-array entry", () => {
-    const nullFile = writeIndex({ cli: { "observe query": null } });
-    const nullGot = loadCoverageIndex(nullFile);
-    expect(nullGot.ok).toBe(false);
-    if (!nullGot.ok) expect(nullGot.error).toContain("not a string array");
-
-    const strFile = writeIndex({ cli: { "observe query": "110" } });
-    const strGot = loadCoverageIndex(strFile);
-    expect(strGot.ok).toBe(false);
-    if (!strGot.ok) expect(strGot.error).toContain("not a string array");
+  test("rejects an entry that is not a stem count", () => {
+    for (const bad of [null, "110", -1, 1.5]) {
+      const got = loadCoverageIndex(
+        writeIndex({ cli: { "observe query": bad } }),
+      );
+      expect(got.ok).toBe(false);
+      if (!got.ok) expect(got.error).toContain("not a stem count");
+    }
   });
 
   test("invalid JSON is a parse error, not unreachable", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cov-index-"));
-    const file = path.join(dir, "coverage-index.json");
+    const file = path.join(dir, "eval-coverage.json");
     writeFileSync(file, "<html>not json</html>");
     const got = loadCoverageIndex(file);
     expect(got.ok).toBe(false);
@@ -751,57 +728,27 @@ describe("loadCoverageIndex", () => {
 
 function writeIndex(body: unknown): string {
   const dir = mkdtempSync(path.join(tmpdir(), "cov-index-"));
-  const file = path.join(dir, "coverage-index.json");
+  const file = path.join(dir, "eval-coverage.json");
   writeFileSync(file, JSON.stringify(body));
   return file;
 }
 
 describe("coverageIndexSource", () => {
-  test("flag then COVERAGE_INDEX then COVERAGE_INDEX_URL", () => {
-    expect(
-      coverageIndexSource(["--coverage-index", "/tmp/i.json"], {
-        COVERAGE_INDEX: "env-path",
-        COVERAGE_INDEX_URL: "https://example.invalid",
-      }),
-    ).toEqual({ value: "/tmp/i.json", remote: false });
-    expect(
-      coverageIndexSource([], {
-        COVERAGE_INDEX: "env-path",
-        COVERAGE_INDEX_URL: "https://example.invalid",
-      }),
-    ).toEqual({ value: "env-path", remote: false });
-    expect(
-      coverageIndexSource([], {
-        COVERAGE_INDEX_URL: "https://example.invalid",
-      }),
-    ).toEqual({ value: "https://example.invalid", remote: true });
-    expect(
-      coverageIndexSource([], { COVERAGE_INDEX_URL: "not-a-url" }),
-    ).toEqual({ value: "not-a-url", remote: true });
-    expect(coverageIndexSource([], {})).toBeUndefined();
-  });
-
-  test("a colon in a local path is not a URI scheme", () => {
-    expect(
-      coverageIndexSource(["--coverage-index", "cov:2026.json"], {}),
-    ).toEqual({ value: "cov:2026.json", remote: false });
+  test("flag, then COVERAGE_INDEX, then the checked-in file if present", () => {
+    const present = writeIndex({ cli: {} });
     expect(
       coverageIndexSource(
-        ["--coverage-index", "C:\\work\\coverage-index.json"],
-        {},
+        ["--coverage-index", "/tmp/i.json"],
+        { COVERAGE_INDEX: "env-path" },
+        present,
       ),
-    ).toEqual({ value: "C:\\work\\coverage-index.json", remote: false });
+    ).toBe("/tmp/i.json");
     expect(
-      coverageIndexSource(
-        ["--coverage-index", "https://example.invalid/i.json"],
-        {},
-      ),
-    ).toEqual({ value: "https://example.invalid/i.json", remote: true });
-    const got = loadCoverageIndex("cov:2026.json");
-    expect(got.ok).toBe(false);
-    if (!got.ok) {
-      expect(got.error).not.toContain("not an https URL");
-      expect(got.error).toContain("cov:2026.json");
-    }
+      coverageIndexSource([], { COVERAGE_INDEX: "env-path" }, present),
+    ).toBe("env-path");
+    expect(coverageIndexSource([], {}, present)).toBe(present);
+    expect(
+      coverageIndexSource([], {}, "/no/such/eval-coverage.json"),
+    ).toBeUndefined();
   });
 });

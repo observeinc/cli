@@ -16,59 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # OIDC + AWS stay in this job only. It never checks out the PR, so untrusted
-  # code cannot mint a token or inherit the session. Point the role's trust
-  # policy at sub repo:observeinc/cli:pull_request (not repo:…:*) and allow
-  # only s3:GetObject on the object named by the COVERAGE_INDEX_S3_URI secret.
-  fetch-coverage-index:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      enabled: ${{ steps.cov.outputs.enabled }}
-    steps:
-      - name: Coverage index config
-        id: cov
-        env:
-          COVERAGE_INDEX_ROLE_ARN: ${{ vars.COVERAGE_INDEX_ROLE_ARN }}
-          COVERAGE_INDEX_S3_URI: ${{ secrets.COVERAGE_INDEX_S3_URI }}
-        run: |
-          if [ -n "$COVERAGE_INDEX_ROLE_ARN" ] && [ -n "$COVERAGE_INDEX_S3_URI" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Configure AWS credentials
-        if: steps.cov.outputs.enabled == 'true'
-        continue-on-error: true
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.COVERAGE_INDEX_ROLE_ARN }}
-          aws-region: us-west-2
-
-      - name: Download coverage index
-        if: steps.cov.outputs.enabled == 'true'
-        continue-on-error: true
-        env:
-          COVERAGE_INDEX_S3_URI: ${{ secrets.COVERAGE_INDEX_S3_URI }}
-        run: aws s3 cp --quiet "$COVERAGE_INDEX_S3_URI" "$RUNNER_TEMP/coverage-index.json"
-
-      - name: Upload coverage index
-        if: steps.cov.outputs.enabled == 'true'
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-index
-          path: ${{ runner.temp }}/coverage-index.json
-          if-no-files-found: ignore
-          retention-days: 1
-
   detect:
-    needs: fetch-coverage-index
-    if: always() && !cancelled()
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -102,16 +50,6 @@ jobs:
           bun run codegen
           echo "ran=true" >> "$GITHUB_OUTPUT"
 
-      # Optional private S3 index, fetched by the sibling job. Role ARN is a
-      # repo variable; URI is a secret so the bucket name is not in git.
-      - name: Download coverage index artifact
-        if: steps.codegen.outputs.ran == 'true' && needs.fetch-coverage-index.outputs.enabled == 'true'
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-index
-          path: ${{ runner.temp }}
-
       - name: Detect
         if: steps.codegen.outputs.ran == 'true'
         env:
@@ -120,16 +58,13 @@ jobs:
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          COV_ENABLED: ${{ needs.fetch-coverage-index.outputs.enabled }}
+        # Coverage comes from scripts/eval-coverage.json in this checkout,
+        # per-command counts the observe monorepo's Harbor nightly commits.
         run: |
           # Checkout is refs/pull/N/merge; HEAD^1 is the base it was built on.
           # pull_request.base.sha can lag after main moves and pull in other PRs.
-          idx=()
-          if [ "$COV_ENABLED" = true ]; then
-            idx=(--coverage-index "$RUNNER_TEMP/coverage-index.json")
-          fi
           bun run scripts/surface-detect.ts --base HEAD^1 --head HEAD \
-            --json surface-report.json --markdown "${idx[@]}" > surface-comment.md
+            --json surface-report.json --markdown > surface-comment.md
           cat surface-comment.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
