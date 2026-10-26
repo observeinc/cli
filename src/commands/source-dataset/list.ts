@@ -2,7 +2,7 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listSourceDatasets } from "../../rest/source-dataset/list-source-datasets";
-import type { SourceDatasetResource } from "../../rest/source-dataset/types";
+import type { SourceDatasetResource } from "../../rest/generated";
 import { celFuzzyContains, combineFilters } from "../../lib/cel";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";

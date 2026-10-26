@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Configuration, ResponseError } from "../generated/runtime";
-import { SourceDatasetApi } from "./source-dataset-api";
+import { Configuration, ResponseError, SourceDatasetApi } from "../generated";
 
 interface Call {
   url: string;
@@ -58,7 +57,9 @@ describe("SourceDatasetApi", () => {
 
   test("create posts a JSON body", async () => {
     const { api, calls } = apiWith(() => json({ id: "41" }));
-    await api.createSourceDataset({ label: "Logs/app" });
+    await api.createSourceDataset({
+      sourceDatasetCreateRequest: { label: "Logs/app" },
+    });
     expect(calls[0]!.init.method).toBe("POST");
     expect(headersOf(calls[0]!)["Content-Type"]).toBe("application/json");
     expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
@@ -70,7 +71,10 @@ describe("SourceDatasetApi", () => {
     const { api, calls } = apiWith(() => json({ id: "41" }));
     await api.updateSourceDataset({
       id: "41",
-      body: { description: null, dataRetentionDays: null },
+      sourceDatasetUpdateRequest: {
+        description: null,
+        dataRetentionDays: null,
+      },
     });
     expect(calls[0]!.init.method).toBe("PATCH");
     expect(JSON.parse(calls[0]!.init.body as string)).toEqual({

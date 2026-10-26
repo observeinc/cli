@@ -2,11 +2,12 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { createSourceDataset } from "../../rest/source-dataset/create-source-dataset";
-import type {
-  SourceDatasetCreateRequest,
+import {
+  type SourceDatasetCreateRequest,
+  SourceDatasetKind,
   SourceDatasetSchemaType,
   SourceDatasetStorage,
-} from "../../rest/source-dataset/types";
+} from "../../rest/generated";
 import { loadConfig } from "../../lib/config";
 import { errorType, formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -27,10 +28,16 @@ interface CreateSourceDatasetFlags {
 export function buildCreateBody(
   flags: CreateSourceDatasetFlags,
 ): SourceDatasetCreateRequest {
-  if (flags.storageIntegrationId !== undefined && flags.storage !== "Iceberg") {
+  if (
+    flags.storageIntegrationId !== undefined &&
+    flags.storage !== SourceDatasetStorage.Iceberg
+  ) {
     throw new Error("--storage-integration-id requires --storage Iceberg");
   }
-  if (flags.storage === "Iceberg" && flags.storageIntegrationId === undefined) {
+  if (
+    flags.storage === SourceDatasetStorage.Iceberg &&
+    flags.storageIntegrationId === undefined
+  ) {
     throw new Error("--storage Iceberg requires --storage-integration-id");
   }
 
@@ -43,7 +50,7 @@ export function buildCreateBody(
   }
   if (flags.schemaType !== undefined || flags.storage !== undefined) {
     body.dataSource = {
-      kind: "Ingest",
+      kind: SourceDatasetKind.Ingest,
       ingest: {
         storage: flags.storage,
         schemaType: flags.schemaType,
@@ -152,20 +159,13 @@ export const createCommand = defineCommand({
       },
       schemaType: {
         kind: "enum",
-        values: [
-          "Any",
-          "OtelLogs",
-          "OtelMetrics",
-          "Prometheus",
-          "K8sEntity",
-          "OtelSpan",
-        ],
+        values: Object.values(SourceDatasetSchemaType),
         brief: "Signal type to create (default Any, inferred from the data)",
         optional: true,
       },
       storage: {
         kind: "enum",
-        values: ["Native", "Iceberg"],
+        values: Object.values(SourceDatasetStorage),
         brief: "Where the data is stored (default Native)",
         optional: true,
       },

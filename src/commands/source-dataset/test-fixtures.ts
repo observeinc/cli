@@ -1,6 +1,16 @@
 import { mock } from "bun:test";
 import { ResponseError } from "../../rest/generated/runtime";
-import type { SourceDatasetResource } from "../../rest/source-dataset/types";
+import {
+  DatasetAccelerationState,
+  DatasetAccelerationType,
+  DatasetContentType,
+  DatasetDataType,
+  type SourceDatasetResource,
+  SourceDatasetIngestStatus,
+  SourceDatasetKindRead,
+  SourceDatasetSchemaTypeRead,
+  SourceDatasetStorage,
+} from "../../rest/generated";
 
 export const loadConfigStub = mock(() => ({
   customerId: "123",
@@ -18,13 +28,25 @@ export function sourceDatasetStub(
     description: "checkout logs",
     icon: null,
     objectTags: {},
-    contentType: "Logs",
-    fieldList: [{ name: "body", type: { tag: "string" } }],
+    contentType: DatasetContentType.Log,
+    fieldList: [
+      {
+        name: "body",
+        type: { tag: DatasetDataType.String },
+        indexDefs: [],
+        linkDesc: null,
+        isEnum: false,
+        isSearchable: true,
+        isHidden: null,
+        isConst: false,
+        isMetric: false,
+      },
+    ],
     dataSource: {
-      kind: "Ingest",
+      kind: SourceDatasetKindRead.Ingest,
       ingest: {
-        storage: "Native",
-        schemaType: "OtelLogs",
+        storage: SourceDatasetStorage.Native,
+        schemaType: SourceDatasetSchemaTypeRead.OtelLogs,
         iceberg: null,
         metadataDataset: null,
       },
@@ -32,10 +54,10 @@ export function sourceDatasetStub(
     },
     dataRetentionDays: null,
     effectiveDataRetentionDays: 30,
-    accelerationType: "Default",
-    accelerationState: "Live",
+    accelerationType: DatasetAccelerationType.InsertOnly,
+    accelerationState: DatasetAccelerationState.Accelerated,
     correlationTags: [],
-    ingestStatus: "Receiving",
+    ingestStatus: SourceDatasetIngestStatus.Receiving,
     createdBy: { id: "1" },
     updatedBy: { id: "1" },
     createdAt: "2026-10-01T00:00:00Z",

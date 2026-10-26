@@ -1,6 +1,5 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { SourceDatasetApi } from "./source-dataset-api";
+import { ObserveRestSDK } from "../client";
 
 export async function deleteSourceDataset({
   config,
@@ -11,6 +10,6 @@ export async function deleteSourceDataset({
   id: string;
   force?: boolean;
 }): Promise<void> {
-  const api = new SourceDatasetApi(createApiConfiguration(config));
-  await api.deleteSourceDataset({ id, force });
+  const sdk = new ObserveRestSDK(config);
+  await sdk.sourceDatasetApi.deleteSourceDataset({ id, force });
 }

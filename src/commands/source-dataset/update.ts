@@ -2,7 +2,7 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { updateSourceDataset } from "../../rest/source-dataset/update-source-dataset";
-import type { SourceDatasetUpdateRequest } from "../../rest/source-dataset/types";
+import type { SourceDatasetUpdateRequest } from "../../rest/generated";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";

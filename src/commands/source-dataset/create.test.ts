@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { createSourceDataset } from "../../rest/source-dataset/create-source-dataset";
+import {
+  SourceDatasetKind,
+  SourceDatasetSchemaType,
+  SourceDatasetStorage,
+} from "../../rest/generated";
 import { buildCreateBody, create } from "./create";
 import { apiError, loadConfigStub, sourceDatasetStub } from "./test-fixtures";
 
@@ -23,7 +28,7 @@ describe("source-dataset create", () => {
         description: "d",
         tag: [["team", "core"]],
         retentionDays: 14,
-        schemaType: "OtelLogs",
+        schemaType: SourceDatasetSchemaType.OtelLogs,
       }),
     ).toEqual({
       label: "Logs/checkout",
@@ -31,10 +36,10 @@ describe("source-dataset create", () => {
       objectTags: { team: ["core"] },
       dataRetentionDays: 14,
       dataSource: {
-        kind: "Ingest",
+        kind: SourceDatasetKind.Ingest,
         ingest: {
           storage: undefined,
-          schemaType: "OtelLogs",
+          schemaType: SourceDatasetSchemaType.OtelLogs,
           iceberg: undefined,
         },
       },
@@ -48,7 +53,7 @@ describe("source-dataset create", () => {
   test("sends the storage integration with Iceberg storage", () => {
     const body = buildCreateBody({
       label: "Logs/a",
-      storage: "Iceberg",
+      storage: SourceDatasetStorage.Iceberg,
       storageIntegrationId: "77",
     });
     expect(body.dataSource?.ingest?.iceberg).toEqual({
@@ -57,9 +62,9 @@ describe("source-dataset create", () => {
   });
 
   test("rejects Iceberg without a storage integration and vice versa", () => {
-    expect(() => buildCreateBody({ label: "a/b", storage: "Iceberg" })).toThrow(
-      /requires --storage-integration-id/,
-    );
+    expect(() =>
+      buildCreateBody({ label: "a/b", storage: SourceDatasetStorage.Iceberg }),
+    ).toThrow(/requires --storage-integration-id/);
     expect(() =>
       buildCreateBody({ label: "a/b", storageIntegrationId: "77" }),
     ).toThrow(/requires --storage Iceberg/);

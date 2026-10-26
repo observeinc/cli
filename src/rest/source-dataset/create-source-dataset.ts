@@ -1,10 +1,9 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { SourceDatasetApi } from "./source-dataset-api";
+import { ObserveRestSDK } from "../client";
 import type {
   SourceDatasetCreateRequest,
   SourceDatasetResource,
-} from "./types";
+} from "../generated";
 
 export async function createSourceDataset({
   config,
@@ -13,6 +12,8 @@ export async function createSourceDataset({
   config: Config;
   body: SourceDatasetCreateRequest;
 }): Promise<SourceDatasetResource> {
-  const api = new SourceDatasetApi(createApiConfiguration(config));
-  return api.createSourceDataset(body);
+  const sdk = new ObserveRestSDK(config);
+  return sdk.sourceDatasetApi.createSourceDataset({
+    sourceDatasetCreateRequest: body,
+  });
 }

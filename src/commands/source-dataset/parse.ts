@@ -1,7 +1,6 @@
-import type {
-  ObjectTags,
-  SourceDatasetUpdateRequest,
-} from "../../rest/source-dataset/types";
+import type { SourceDatasetUpdateRequest } from "../../rest/generated";
+
+type ObjectTags = NonNullable<SourceDatasetUpdateRequest["objectTags"]>;
 
 /** Parse one `--tag key=value` occurrence. */
 export function parseTag(value: string): [string, string] {
