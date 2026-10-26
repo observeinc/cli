@@ -1,7 +1,6 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { UntrackedTableListResponse } from "./types";
+import type { ExternalSharesUntrackedTableListResponse } from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function listUntrackedShareTables({
   config,
@@ -17,9 +16,9 @@ export async function listUntrackedShareTables({
   orderBy?: string;
   limit?: number;
   offset?: number;
-}): Promise<UntrackedTableListResponse> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.listUntrackedShareTables({
+}): Promise<ExternalSharesUntrackedTableListResponse> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.listUntrackedShareTables({
     shareId,
     filter,
     orderBy,

@@ -4,9 +4,10 @@ import type { LocalContext } from "../../context";
 import { getShare } from "../../rest/inbound-share/get-share";
 import { deleteShare } from "../../rest/inbound-share/delete-share";
 import { loadConfig } from "../../lib/config";
-import { formatApiError } from "../../lib/format-error";
+import { errorType, formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
-import { confirm, errorType, requireYesWithJson } from "./shared";
+import { requireYesWithJson } from "./shared";
+import { confirm } from "../../lib/confirm";
 
 interface DeleteShareFlags {
   yes?: boolean;
@@ -66,7 +67,11 @@ export async function remove(
       return;
     }
 
-    writer.write(chalk.green(`Deleted share ${chalk.bold(shareId)}.`));
+    writer.write(
+      chalk.green(
+        `Deleted share ${chalk.bold(shareId)}${flags.yes ? " (or it was already gone)" : ""}.`,
+      ),
+    );
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     if ((await errorType(error)) === "share_has_tracked_tables") {

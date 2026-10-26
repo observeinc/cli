@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { errorType } from "../src/commands/inbound-share/shared";
+import { errorType } from "../src/lib/format-error";
 import { listShares } from "../src/rest/inbound-share/list-shares";
 import {
   loadTenantConfig,

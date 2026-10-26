@@ -1,7 +1,6 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { ShareResource } from "./types";
+import type { ExternalSharesShareResource } from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function getShare({
   config,
@@ -9,7 +8,7 @@ export async function getShare({
 }: {
   config: Config;
   shareId: string;
-}): Promise<ShareResource> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.getShare({ shareId });
+}): Promise<ExternalSharesShareResource> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.getShare({ shareId });
 }

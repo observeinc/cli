@@ -2,7 +2,7 @@ import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
 import { getUntrackedTableSchema } from "../../../rest/inbound-share/get-untracked-table-schema";
-import type { TableSchema } from "../../../rest/inbound-share/types";
+import type { ExternalSharesTableSchema } from "../../../rest/generated";
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
 import { muteStatusWriter } from "../../../lib/writer";
@@ -18,11 +18,12 @@ import { shellQuote } from "../sql";
 interface SchemaFlags {
   shareId: string;
   schema: string;
+  table: string;
   format?: OutputFormat;
   json?: boolean;
 }
 
-type Column = TableSchema["columns"][number];
+type Column = ExternalSharesTableSchema["columns"][number];
 
 const col = createColumnHelper<Column>();
 
@@ -43,10 +44,9 @@ export interface SchemaDeps {
 export async function schema(
   this: LocalContext,
   flags: SchemaFlags,
-  tableName: string,
   deps: SchemaDeps = {},
 ): Promise<void> {
-  const { shareId } = flags;
+  const { shareId, table: tableName } = flags;
   const {
     loadConfig: loadConfigImpl = loadConfig,
     getUntrackedTableSchema: getImpl = getUntrackedTableSchema,
@@ -103,13 +103,7 @@ export const schemaCommand = defineCommand({
   parameters: {
     positional: {
       kind: "tuple",
-      parameters: [
-        {
-          placeholder: "tableName",
-          brief: "Snowflake table or view name (case-sensitive)",
-          parse: String,
-        },
-      ],
+      parameters: [],
     },
     flags: {
       shareId: {
@@ -122,6 +116,11 @@ export const schemaCommand = defineCommand({
         kind: "parsed",
         parse: String,
         brief: "Snowflake schema that holds the table (case-sensitive)",
+      },
+      table: {
+        kind: "parsed",
+        parse: String,
+        brief: "Snowflake table or view name (case-sensitive)",
       },
       format: {
         kind: "enum",
@@ -144,7 +143,7 @@ export const schemaCommand = defineCommand({
       "--valid-to and --schema-mapping before `table track`.",
       "",
       "Example:",
-      "  observe inbound-share table schema ORDERS --share-id 41000100 --schema PUBLIC",
+      "  observe inbound-share table schema --share-id 41000100 --schema PUBLIC --table ORDERS",
     ].join("\n"),
   },
 });

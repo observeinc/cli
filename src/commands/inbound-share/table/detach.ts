@@ -6,7 +6,8 @@ import { detachTableDataset } from "../../../rest/inbound-share/detach-table-dat
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
 import { muteStatusWriter } from "../../../lib/writer";
-import { confirm, isNotFound, requireYesWithJson } from "../shared";
+import { isNotFound, requireYesWithJson } from "../shared";
+import { confirm } from "../../../lib/confirm";
 
 interface DetachTableFlags {
   shareId: string;
@@ -68,7 +69,9 @@ export async function detach(
     }
 
     writer.write(
-      chalk.green(`Detached the dataset from table ${chalk.bold(tableId)}.`),
+      chalk.green(
+        `Detached the dataset from table ${chalk.bold(tableId)}${flags.yes ? " (or it had none)" : ""}.`,
+      ),
     );
   } catch (error) {
     if (isNotFound(error)) {

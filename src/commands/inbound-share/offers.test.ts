@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { listInboundOffers } from "../../rest/inbound-share/list-inbound-offers";
-import type { InboundOffer } from "../../rest/inbound-share/types";
+import type { ExternalSharesInboundOffer } from "../../rest/generated";
 import { offers } from "./offers";
 import { loadConfigStub } from "./test-fixtures";
 
 suppressAnsiColor();
 
-const offer: InboundOffer = {
+const offer: ExternalSharesInboundOffer = {
   providerAccount: "ACME.PROD",
   shareName: "BILLING_SHARE",
   description: "Billing data",

@@ -1,7 +1,6 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { TableResource } from "./types";
+import type { ExternalSharesTableResource } from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function getShareTable({
   config,
@@ -13,7 +12,7 @@ export async function getShareTable({
   shareId: string;
   tableId: string;
   expand?: boolean;
-}): Promise<TableResource> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.getShareTable({ shareId, tableId, expand });
+}): Promise<ExternalSharesTableResource> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.getShareTable({ shareId, tableId, expand });
 }

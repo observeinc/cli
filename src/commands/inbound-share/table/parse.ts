@@ -1,12 +1,15 @@
 import { parseJsonFile } from "../../../lib/parsers";
-import type {
-  AttachDatasetRequest,
-  DatasetKind,
-  DatasetSpec,
-  SchemaMapping,
-  TableUpdateRequest,
-  TrackTableRequest,
-} from "../../../rest/inbound-share/types";
+import {
+  type ExternalSharesAttachDatasetRequest,
+  ExternalSharesDatasetKind,
+  type ExternalSharesDatasetSpec,
+  type ExternalSharesTableUpdateRequest,
+  type ExternalSharesTrackTableRequest,
+} from "../../../rest/generated";
+
+export type SchemaMapping = NonNullable<
+  ExternalSharesTrackTableRequest["schemaMapping"]
+>;
 
 export function parseSchemaMapping(value: string): SchemaMapping {
   const parsed = parseJsonFile<unknown>(value, "--schema-mapping");
@@ -22,7 +25,7 @@ export interface TrackFlags {
   schema: string;
   table: string;
   datasetLabel: string;
-  kind: DatasetKind;
+  kind: ExternalSharesDatasetKind;
   description?: string;
   validFrom?: string;
   validTo?: string;
@@ -38,20 +41,25 @@ export type DatasetFlags = Pick<
 function checkKindFields(flags: DatasetFlags): void {
   const hasFrom = flags.validFrom !== undefined;
   const hasTo = flags.validTo !== undefined;
-  if (flags.kind === "Table" && (hasFrom || hasTo)) {
+  if (flags.kind === ExternalSharesDatasetKind.Table && (hasFrom || hasTo)) {
     throw new Error("--kind Table takes no --valid-from or --valid-to.");
   }
-  if (flags.kind === "Event" && (!hasFrom || hasTo)) {
+  if (flags.kind === ExternalSharesDatasetKind.Event && (!hasFrom || hasTo)) {
     throw new Error("--kind Event needs --valid-from and no --valid-to.");
   }
-  if (flags.kind === "Interval" && (!hasFrom || !hasTo)) {
+  if (
+    flags.kind === ExternalSharesDatasetKind.Interval &&
+    (!hasFrom || !hasTo)
+  ) {
     throw new Error("--kind Interval needs both --valid-from and --valid-to.");
   }
 }
 
-export function buildTrackBody(flags: TrackFlags): TrackTableRequest {
+export function buildTrackBody(
+  flags: TrackFlags,
+): ExternalSharesTrackTableRequest {
   checkKindFields(flags);
-  const body: TrackTableRequest = {
+  const body: ExternalSharesTrackTableRequest = {
     schemaName: flags.schema,
     tableName: flags.table,
     datasetLabel: flags.datasetLabel,
@@ -66,9 +74,11 @@ export function buildTrackBody(flags: TrackFlags): TrackTableRequest {
   return body;
 }
 
-export function buildAttachBody(flags: DatasetFlags): AttachDatasetRequest {
+export function buildAttachBody(
+  flags: DatasetFlags,
+): ExternalSharesAttachDatasetRequest {
   checkKindFields(flags);
-  const dataset: DatasetSpec = {
+  const dataset: ExternalSharesDatasetSpec = {
     label: flags.datasetLabel,
     kind: flags.kind,
   };
@@ -90,8 +100,8 @@ export interface TableUpdateFlags {
 
 export function buildTableUpdateBody(
   flags: TableUpdateFlags,
-): TableUpdateRequest {
-  const body: TableUpdateRequest = {};
+): ExternalSharesTableUpdateRequest {
+  const body: ExternalSharesTableUpdateRequest = {};
   if (flags.description !== undefined) body.description = flags.description;
   if (flags.datasetLabel !== undefined) body.datasetLabel = flags.datasetLabel;
   if (flags.validFrom !== undefined) body.validFromField = flags.validFrom;

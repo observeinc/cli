@@ -1,13 +1,19 @@
 import { mock } from "bun:test";
 import { ResponseError } from "../../rest/generated/runtime";
-import type {
-  RegistrationToken,
-  SetupInfo,
-  ShareResource,
-  TableResource,
-} from "../../rest/inbound-share/types";
+import {
+  ExternalSharesCdcStatus,
+  ExternalSharesHealthStatusEnum,
+  ExternalSharesProviderType,
+  type ExternalSharesRegistrationToken,
+  type ExternalSharesSetupInfo,
+  type ExternalSharesShareResource,
+  ExternalSharesShareStateEnum,
+  ExternalSharesTableKind,
+  type ExternalSharesTableResource,
+  ExternalSharesTableStatus,
+} from "../../rest/generated";
 
-export function setupInfoStub(): SetupInfo {
+export function setupInfoStub(): ExternalSharesSetupInfo {
   return {
     consumerAccount: "OBSERVE.CONSUMER",
     region: "AWS_US_WEST_2",
@@ -35,7 +41,9 @@ export function setupInfoStub(): SetupInfo {
   };
 }
 
-export function tokenStub(token = "secret-token"): RegistrationToken {
+export function tokenStub(
+  token = "secret-token",
+): ExternalSharesRegistrationToken {
   return {
     token,
     expiresAt: "2026-10-21T00:00:00Z",
@@ -55,19 +63,22 @@ export const loadConfigStub = mock(() => ({
 }));
 
 export function shareStub(
-  overrides: Partial<ShareResource> = {},
-): ShareResource {
+  overrides: Partial<ExternalSharesShareResource> = {},
+): ExternalSharesShareResource {
   return {
     id: "41000100",
     shareName: "OBSERVE_SHARE",
     label: "Orders share",
-    providerType: "Snowflake",
+    providerType: ExternalSharesProviderType.Snowflake,
     providerAccount: "ACME.PROD",
     snowflakeConfig: {
       shareName: "OBSERVE_SHARE",
       providerAccount: "ACME.PROD",
     },
-    status: { state: "Active", health: "Healthy" },
+    status: {
+      state: ExternalSharesShareStateEnum.Active,
+      health: ExternalSharesHealthStatusEnum.Healthy,
+    },
     createdBy: { id: "1" },
     createdAt: "2026-10-01T00:00:00Z",
     updatedBy: { id: "1" },
@@ -78,18 +89,18 @@ export function shareStub(
 }
 
 export function tableStub(
-  overrides: Partial<TableResource> = {},
-): TableResource {
+  overrides: Partial<ExternalSharesTableResource> = {},
+): ExternalSharesTableResource {
   return {
     id: "41000200",
     share: { id: "41000100" },
     fullTablePath: "PUBLIC/ORDERS",
     tableName: "ORDERS",
     schemaName: "PUBLIC",
-    tableType: "Table",
-    status: "Active",
-    health: "Healthy",
-    cdcStatus: "Enabled",
+    tableType: ExternalSharesTableKind.Table,
+    status: ExternalSharesTableStatus.Active,
+    health: ExternalSharesHealthStatusEnum.Healthy,
+    cdcStatus: ExternalSharesCdcStatus.Enabled,
     sourceDataset: { id: "41000300" },
     tableSchema: {
       columns: [

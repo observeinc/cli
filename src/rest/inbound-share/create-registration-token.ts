@@ -1,7 +1,6 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { RegistrationToken } from "./types";
+import type { ExternalSharesRegistrationToken } from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function createRegistrationToken({
   config,
@@ -9,7 +8,9 @@ export async function createRegistrationToken({
 }: {
   config: Config;
   providerAccount: string;
-}): Promise<RegistrationToken> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.createRegistrationToken({ providerAccount });
+}): Promise<ExternalSharesRegistrationToken> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.createRegistrationToken({
+    externalSharesCreateRegistrationTokenRequest: { providerAccount },
+  });
 }

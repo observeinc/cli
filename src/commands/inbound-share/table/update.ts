@@ -2,7 +2,7 @@ import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
 import { updateShareTable } from "../../../rest/inbound-share/update-share-table";
-import type { TableUpdateRequest } from "../../../rest/inbound-share/types";
+import type { ExternalSharesTableUpdateRequest } from "../../../rest/generated";
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
 import { muteStatusWriter } from "../../../lib/writer";
@@ -37,7 +37,7 @@ export async function update(
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
 
-  let body: TableUpdateRequest;
+  let body: ExternalSharesTableUpdateRequest;
   try {
     body = buildTableUpdateBody(flags);
   } catch (e) {

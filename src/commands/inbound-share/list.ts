@@ -2,11 +2,11 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listShares } from "../../rest/inbound-share/list-shares";
-import type {
-  HealthStatus,
-  ShareListItem,
-  ShareState,
-} from "../../rest/inbound-share/types";
+import {
+  ExternalSharesHealthStatusEnum,
+  type ExternalSharesShareListItem,
+  ExternalSharesShareStateEnum,
+} from "../../rest/generated";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -24,10 +24,11 @@ import {
   parseLimit,
   type OutputFormat,
 } from "./shared";
+import { paginationHint } from "../apm/apm-utils";
 
 interface ListSharesFlags {
-  state?: ShareState;
-  health?: HealthStatus;
+  state?: ExternalSharesShareStateEnum;
+  health?: ExternalSharesHealthStatusEnum;
   sort?: string;
   limit: number;
   offset?: number;
@@ -35,9 +36,9 @@ interface ListSharesFlags {
   json?: boolean;
 }
 
-const col = createColumnHelper<ShareListItem>();
+const col = createColumnHelper<ExternalSharesShareListItem>();
 
-const COLUMNS: ColumnDef<ShareListItem>[] = [
+const COLUMNS: ColumnDef<ExternalSharesShareListItem>[] = [
   col.accessor((row) => row.id, {
     header: "ID",
     format: (value) => chalk.cyan(value),
@@ -110,12 +111,15 @@ export async function list(
     );
     writer.write(formatTable(shares, COLUMNS));
 
-    if (shares.length === flags.limit) {
-      const nextOffset = (flags.offset ?? 0) + flags.limit;
-      writer.info(
-        `\nMore results may be available. Use --offset ${nextOffset} to see the next page.`,
-      );
-    }
+    const hint = paginationHint(
+      {
+        limit: flags.limit,
+        offset: flags.offset ?? 0,
+        totalCount: response.meta.totalCount,
+      },
+      shares.length,
+    );
+    if (hint) writer.info(`\n${hint}`);
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;
@@ -133,20 +137,20 @@ export const listCommand = defineCommand({
     flags: {
       state: {
         kind: "enum",
-        values: ["Creating", "Active", "Deleting", "Unknown"],
+        values: Object.values(ExternalSharesShareStateEnum),
         brief: "Only shares in this state",
         optional: true,
       },
       health: {
         kind: "enum",
-        values: ["Healthy", "Unhealthy", "Unknown"],
+        values: Object.values(ExternalSharesHealthStatusEnum),
         brief: "Only shares with this health",
         optional: true,
       },
       sort: {
         kind: "parsed",
         parse: String,
-        brief: "CEL expression to order by (prefix - for descending)",
+        brief: "Comma-separated fields to order by (prefix - for descending)",
         optional: true,
       },
       limit: {

@@ -1,6 +1,5 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
+import { ObserveRestSDK } from "../client";
 
 export async function detachTableDataset({
   config,
@@ -11,6 +10,6 @@ export async function detachTableDataset({
   shareId: string;
   tableId: string;
 }): Promise<void> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  await api.detachTableDataset({ shareId, tableId });
+  const sdk = new ObserveRestSDK(config);
+  await sdk.externalSharesApi.detachTableDataset({ shareId, tableId });
 }

@@ -3,9 +3,8 @@ import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { registerShare } from "../../rest/inbound-share/register-share";
 import { loadConfig } from "../../lib/config";
-import { formatApiError } from "../../lib/format-error";
+import { errorType, formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
-import { errorType } from "./shared";
 import { parseShareName } from "./sql";
 
 interface RegisterFlags {

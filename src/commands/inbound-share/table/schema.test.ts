@@ -24,8 +24,7 @@ describe("inbound-share table schema", () => {
     const { context, stdout } = createMockContext();
     await schema.call(
       context,
-      { shareId: "41000100", schema: "PUBLIC" },
-      "REFUNDS",
+      { shareId: "41000100", schema: "PUBLIC", table: "REFUNDS" },
       deps,
     );
     expect(getFn.mock.calls[0]![0]).toMatchObject({
@@ -43,8 +42,7 @@ describe("inbound-share table schema", () => {
     const { context, stdout } = createMockContext();
     await schema.call(
       context,
-      { shareId: "41000100", schema: "PUBLIC", json: true },
-      "REFUNDS",
+      { shareId: "41000100", schema: "PUBLIC", table: "REFUNDS", json: true },
       deps,
     );
     expect(JSON.parse(stdout.join(""))).toEqual(columns);
@@ -57,8 +55,7 @@ describe("inbound-share table schema", () => {
     const { context, stderr, getExitCode } = createMockContext();
     await schema.call(
       context,
-      { shareId: "41000100", schema: "PUBLIC" },
-      "NOPE",
+      { shareId: "41000100", schema: "PUBLIC", table: "NOPE" },
       deps,
     );
     expect(getExitCode()).toBe(1);
@@ -72,8 +69,7 @@ describe("inbound-share table schema", () => {
     const { context, stdout, stderr } = createMockContext();
     await schema.call(
       context,
-      { shareId: "41000100", schema: "PUBLIC" },
-      "Order Items",
+      { shareId: "41000100", schema: "PUBLIC", table: "Order Items" },
       deps,
     );
     expect(stdout.join("") + stderr.join("")).toContain(

@@ -1,7 +1,9 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { AttachDatasetRequest, TableResource } from "./types";
+import type {
+  ExternalSharesAttachDatasetRequest,
+  ExternalSharesTableResource,
+} from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function attachTableDataset({
   config,
@@ -12,8 +14,12 @@ export async function attachTableDataset({
   config: Config;
   shareId: string;
   tableId: string;
-  body: AttachDatasetRequest;
-}): Promise<TableResource> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.attachTableDataset({ shareId, tableId, body });
+  body: ExternalSharesAttachDatasetRequest;
+}): Promise<ExternalSharesTableResource> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.attachTableDataset({
+    shareId,
+    tableId,
+    externalSharesAttachDatasetRequest: body,
+  });
 }

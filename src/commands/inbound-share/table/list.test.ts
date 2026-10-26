@@ -5,6 +5,7 @@ import type { listShareTables } from "../../../rest/inbound-share/list-share-tab
 import type { listUntrackedShareTables } from "../../../rest/inbound-share/list-untracked-share-tables";
 import { list } from "./list";
 import { loadConfigStub, tableStub } from "../test-fixtures";
+import { ExternalSharesTableKind } from "../../../rest/generated";
 
 suppressAnsiColor();
 
@@ -13,7 +14,13 @@ const listFn = mock<typeof listShareTables>(() =>
 );
 const listUntrackedFn = mock<typeof listUntrackedShareTables>(() =>
   Promise.resolve({
-    tables: [{ schemaName: "PUBLIC", tableName: "REFUNDS", tableType: "View" }],
+    tables: [
+      {
+        schemaName: "PUBLIC",
+        tableName: "REFUNDS",
+        tableType: ExternalSharesTableKind.View,
+      },
+    ],
     meta: { totalCount: 1 },
   }),
 );
@@ -91,7 +98,11 @@ describe("inbound-share table list", () => {
       deps,
     );
     expect(JSON.parse(stdout.join(""))).toEqual([
-      { schemaName: "PUBLIC", tableName: "REFUNDS", tableType: "View" },
+      {
+        schemaName: "PUBLIC",
+        tableName: "REFUNDS",
+        tableType: ExternalSharesTableKind.View,
+      },
     ]);
   });
 });

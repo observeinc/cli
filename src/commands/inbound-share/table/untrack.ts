@@ -6,7 +6,8 @@ import { untrackShareTable } from "../../../rest/inbound-share/untrack-share-tab
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
 import { muteStatusWriter } from "../../../lib/writer";
-import { confirm, requireYesWithJson } from "../shared";
+import { requireYesWithJson } from "../shared";
+import { confirm } from "../../../lib/confirm";
 
 interface UntrackTableFlags {
   shareId: string;
@@ -67,7 +68,11 @@ export async function untrack(
       return;
     }
 
-    writer.write(chalk.green(`Untracked table ${chalk.bold(tableId)}.`));
+    writer.write(
+      chalk.green(
+        `Untracked table ${chalk.bold(tableId)}${flags.yes ? " (or it was already untracked)" : ""}.`,
+      ),
+    );
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;

@@ -3,6 +3,7 @@ import { createMockContext, suppressAnsiColor } from "../../../test-helpers";
 import type { attachTableDataset } from "../../../rest/inbound-share/attach-table-dataset";
 import { attach } from "./attach";
 import { apiError, loadConfigStub, tableStub } from "../test-fixtures";
+import { ExternalSharesDatasetKind } from "../../../rest/generated";
 
 suppressAnsiColor();
 
@@ -23,7 +24,7 @@ describe("inbound-share table attach", () => {
       {
         shareId: "41000100",
         datasetLabel: "Snowflake/orders",
-        kind: "Event",
+        kind: ExternalSharesDatasetKind.Event,
         validFrom: "CREATED_AT",
       },
       "41000200",
@@ -35,7 +36,7 @@ describe("inbound-share table attach", () => {
       body: {
         dataset: {
           label: "Snowflake/orders",
-          kind: "Event",
+          kind: ExternalSharesDatasetKind.Event,
           validFromField: "CREATED_AT",
         },
       },
@@ -49,7 +50,11 @@ describe("inbound-share table attach", () => {
     const { context, stderr, getExitCode } = createMockContext();
     await attach.call(
       context,
-      { shareId: "41000100", datasetLabel: "x", kind: "Event" },
+      {
+        shareId: "41000100",
+        datasetLabel: "x",
+        kind: ExternalSharesDatasetKind.Event,
+      },
       "41000200",
       deps,
     );
@@ -67,7 +72,11 @@ describe("inbound-share table attach", () => {
     const { context, stderr, getExitCode } = createMockContext();
     await attach.call(
       context,
-      { shareId: "41000100", datasetLabel: "x", kind: "Table" },
+      {
+        shareId: "41000100",
+        datasetLabel: "x",
+        kind: ExternalSharesDatasetKind.Table,
+      },
       "41000200",
       deps,
     );

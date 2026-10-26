@@ -1,15 +1,24 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { RegisterShareRequest, ShareResource } from "./types";
+import type {
+  ExternalSharesRegisterShareRequest,
+  ExternalSharesShareResource,
+} from "../generated";
+import { ObserveRestSDK } from "../client";
 
+/** `created` is false when the share was already registered (200, not 201). */
 export async function registerShare({
   config,
   body,
 }: {
   config: Config;
-  body: RegisterShareRequest;
-}): Promise<{ share: ShareResource; created: boolean }> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.registerShare(body);
+  body: ExternalSharesRegisterShareRequest;
+}): Promise<{ share: ExternalSharesShareResource; created: boolean }> {
+  const sdk = new ObserveRestSDK(config);
+  const response = await sdk.externalSharesApi.registerShareRaw({
+    externalSharesRegisterShareRequest: body,
+  });
+  return {
+    share: await response.value(),
+    created: response.raw.status === 201,
+  };
 }

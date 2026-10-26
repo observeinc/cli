@@ -5,9 +5,9 @@ import { listAllTrackedTables } from "../../../rest/inbound-share/list-all-track
 import { listShareTables } from "../../../rest/inbound-share/list-share-tables";
 import { listUntrackedShareTables } from "../../../rest/inbound-share/list-untracked-share-tables";
 import type {
-  TableResource,
-  UntrackedTable,
-} from "../../../rest/inbound-share/types";
+  ExternalSharesTableResource,
+  ExternalSharesUntrackedTable,
+} from "../../../rest/generated";
 import { celFuzzyContains, combineFilters } from "../../../lib/cel";
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
@@ -27,6 +27,7 @@ import {
   parseLimit,
   type OutputFormat,
 } from "../shared";
+import { paginationHint } from "../../apm/apm-utils";
 
 interface ListTablesFlags {
   shareId?: string;
@@ -41,14 +42,14 @@ interface ListTablesFlags {
   json?: boolean;
 }
 
-const col = createColumnHelper<TableResource>();
+const col = createColumnHelper<ExternalSharesTableResource>();
 
 const ID_COLUMN = col.accessor((row) => row.id, {
   header: "ID",
   format: (value) => chalk.cyan(value),
 });
 
-const DETAIL_COLUMNS: ColumnDef<TableResource>[] = [
+const DETAIL_COLUMNS: ColumnDef<ExternalSharesTableResource>[] = [
   col.accessor((row) => `${row.schemaName}.${row.tableName}`, {
     header: "TABLE",
   }),
@@ -61,17 +62,20 @@ const DETAIL_COLUMNS: ColumnDef<TableResource>[] = [
   col.accessor((row) => row.sourceDataset?.id ?? "", { header: "DATASET" }),
 ];
 
-const COLUMNS: ColumnDef<TableResource>[] = [ID_COLUMN, ...DETAIL_COLUMNS];
+const COLUMNS: ColumnDef<ExternalSharesTableResource>[] = [
+  ID_COLUMN,
+  ...DETAIL_COLUMNS,
+];
 
-const ALL_SHARES_COLUMNS: ColumnDef<TableResource>[] = [
+const ALL_SHARES_COLUMNS: ColumnDef<ExternalSharesTableResource>[] = [
   ID_COLUMN,
   col.accessor((row) => row.share.id, { header: "SHARE" }),
   ...DETAIL_COLUMNS,
 ];
 
-const untrackedCol = createColumnHelper<UntrackedTable>();
+const untrackedCol = createColumnHelper<ExternalSharesUntrackedTable>();
 
-const UNTRACKED_COLUMNS: ColumnDef<UntrackedTable>[] = [
+const UNTRACKED_COLUMNS: ColumnDef<ExternalSharesUntrackedTable>[] = [
   untrackedCol.accessor((row) => `${row.schemaName}.${row.tableName}`, {
     header: "TABLE",
   }),
@@ -195,12 +199,15 @@ export async function list(
       formatTable(tables, shareId === undefined ? ALL_SHARES_COLUMNS : COLUMNS),
     );
 
-    if (tables.length === flags.limit) {
-      const nextOffset = (flags.offset ?? 0) + flags.limit;
-      writer.info(
-        `\nMore results may be available. Use --offset ${nextOffset} to see the next page.`,
-      );
-    }
+    const hint = paginationHint(
+      {
+        limit: flags.limit,
+        offset: flags.offset ?? 0,
+        totalCount: response.meta.totalCount,
+      },
+      tables.length,
+    );
+    if (hint) writer.info(`\n${hint}`);
   } catch (error) {
     if (shareId !== undefined && isNotFound(error)) {
       writer.error(`Share not found: ${shareId}`);
@@ -245,7 +252,7 @@ export const listCommand = defineCommand({
       sort: {
         kind: "parsed",
         parse: String,
-        brief: "CEL expression to order by (prefix - for descending)",
+        brief: "Comma-separated fields to order by (prefix - for descending)",
         optional: true,
       },
       limit: {

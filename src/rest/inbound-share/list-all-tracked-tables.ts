@@ -1,7 +1,6 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { TableListResponse } from "./types";
+import type { ExternalSharesTableListResponse } from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function listAllTrackedTables({
   config,
@@ -17,7 +16,13 @@ export async function listAllTrackedTables({
   limit?: number;
   offset?: number;
   expand?: boolean;
-}): Promise<TableListResponse> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.listAllTrackedTables({ filter, orderBy, limit, offset, expand });
+}): Promise<ExternalSharesTableListResponse> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.listAllTrackedTables({
+    filter,
+    orderBy,
+    limit,
+    offset,
+    expand,
+  });
 }

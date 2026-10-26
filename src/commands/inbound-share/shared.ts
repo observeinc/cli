@@ -1,28 +1,7 @@
-import { createInterface } from "node:readline/promises";
 import type { LocalContext } from "../../context";
 import { ResponseError } from "../../rest/generated/runtime";
 
 export type OutputFormat = "json" | "csv";
-
-export async function confirm(
-  this: LocalContext,
-  question: string,
-): Promise<boolean> {
-  const { process } = this;
-  if (!process.stdin.isTTY) {
-    return false;
-  }
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  try {
-    const answer = await rl.question(`${question} [y/N] `);
-    return /^y(es)?$/i.test(answer.trim());
-  } finally {
-    rl.close();
-  }
-}
 
 /**
  * Destructive commands prompt on stdout and print their warnings with the
@@ -41,21 +20,6 @@ export function requireYesWithJson(
     return false;
   }
   return true;
-}
-
-/** The `type` field of a REST error body, if there is one. */
-export async function errorType(error: unknown): Promise<string | undefined> {
-  if (!(error instanceof ResponseError)) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(await error.response.clone().text());
-    if (parsed != null && typeof parsed === "object") {
-      const type = (parsed as Record<string, unknown>).type;
-      return typeof type === "string" ? type : undefined;
-    }
-  } catch {
-    // not JSON
-  }
-  return undefined;
 }
 
 export function isNotFound(error: unknown): boolean {

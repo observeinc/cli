@@ -1,7 +1,6 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { InboundOfferListResponse } from "./types";
+import type { ExternalSharesInboundOfferListResponse } from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function listInboundOffers({
   config,
@@ -11,7 +10,7 @@ export async function listInboundOffers({
   config: Config;
   limit?: number;
   offset?: number;
-}): Promise<InboundOfferListResponse> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.listInboundOffers({ limit, offset });
+}): Promise<ExternalSharesInboundOfferListResponse> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.listInboundOffers({ limit, offset });
 }

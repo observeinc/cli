@@ -2,7 +2,7 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listInboundOffers } from "../../rest/inbound-share/list-inbound-offers";
-import type { InboundOffer } from "../../rest/inbound-share/types";
+import type { ExternalSharesInboundOffer } from "../../rest/generated";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
@@ -20,6 +20,7 @@ import {
   parseLimit,
   type OutputFormat,
 } from "./shared";
+import { paginationHint } from "../apm/apm-utils";
 
 interface OffersFlags {
   limit: number;
@@ -28,9 +29,9 @@ interface OffersFlags {
   json?: boolean;
 }
 
-const col = createColumnHelper<InboundOffer>();
+const col = createColumnHelper<ExternalSharesInboundOffer>();
 
-const COLUMNS: ColumnDef<InboundOffer>[] = [
+const COLUMNS: ColumnDef<ExternalSharesInboundOffer>[] = [
   col.accessor((row) => row.shareName, { header: "SHARE" }),
   col.accessor((row) => row.providerAccount, {
     header: "PROVIDER",
@@ -99,12 +100,15 @@ export async function offers(
       "\nRegister one with: observe inbound-share register --share-name <SHARE> --provider-account <PROVIDER>",
     );
 
-    if (rows.length === flags.limit) {
-      const nextOffset = (flags.offset ?? 0) + flags.limit;
-      writer.info(
-        `More results may be available. Use --offset ${nextOffset} to see the next page.`,
-      );
-    }
+    const hint = paginationHint(
+      {
+        limit: flags.limit,
+        offset: flags.offset ?? 0,
+        totalCount: response.meta.totalCount,
+      },
+      rows.length,
+    );
+    if (hint) writer.info(hint);
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;

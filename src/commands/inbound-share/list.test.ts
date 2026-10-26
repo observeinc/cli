@@ -3,6 +3,10 @@ import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { listShares } from "../../rest/inbound-share/list-shares";
 import { list } from "./list";
 import { loadConfigStub, shareStub } from "./test-fixtures";
+import {
+  ExternalSharesHealthStatusEnum,
+  ExternalSharesShareStateEnum,
+} from "../../rest/generated";
 
 suppressAnsiColor();
 
@@ -20,7 +24,11 @@ describe("inbound-share list", () => {
     const { context } = createMockContext();
     await list.call(
       context,
-      { state: "Active", health: "Unhealthy", limit: 50 },
+      {
+        state: ExternalSharesShareStateEnum.Active,
+        health: ExternalSharesHealthStatusEnum.Unhealthy,
+        limit: 50,
+      },
       deps,
     );
     expect(listFn.mock.calls[0]![0]).toMatchObject({

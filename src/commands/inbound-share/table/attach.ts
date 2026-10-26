@@ -2,7 +2,10 @@ import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
 import { attachTableDataset } from "../../../rest/inbound-share/attach-table-dataset";
-import type { AttachDatasetRequest } from "../../../rest/inbound-share/types";
+import {
+  type ExternalSharesAttachDatasetRequest,
+  ExternalSharesDatasetKind,
+} from "../../../rest/generated";
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
 import { muteStatusWriter } from "../../../lib/writer";
@@ -37,7 +40,7 @@ export async function attach(
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
 
-  let body: AttachDatasetRequest;
+  let body: ExternalSharesAttachDatasetRequest;
   try {
     body = buildAttachBody(flags);
   } catch (e) {
@@ -97,7 +100,7 @@ export const attachCommand = defineCommand({
       },
       kind: {
         kind: "enum",
-        values: ["Table", "Event", "Interval"],
+        values: Object.values(ExternalSharesDatasetKind),
         brief: "Dataset kind (Table, Event, Interval)",
       },
       validFrom: {

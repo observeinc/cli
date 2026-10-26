@@ -1,13 +1,12 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { SetupInfo } from "./types";
+import type { ExternalSharesSetupInfo } from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function getSetupInfo({
   config,
 }: {
   config: Config;
-}): Promise<SetupInfo> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.getSetupInfo();
+}): Promise<ExternalSharesSetupInfo> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.getSetupInfo();
 }

@@ -67,7 +67,6 @@ src/
 │   └── gql-codegen.config.ts  # Codegen configuration
 ├── rest/               # REST API layer
 │   ├── generated/      # Auto-generated client (DO NOT EDIT)
-│   ├── inbound-share/  # Hand-written client for the internal /v1/shares/inbound API
 │   ├── client.ts       # REST client factory
 │   └── config.yaml     # OpenAPI generator config
 └── lib/                # Shared utilities

@@ -36,6 +36,15 @@ describe("inbound-share delete", () => {
     expect(stdout.join("")).toContain("Deleted share");
   });
 
+  test("--yes skips the lookup and says the share may already be gone", async () => {
+    const { context, stdout } = createMockContext();
+    await remove.call(context, { yes: true }, "999", depsWith(true));
+    expect(getFn).not.toHaveBeenCalled();
+    expect(stdout.join("")).toContain(
+      "Deleted share 999 (or it was already gone).",
+    );
+  });
+
   test("aborts on no without deleting, saying so on stderr", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     await remove.call(context, {}, "41000100", depsWith(false));

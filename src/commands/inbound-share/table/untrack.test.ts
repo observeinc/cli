@@ -4,6 +4,7 @@ import type { getShareTable } from "../../../rest/inbound-share/get-share-table"
 import type { untrackShareTable } from "../../../rest/inbound-share/untrack-share-table";
 import { untrack } from "./untrack";
 import { loadConfigStub, tableStub } from "../test-fixtures";
+import { DatasetContentType } from "../../../rest/generated";
 
 suppressAnsiColor();
 
@@ -16,7 +17,7 @@ const getFn = mock<typeof getShareTable>(() =>
           label: "Snowflake/orders",
           description: "",
           iconUrl: "",
-          contentType: "",
+          contentType: DatasetContentType.Unknown,
         },
       },
     }),

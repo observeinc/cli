@@ -2,11 +2,14 @@ import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
 import { trackShareTable } from "../../../rest/inbound-share/track-share-table";
-import type { TrackTableRequest } from "../../../rest/inbound-share/types";
+import {
+  ExternalSharesDatasetKind,
+  type ExternalSharesTrackTableRequest,
+} from "../../../rest/generated";
 import { loadConfig } from "../../../lib/config";
-import { formatApiError } from "../../../lib/format-error";
+import { errorType, formatApiError } from "../../../lib/format-error";
 import { muteStatusWriter } from "../../../lib/writer";
-import { errorType, isNotFound } from "../shared";
+import { isNotFound } from "../shared";
 import { buildTrackBody, parseSchemaMapping, type TrackFlags } from "./parse";
 
 interface TrackTableFlags extends TrackFlags {
@@ -32,7 +35,7 @@ export async function track(
   const { process, writer: _writer } = this;
   const writer = muteStatusWriter(_writer, { muted: flags.json === true });
 
-  let body: TrackTableRequest;
+  let body: ExternalSharesTrackTableRequest;
   try {
     body = buildTrackBody(flags);
   } catch (e) {
@@ -63,12 +66,14 @@ export async function track(
     }
   } catch (error) {
     if (isNotFound(error)) {
-      writer.error(`Share not found: ${shareId}`);
+      writer.error(
+        `Share or table not found: ${flags.schema}.${flags.table} in share ${shareId} (${await formatApiError(error)})`,
+      );
     } else {
       writer.error(`Error: ${await formatApiError(error)}`);
       if ((await errorType(error)) === "cdc_not_enabled") {
         writer.error(
-          "Enable change tracking on the table in your provider account (see `observe inbound-share setup`).",
+          "Change data capture isn't enabled for your Observe account. Contact Observe support to enable it.",
         );
       }
     }
@@ -105,7 +110,7 @@ export const trackCommand = defineCommand({
       },
       kind: {
         kind: "enum",
-        values: ["Table", "Event", "Interval"],
+        values: Object.values(ExternalSharesDatasetKind),
         brief: "Dataset kind (Table, Event, Interval)",
       },
       description: {

@@ -1,7 +1,9 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { ShareResource, UpdateShareRequest } from "./types";
+import type {
+  ExternalSharesShareResource,
+  ExternalSharesUpdateShareRequest,
+} from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function updateShare({
   config,
@@ -10,8 +12,11 @@ export async function updateShare({
 }: {
   config: Config;
   shareId: string;
-  body: UpdateShareRequest;
-}): Promise<ShareResource> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.updateShare({ shareId, body });
+  body: ExternalSharesUpdateShareRequest;
+}): Promise<ExternalSharesShareResource> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.updateShare({
+    shareId,
+    externalSharesUpdateShareRequest: body,
+  });
 }

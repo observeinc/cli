@@ -1,6 +1,5 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
+import { ObserveRestSDK } from "../client";
 
 export async function deleteShare({
   config,
@@ -11,6 +10,6 @@ export async function deleteShare({
   shareId: string;
   force?: boolean;
 }): Promise<void> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  await api.deleteShare({ shareId, force });
+  const sdk = new ObserveRestSDK(config);
+  await sdk.externalSharesApi.deleteShare({ shareId, force });
 }

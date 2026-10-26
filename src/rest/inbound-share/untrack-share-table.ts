@@ -1,6 +1,5 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
+import { ObserveRestSDK } from "../client";
 
 export async function untrackShareTable({
   config,
@@ -11,6 +10,6 @@ export async function untrackShareTable({
   shareId: string;
   tableId: string;
 }): Promise<void> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  await api.untrackShareTable({ shareId, tableId });
+  const sdk = new ObserveRestSDK(config);
+  await sdk.externalSharesApi.untrackShareTable({ shareId, tableId });
 }

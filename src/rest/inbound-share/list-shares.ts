@@ -1,7 +1,10 @@
 import type { Config } from "../../lib/config";
-import { createApiConfiguration } from "../api-config";
-import { InboundShareApi } from "./inbound-share-api";
-import type { HealthStatus, ShareListResponse, ShareState } from "./types";
+import type {
+  ExternalSharesHealthStatusEnum,
+  ExternalSharesShareListResponse,
+  ExternalSharesShareStateEnum,
+} from "../generated";
+import { ObserveRestSDK } from "../client";
 
 export async function listShares({
   config,
@@ -12,12 +15,18 @@ export async function listShares({
   offset,
 }: {
   config: Config;
-  status?: ShareState;
-  healthStatus?: HealthStatus;
+  status?: ExternalSharesShareStateEnum;
+  healthStatus?: ExternalSharesHealthStatusEnum;
   orderBy?: string;
   limit?: number;
   offset?: number;
-}): Promise<ShareListResponse> {
-  const api = new InboundShareApi(createApiConfiguration(config));
-  return api.listShares({ status, healthStatus, orderBy, limit, offset });
+}): Promise<ExternalSharesShareListResponse> {
+  const sdk = new ObserveRestSDK(config);
+  return sdk.externalSharesApi.listShares({
+    status,
+    healthStatus,
+    orderBy,
+    limit,
+    offset,
+  });
 }

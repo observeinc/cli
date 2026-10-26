@@ -4,6 +4,10 @@ import {
   buildTrackBody,
   parseSchemaMapping,
 } from "./parse";
+import {
+  ExternalSharesDatasetKind,
+  ExternalSharesFieldMappingConversion,
+} from "../../../rest/generated";
 
 const base = {
   schema: "PUBLIC",
@@ -13,40 +17,58 @@ const base = {
 
 describe("buildTrackBody", () => {
   test("Table takes no time fields", () => {
-    expect(buildTrackBody({ ...base, kind: "Table" })).toEqual({
+    expect(
+      buildTrackBody({ ...base, kind: ExternalSharesDatasetKind.Table }),
+    ).toEqual({
       schemaName: "PUBLIC",
       tableName: "ORDERS",
       datasetLabel: "Snowflake/orders",
-      datasetKind: "Table",
+      datasetKind: ExternalSharesDatasetKind.Table,
     });
     expect(() =>
-      buildTrackBody({ ...base, kind: "Table", validFrom: "TS" }),
+      buildTrackBody({
+        ...base,
+        kind: ExternalSharesDatasetKind.Table,
+        validFrom: "TS",
+      }),
     ).toThrow("--kind Table");
   });
 
   test("Event needs --valid-from only", () => {
     expect(
-      buildTrackBody({ ...base, kind: "Event", validFrom: "TS" })
-        .validFromField,
+      buildTrackBody({
+        ...base,
+        kind: ExternalSharesDatasetKind.Event,
+        validFrom: "TS",
+      }).validFromField,
     ).toBe("TS");
-    expect(() => buildTrackBody({ ...base, kind: "Event" })).toThrow(
-      "--kind Event",
-    );
     expect(() =>
-      buildTrackBody({ ...base, kind: "Event", validFrom: "A", validTo: "B" }),
+      buildTrackBody({ ...base, kind: ExternalSharesDatasetKind.Event }),
+    ).toThrow("--kind Event");
+    expect(() =>
+      buildTrackBody({
+        ...base,
+        kind: ExternalSharesDatasetKind.Event,
+        validFrom: "A",
+        validTo: "B",
+      }),
     ).toThrow("--kind Event");
   });
 
   test("Interval needs both", () => {
     const body = buildTrackBody({
       ...base,
-      kind: "Interval",
+      kind: ExternalSharesDatasetKind.Interval,
       validFrom: "A",
       validTo: "B",
     });
     expect(body.validToField).toBe("B");
     expect(() =>
-      buildTrackBody({ ...base, kind: "Interval", validFrom: "A" }),
+      buildTrackBody({
+        ...base,
+        kind: ExternalSharesDatasetKind.Interval,
+        validFrom: "A",
+      }),
     ).toThrow("--kind Interval");
   });
 });
@@ -67,7 +89,12 @@ describe("parseSchemaMapping", () => {
   test("accepts an object and rejects other JSON", () => {
     expect(
       parseSchemaMapping('{"TS":{"type":"timestamp","conversion":"Direct"}}'),
-    ).toEqual({ TS: { type: "timestamp", conversion: "Direct" } });
+    ).toEqual({
+      TS: {
+        type: "timestamp",
+        conversion: ExternalSharesFieldMappingConversion.Direct,
+      },
+    });
     expect(() => parseSchemaMapping("[]")).toThrow("JSON object");
     expect(() => parseSchemaMapping("{")).toThrow("--schema-mapping");
   });

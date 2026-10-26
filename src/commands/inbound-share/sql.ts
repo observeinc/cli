@@ -1,4 +1,4 @@
-import type { SetupSqlStep } from "../../rest/inbound-share/types";
+import type { ExternalSharesSetupSqlStep } from "../../rest/generated";
 
 /** The placeholder the server uses in setup SQL for the customer's share. */
 export const SHARE_NAME_PLACEHOLDER = "<your_share_name>";
@@ -32,21 +32,34 @@ export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-/** Fill the share-name placeholder in server-provided SQL, when known. */
+/**
+ * Fill the share-name placeholder in server-provided SQL, when known. Inside a
+ * '...' string literal (e.g. SHOW SHARES LIKE) the name goes in without its
+ * double quotes and with any ' doubled.
+ */
 export function withShareName(
-  steps: SetupSqlStep[],
+  steps: ExternalSharesSetupSqlStep[],
   shareName: string | undefined,
-): SetupSqlStep[] {
+): ExternalSharesSetupSqlStep[] {
   if (!shareName) return steps;
+  const bare =
+    shareName.startsWith('"') && shareName.endsWith('"')
+      ? shareName.slice(1, -1)
+      : shareName;
+  const literal = `'${bare.replace(/'/g, "''")}'`;
   return steps.map((step) => ({
     description: step.description,
-    sql: step.sql.split(SHARE_NAME_PLACEHOLDER).join(shareName),
+    sql: step.sql
+      .split(`'${SHARE_NAME_PLACEHOLDER}'`)
+      .join(literal)
+      .split(SHARE_NAME_PLACEHOLDER)
+      .join(shareName),
   }));
 }
 
 export function writeSteps(
   write: (text: string) => void,
-  steps: SetupSqlStep[],
+  steps: ExternalSharesSetupSqlStep[],
   style: { bold: (s: string) => string; sql: (s: string) => string },
 ): void {
   steps.forEach((step, i) => {
