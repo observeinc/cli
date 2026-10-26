@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   celFuzzyContains,
   celHasCorrelationTag,
+  celMatchesInsensitive,
   combineFilters,
   escapeCelString,
 } from "./cel";
@@ -39,6 +40,47 @@ describe("escapeCelString", () => {
     expect(tokens).toContain('"a\\"');
     expect(tokens).toContain('"b\\"');
     expect(tokens).not.toContain('"a"');
+  });
+});
+
+describe("celMatchesInsensitive", () => {
+  test("escapes regex metacharacters so the term matches literally", () => {
+    // `\\.` in the emitted source; CEL unescapes it to `\.` for the regex.
+    expect(celMatchesInsensitive("name", "a.b*c")).toBe(
+      'name.matches("(?i)a\\\\.b\\\\*c")',
+    );
+  });
+
+  test("leaves ordinary strings untouched", () => {
+    expect(celMatchesInsensitive("name", "prod")).toBe(
+      'name.matches("(?i)prod")',
+    );
+  });
+
+  test("escapes quotes so they cannot terminate the CEL literal", () => {
+    // Regex-escaping alone leaves the `"` bare, which the API rejects with
+    // `Syntax error: mismatched input`.
+    expect(celMatchesInsensitive("name", 'a"b')).toBe(
+      'name.matches("(?i)a\\"b")',
+    );
+  });
+
+  test("neutralizes CEL injection payloads", () => {
+    const filter = celMatchesInsensitive(
+      "name",
+      '" && createdBy.id == 1 && name.matches("',
+    );
+    // Every quote from the payload stays escaped, so the whole term remains
+    // one string literal instead of closing it and appending clauses.
+    expect(filter.match(/(?<!\\)"/g)).toHaveLength(2);
+  });
+
+  test("double-escapes a backslash so the regex sees one literal backslash", () => {
+    // CEL unescapes `\\\\` to `\\`, which the regex engine reads as a literal
+    // backslash. A single pass would leave a dangling escape.
+    expect(celMatchesInsensitive("name", "a\\b")).toBe(
+      'name.matches("(?i)a\\\\\\\\b")',
+    );
   });
 });
 

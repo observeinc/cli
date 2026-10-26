@@ -43,9 +43,11 @@ src/
 │   │   ├── host/       # Host Explorer (install, view)
 │   │   ├── kubernetes/ # Kubernetes Explorer (install, view)
 │   │   └── tracing/    # Trace Explorer (install, view)
+│   ├── dashboard/      # Dashboard commands (list, view, create, update, delete) (experimental: gated + hidden)
 │   ├── dataset/        # Dataset commands (list, view)
 │   ├── datastream/     # Datastream commands (create, list, view, update)
 │   ├── docs/           # Documentation commands (search)
+│   ├── inbound-share/  # Snowflake inbound-share commands: setup, token, offers, register, shares, tables and their datasets (experimental: gated + hidden)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
@@ -66,6 +68,7 @@ src/
 │   └── gql-codegen.config.ts  # Codegen configuration
 ├── rest/               # REST API layer
 │   ├── generated/      # Auto-generated client (DO NOT EDIT)
+│   ├── dashboard/      # Dashboard list/get/create/update/delete wrappers
 │   ├── client.ts       # REST client factory
 │   └── config.yaml     # OpenAPI generator config
 └── lib/                # Shared utilities
@@ -330,6 +333,8 @@ bun run src/bin.ts content host install
 bun run src/bin.ts content kubernetes install
 bun run src/bin.ts tag list --match "host"
 bun run src/bin.ts tag-value list --match "checkout"
+bun run src/bin.ts dashboard list --match "kubernetes"
+bun run src/bin.ts dashboard view <dashboard-id> --json
 bun run src/bin.ts docs search "how do I create a monitor"
 bun run src/bin.ts query --input <dataset-id> --pipeline "limit 10"
 ```

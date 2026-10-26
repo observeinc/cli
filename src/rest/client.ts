@@ -2,9 +2,11 @@ import {
   SkillsApi,
   AlertApi,
   APMApi,
+  DashboardsApi,
   DatasetApi,
   DocumentationApi,
   ExportApi,
+  ExternalSharesApi,
   MetricsApi,
   MonitorMuteApi,
   MonitorApi,
@@ -20,12 +22,14 @@ export class ObserveRestSDK {
   public metricsApi: MetricsApi;
   public alertApi: AlertApi;
   public apmApi: APMApi;
+  public dashboardsApi: DashboardsApi;
   public monitorMuteApi: MonitorMuteApi;
   public monitorApi: MonitorApi;
   public tagsApi: TagsApi;
   public tagValuesApi: TagValuesApi;
   public skillsApi: SkillsApi;
   public documentationApi: DocumentationApi;
+  public externalSharesApi: ExternalSharesApi;
 
   constructor(_config: Config) {
     const config = createApiConfiguration(_config);
@@ -35,11 +39,13 @@ export class ObserveRestSDK {
     this.metricsApi = new MetricsApi(config);
     this.alertApi = new AlertApi(config);
     this.apmApi = new APMApi(config);
+    this.dashboardsApi = new DashboardsApi(config);
     this.monitorMuteApi = new MonitorMuteApi(config);
     this.monitorApi = new MonitorApi(config);
     this.tagsApi = new TagsApi(config);
     this.tagValuesApi = new TagValuesApi(config);
     this.skillsApi = new SkillsApi(config);
     this.documentationApi = new DocumentationApi(config);
+    this.externalSharesApi = new ExternalSharesApi(config);
   }
 }
