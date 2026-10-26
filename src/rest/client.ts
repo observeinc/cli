@@ -2,6 +2,7 @@ import {
   SkillsApi,
   AlertApi,
   APMApi,
+  DashboardsApi,
   DatasetApi,
   DocumentationApi,
   ExportApi,
@@ -21,6 +22,7 @@ export class ObserveRestSDK {
   public metricsApi: MetricsApi;
   public alertApi: AlertApi;
   public apmApi: APMApi;
+  public dashboardsApi: DashboardsApi;
   public monitorMuteApi: MonitorMuteApi;
   public monitorApi: MonitorApi;
   public tagsApi: TagsApi;
@@ -37,6 +39,7 @@ export class ObserveRestSDK {
     this.metricsApi = new MetricsApi(config);
     this.alertApi = new AlertApi(config);
     this.apmApi = new APMApi(config);
+    this.dashboardsApi = new DashboardsApi(config);
     this.monitorMuteApi = new MonitorMuteApi(config);
     this.monitorApi = new MonitorApi(config);
     this.tagsApi = new TagsApi(config);

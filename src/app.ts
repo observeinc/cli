@@ -8,6 +8,7 @@ import { datastreamTokenRoutes } from "./commands/datastream-token/index.js";
 import { authRoutes } from "./commands/auth/index.js";
 import { cliRoutes } from "./commands/cli/index.js";
 import { contentRoutes } from "./commands/content/index.js";
+import { dashboardRoutes } from "./commands/dashboard/index.js";
 import { datasetRoutes } from "./commands/dataset/index.js";
 import { datastreamRoutes } from "./commands/datastream/index.js";
 import { docsRoutes } from "./commands/docs/index.js";
@@ -48,6 +49,7 @@ export const routes = defineRoutes({
     "datastream-token": datastreamTokenRoutes,
     "inbound-share": inboundShareRoutes,
     docs: docsRoutes,
+    dashboard: dashboardRoutes,
     cli: cliRoutes,
   },
   defaultCommand: "help",
