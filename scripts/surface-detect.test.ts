@@ -18,8 +18,10 @@ import {
   coverageOf,
   detect,
   errorReason,
+  dumpFailureMarkdown,
+  isDumpFailure,
   loadCoverageIndex,
-  main,
+  MARKER,
   markdown,
   type Surface,
 } from "./surface-detect";
@@ -785,14 +787,24 @@ describe("baseCoverageIndex", () => {
   });
 });
 
-describe("main", () => {
-  test("exits 0 when a command tree cannot be dumped", () => {
-    const logErr = console.error;
-    console.error = () => undefined;
-    try {
-      expect(main(["--base", "no-such-rev"])).toBe(0);
-    } finally {
-      console.error = logErr;
-    }
+describe("dump failure", () => {
+  test("only run() dump errors are treated as advisory", () => {
+    expect(
+      isDumpFailure(
+        new Error("cannot load the command tree at HEAD^1: SyntaxError"),
+      ),
+    ).toBe(true);
+    expect(isDumpFailure(new Error("Command failed: git worktree add"))).toBe(
+      false,
+    );
+    expect(isDumpFailure(new TypeError("classify blew up"))).toBe(false);
+  });
+
+  test("the public comment uses MARKER and does not include the dump reason", () => {
+    const md = dumpFailureMarkdown();
+    expect(md.startsWith(MARKER)).toBe(true);
+    expect(md).toContain("Could not dump a command tree; see the run log.");
+    expect(md).not.toContain("cannot load the command tree");
+    expect(md).not.toContain("observeinc.com");
   });
 });

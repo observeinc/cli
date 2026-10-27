@@ -286,6 +286,21 @@ export function detect(base: string, head: string, cwd?: string): Surface[] {
 const MAX_ROWS = 20;
 export const MARKER = "<!-- observe-cli-surface-detect -->";
 
+const DUMP_FAIL = "cannot load the command tree";
+
+export function isDumpFailure(err: unknown): boolean {
+  return err instanceof Error && err.message.startsWith(DUMP_FAIL);
+}
+
+export function dumpFailureMarkdown(): string {
+  return [
+    MARKER,
+    "Could not dump a command tree; see the run log.",
+    "Coverage was not checked; the PR is not blocked.",
+    "",
+  ].join("\n");
+}
+
 export function indexKey(name: string): string {
   return `observe ${name}`;
 }
@@ -490,18 +505,12 @@ export function main(argv: string[]): number {
   try {
     surfaces = detect(base, head);
   } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    console.error(reason);
-    if (argv.includes("--markdown")) {
-      process.stdout.write(
-        [
-          "<!-- observe-cli-surface-detect -->",
-          `Could not dump a command tree (${reason}).`,
-          "Coverage was not checked; the PR is not blocked.",
-          "",
-        ].join("\n"),
-      );
-    }
+    if (!isDumpFailure(err)) throw err;
+    console.error(
+      (err instanceof Error ? err.message : String(err)).split("\n")[0],
+    );
+    if (argv.includes("--markdown"))
+      process.stdout.write(dumpFailureMarkdown());
     return 0;
   }
   const source = coverageIndexSource(argv);
