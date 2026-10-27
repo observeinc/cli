@@ -325,10 +325,10 @@ export function dumpFailureLog(err: unknown): string {
     };
     const stderr = asText(rec.stderr).trimEnd();
     if (stderr) lines.push(stderr);
-    else if (rec.signal != null && rec.signal !== "")
+    if (rec.signal != null && rec.signal !== "")
       lines.push(`signal ${asText(rec.signal)}`);
     else if (rec.status != null) lines.push(`exit ${asText(rec.status)}`);
-    else if (asText(rec.message)) lines.push(asText(rec.message));
+    else if (!stderr && asText(rec.message)) lines.push(asText(rec.message));
   }
   return lines.filter(Boolean).join("\n");
 }

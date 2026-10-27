@@ -833,4 +833,20 @@ describe("dump failure", () => {
     );
     expect(dumpFailureLog(err)).toContain("signal SIGKILL");
   });
+
+  test("a kill after stderr still names the signal", () => {
+    const err = new Error(
+      "cannot load the command tree at HEAD^1: unknown error",
+      {
+        cause: {
+          stderr: "warning: dropping color\n",
+          signal: "SIGKILL",
+          status: null,
+        },
+      },
+    );
+    const log = dumpFailureLog(err);
+    expect(log).toContain("warning: dropping color");
+    expect(log).toContain("signal SIGKILL");
+  });
 });
