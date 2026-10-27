@@ -322,12 +322,14 @@ export function dumpFailureLog(err: unknown): string {
       status?: unknown;
       signal?: unknown;
       message?: unknown;
+      code?: unknown;
     };
     const stderr = asText(rec.stderr).trimEnd();
     if (stderr) lines.push(stderr);
     if (rec.signal != null && rec.signal !== "")
       lines.push(`signal ${asText(rec.signal)}`);
     else if (rec.status != null) lines.push(`exit ${asText(rec.status)}`);
+    if (typeof rec.code === "string") lines.push(`code ${rec.code}`);
     else if (!stderr && asText(rec.message)) lines.push(asText(rec.message));
   }
   return lines.filter(Boolean).join("\n");

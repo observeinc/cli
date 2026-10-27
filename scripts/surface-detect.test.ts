@@ -834,6 +834,24 @@ describe("dump failure", () => {
     expect(dumpFailureLog(err)).toContain("signal SIGKILL");
   });
 
+  test("ENOBUFS is named even when stderr was already captured", () => {
+    const err = new Error(
+      "cannot load the command tree at HEAD^1: unknown error",
+      {
+        cause: {
+          stderr: "warning: dropping color\n",
+          signal: "SIGTERM",
+          status: null,
+          code: "ENOBUFS",
+        },
+      },
+    );
+    const log = dumpFailureLog(err);
+    expect(log).toContain("warning: dropping color");
+    expect(log).toContain("signal SIGTERM");
+    expect(log).toContain("code ENOBUFS");
+  });
+
   test("a kill after stderr still names the signal", () => {
     const err = new Error(
       "cannot load the command tree at HEAD^1: unknown error",
