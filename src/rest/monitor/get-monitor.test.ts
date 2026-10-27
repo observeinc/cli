@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Config } from "../../lib/config";
+import { MonitorHealth } from "../generated";
 import {
-  MonitorHealth,
   MonitorV2ActionType,
   MonitorV2RuleKind,
+  type Monitor,
   type MonitorV2ActionRule,
   type MonitorV2Scheduling,
-} from "../generated";
-import type { Monitor } from "./types";
+} from "./types";
 import { type ApiResponse, ResponseError } from "../generated/runtime";
 import {
   getMonitor,
@@ -26,7 +26,7 @@ function parsedMonitor(overrides: Partial<Monitor> = {}): Monitor {
     id: "41072994",
     name: "clone-config-parity",
     ruleKind: MonitorV2RuleKind.Threshold,
-    definition: {} as Monitor["definition"],
+    definition: {},
     ...overrides,
   };
 }

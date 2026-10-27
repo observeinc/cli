@@ -8,7 +8,7 @@ import {
   MonitorV2RuleKind,
   type MonitorV2ActionRule,
   type MonitorV2Definition,
-} from "../../rest/generated";
+} from "../../rest/monitor/types";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";

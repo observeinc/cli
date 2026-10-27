@@ -1,10 +1,67 @@
-import type {
-  MonitorHealth,
-  MonitorV2ActionRule,
-  MonitorV2Definition,
-  MonitorV2RuleKind,
-  MonitorV2Scheduling,
-} from "../generated";
+import type { MonitorHealth } from "../generated";
+
+/*
+ * Hand-written copies of the legacy `MonitorV2*` wire schemas.
+ *
+ * The CLI talks to the *unversioned* `/v1/monitors` endpoints, whose bodies the
+ * API documents as stable ("does not change"). Newer specs describe only the
+ * versioned shape (`MonitorCreateRequest` / `MonitorUpdateRequest` /
+ * `MonitorResource`) and no longer define these schemas, so a client generated
+ * from them has no export for any of the names below. Older specs still do,
+ * which is why these keep the legacy names. This is a deliberate exception to
+ * "use generated types directly".
+ *
+ * Remove them once the versioned request is enabled everywhere and the commands
+ * move to the generated types.
+ */
+
+export enum MonitorV2RuleKind {
+  Anomaly = "Anomaly",
+  Count = "Count",
+  Promote = "Promote",
+  Threshold = "Threshold",
+}
+
+export enum MonitorV2ActionType {
+  Email = "Email",
+  PagerDuty = "PagerDuty",
+  Slack = "Slack",
+  Webhook = "Webhook",
+}
+
+/** Passed through verbatim from `--file`; the CLI never reads inside it. */
+export type MonitorV2Definition = Record<string, unknown>;
+
+/** Only the fields the CLI reads are typed; the rest round-trips untouched. */
+export interface MonitorV2ActionRule {
+  actionId?: string;
+  definition?: {
+    type: MonitorV2ActionType;
+    inline?: boolean;
+    name?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface MonitorV2Scheduling {
+  transform?: { freshnessGoal?: string | number };
+  scheduled?: {
+    cronConfig?: string;
+    timezone: string;
+    alarmMode?: "PerRun" | "Ongoing";
+  };
+}
+
+/** Body of the unversioned `PATCH /v1/monitors/{id}`. */
+export interface MonitorV2PatchRequest {
+  name?: string;
+  description?: string;
+  disabled?: boolean;
+  ruleKind?: MonitorV2RuleKind;
+  definition?: MonitorV2Definition;
+  actionRules?: MonitorV2ActionRule[];
+}
 
 /**
  * The monitor body returned by the *unversioned* `/v1/monitors` endpoints,
