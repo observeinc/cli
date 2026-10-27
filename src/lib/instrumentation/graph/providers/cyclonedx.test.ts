@@ -62,4 +62,47 @@ describe("CycloneDX provider", () => {
     expect(graph.diagnostics).toHaveLength(2);
     expect(runtimeClosure(graph)[0]?.node.name).toBe("fastapi");
   });
+
+  test("accepts the root component repeated in components, as cdxgen writes it", () => {
+    const root = {
+      type: "application",
+      name: "app",
+      version: "1.0-SNAPSHOT",
+      purl: "pkg:maven/org.example/app@1.0-SNAPSHOT?type=pom",
+      "bom-ref": "pkg:maven/org.example/app@1.0-SNAPSHOT?type=pom",
+    };
+    const graph = parseCycloneDx({
+      bomFormat: "CycloneDX",
+      specVersion: "1.6",
+      metadata: { component: root },
+      components: [
+        root,
+        {
+          type: "library",
+          name: "hibernate-core",
+          version: "7.2.4.Final",
+          purl: "pkg:maven/org.hibernate.orm/hibernate-core@7.2.4.Final",
+          "bom-ref": "hibernate",
+        },
+      ],
+      dependencies: [{ ref: root["bom-ref"], dependsOn: ["hibernate"] }],
+    });
+    expect(graph.roots).toEqual([root.purl]);
+    expect(runtimeClosure(graph).map((item) => item.node.name)).toEqual([
+      "hibernate-core",
+    ]);
+  });
+
+  test("still rejects two different components sharing a bom-ref", () => {
+    expect(() =>
+      parseCycloneDx({
+        bomFormat: "CycloneDX",
+        specVersion: "1.6",
+        components: [
+          { name: "a", version: "1.0", "bom-ref": "dup" },
+          { name: "b", version: "2.0", "bom-ref": "dup" },
+        ],
+      }),
+    ).toThrow("Duplicate CycloneDX bom-ref: dup");
+  });
 });

@@ -70,4 +70,157 @@ describe("npm arborist graph", () => {
     const api = candidate.dependencies.find((item) => item.name === "api");
     expect(api?.depth).toBe(1);
   });
+
+  const workspace = {
+    "package.json": { name: "mono", workspaces: ["apps/*"] },
+    "apps/api/package.json": {
+      name: "api",
+      version: "1.0.0",
+      scripts: { start: "node index.js" },
+      dependencies: { express: "^4.18.0" },
+    },
+    "tools/report/package.json": {
+      name: "report",
+      scripts: { start: "node index.js" },
+      dependencies: { express: "^4.18.0" },
+    },
+    "package-lock.json": {
+      name: "mono",
+      lockfileVersion: 3,
+      requires: true,
+      packages: {
+        "": { name: "mono", workspaces: ["apps/*"] },
+        "node_modules/api": { resolved: "apps/api", link: true },
+        "node_modules/express": { version: "4.18.2" },
+        "apps/api": {
+          name: "api",
+          version: "1.0.0",
+          dependencies: { express: "^4.18.0" },
+        },
+      },
+    },
+  };
+
+  test("a workspace member takes its graph from the root lockfile", async () => {
+    const snapshot = createProjectSnapshot({ targetPath: fixture(workspace) });
+    const candidate = detectApplications(snapshot).candidates.find(
+      (item) => item.path === "apps/api",
+    )!;
+    const graph = await buildNpmArboristGraph({ candidate, snapshot });
+    expect(graph?.completeness).toBe("resolved-graph");
+    expect(graph?.provenance.path).toBe("package-lock.json");
+    applyGraph({ candidate, graph: graph! });
+    expect(
+      candidate.dependencies.find((item) => item.name === "express")
+        ?.resolvedVersion,
+    ).toBe("4.18.2");
+  });
+
+  test("a directory the root lockfile does not install keeps its declared versions", async () => {
+    const snapshot = createProjectSnapshot({ targetPath: fixture(workspace) });
+    const candidate = detectApplications(snapshot).candidates.find(
+      (item) => item.path === "tools/report",
+    )!;
+    expect(await buildNpmArboristGraph({ candidate, snapshot })).toBeNull();
+    const express = candidate.dependencies.find(
+      (item) => item.name === "express",
+    );
+    expect(express?.version).toBe("^4.18.0");
+    expect(express?.resolvedVersion).toBeUndefined();
+    expect(candidate.diagnostics).toEqual([]);
+  });
+
+  test("an app's own unreadable lockfile is reported once", async () => {
+    const snapshot = createProjectSnapshot({
+      targetPath: fixture({
+        "package.json": {
+          name: "app",
+          scripts: { start: "node index.js" },
+          dependencies: { express: "^4.18.0" },
+        },
+        "package-lock.json": "{ not json",
+      }),
+    });
+    const [candidate] = detectApplications(snapshot).candidates;
+    expect(
+      await buildNpmArboristGraph({ candidate: candidate!, snapshot }),
+    ).toBeNull();
+    expect(
+      candidate!.diagnostics.filter(
+        (diagnostic) => diagnostic.code === "LOCKFILE_UNPARSEABLE",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("an app with its own yarn.lock ignores the npm workspace lockfile", async () => {
+    const snapshot = createProjectSnapshot({
+      targetPath: fixture({
+        ...workspace,
+        "package-lock.json": "{ not json",
+        "apps/api/yarn.lock": [
+          "# yarn lockfile v1",
+          "",
+          "express@^4.18.0:",
+          '  version "4.18.2"',
+        ].join("\n"),
+      }),
+    });
+    const candidate = detectApplications(snapshot).candidates.find(
+      (item) => item.path === "apps/api",
+    )!;
+    expect(await buildNpmArboristGraph({ candidate, snapshot })).toBeNull();
+    expect(candidate.diagnostics).toEqual([]);
+    expect(
+      candidate.dependencies.find((item) => item.name === "express"),
+    ).toMatchObject({ resolvedVersion: "4.18.2", sourceKind: "lockfile" });
+  });
+
+  test("an app's own package-lock.json is used even with a yarn.lock beside it", async () => {
+    const snapshot = createProjectSnapshot({
+      targetPath: fixture({
+        "package.json": {
+          name: "app",
+          scripts: { start: "node index.js" },
+          dependencies: { express: "^4.18.0" },
+        },
+        "package-lock.json": {
+          name: "app",
+          lockfileVersion: 3,
+          requires: true,
+          packages: {
+            "": { name: "app", dependencies: { express: "^4.18.0" } },
+            "node_modules/express": { version: "4.18.2" },
+          },
+        },
+        "yarn.lock": [
+          "# yarn lockfile v1",
+          "",
+          "express@^4.18.0:",
+          '  version "4.18.2"',
+        ].join("\n"),
+      }),
+    });
+    const [candidate] = detectApplications(snapshot).candidates;
+    const graph = await buildNpmArboristGraph({
+      candidate: candidate!,
+      snapshot,
+    });
+    expect(graph?.completeness).toBe("resolved-graph");
+    expect(graph?.provenance.path).toBe("package-lock.json");
+  });
+
+  test("an unreadable workspace lockfile is reported, not skipped silently", async () => {
+    const snapshot = createProjectSnapshot({
+      targetPath: fixture({ ...workspace, "package-lock.json": "{ not json" }),
+    });
+    const candidate = detectApplications(snapshot).candidates.find(
+      (item) => item.path === "apps/api",
+    )!;
+    expect(await buildNpmArboristGraph({ candidate, snapshot })).toBeNull();
+    expect(
+      candidate.diagnostics.find(
+        (diagnostic) => diagnostic.code === "LOCKFILE_UNPARSEABLE",
+      ),
+    ).toMatchObject({ severity: "warning", path: "package-lock.json" });
+  });
 });

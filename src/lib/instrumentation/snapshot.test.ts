@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createProjectSnapshot } from "./snapshot";
@@ -103,6 +109,25 @@ describe("createProjectSnapshot", () => {
         snapshot.files.find((file) => file.path === path)?.content,
       ).toBeUndefined();
   });
+
+  test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "reports an unreadable directory instead of skipping it silently",
+    () => {
+      const root = fixture({ "locked/package.json": "{}", "ok.txt": "" });
+      const locked = join(root, "locked");
+      chmodSync(locked, 0o000);
+      try {
+        const snapshot = createProjectSnapshot({ targetPath: root });
+        const unreadable = snapshot.diagnostics.find(
+          (diagnostic) => diagnostic.code === "DIRECTORY_UNREADABLE",
+        );
+        expect(unreadable).toMatchObject({ severity: "error", path: "locked" });
+        expect(unreadable?.message).toContain("--exclude locked");
+      } finally {
+        chmodSync(locked, 0o755);
+      }
+    },
+  );
 
   test("reports an actionable scan-limit diagnostic", () => {
     const root = fixture({ "a.txt": "", "b.txt": "", "c.txt": "" });

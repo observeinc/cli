@@ -9,6 +9,7 @@ import {
   type DependencyEdge,
 } from "./types";
 import { runNativeResolver, type NativeRunResult } from "./native-runner";
+import { SBOM_COMMAND } from "./providers/cyclonedx";
 
 /**
  * Outcome of `--resolve` for one candidate: a graph, or the reason there is
@@ -54,43 +55,10 @@ function resolved(graph: DependencyGraph | null, tool: string) {
     : { graph };
 }
 
-const cargoMetadata = z.object({
-  packages: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      version: z.string(),
-      source: z.string().nullish(),
-      manifest_path: z.string(),
-    }),
-  ),
-  workspace_members: z.array(z.string()),
-  resolve: z
-    .object({
-      root: z.string().nullable(),
-      nodes: z.array(
-        z.object({
-          id: z.string(),
-          deps: z.array(
-            z.object({
-              pkg: z.string(),
-              dep_kinds: z.array(
-                z.object({
-                  kind: z.string().nullable(),
-                  target: z.string().nullish(),
-                }),
-              ),
-            }),
-          ),
-        }),
-      ),
-    })
-    .nullable(),
-});
-
 const goPackage = z.object({
   ImportPath: z.string(),
   Name: z.string().optional(),
+  Standard: z.boolean().optional(),
   Imports: z.array(z.string()).default([]),
   Module: z
     .object({
@@ -111,8 +79,6 @@ export function resolveNative({
   run?: typeof runNativeResolver;
 }): NativeResolution | null {
   switch (candidate.language.id) {
-    case "rust":
-      return cargoGraph(candidate, snapshot, run);
     case "go":
       return goGraph(candidate, snapshot, run);
     case "java":
@@ -120,93 +86,20 @@ export function resolveNative({
       // .mvn/jvm.config, POM plugins, build scripts) before resolving anything.
       return failure(
         "resolution",
-        "does not run Java build tools; pass --sbom with a CycloneDX file from your build (cyclonedx-maven-plugin or the CycloneDX Gradle plugin) for the full graph",
+        `does not run Java build tools; for the full graph, generate a CycloneDX SBOM (${SBOM_COMMAND}, or the CycloneDX Maven or Gradle plugin) and pass it with --app <id> --sbom bom.json`,
+        "info",
+      );
+    case "rust":
+      // cargo runs the rustc wrapper and toolchain the repository configures,
+      // and Rust is instrumented manually, so a graph would change no verdict.
+      return failure(
+        "resolution",
+        "does not run cargo; Rust is instrumented manually with the OpenTelemetry SDK",
         "info",
       );
     default:
       return null;
   }
-}
-
-function cargoGraph(
-  candidate: CandidateApplication,
-  snapshot: ProjectSnapshot,
-  run: typeof runNativeResolver,
-) {
-  const cwd = join(snapshot.root, candidate.path === "." ? "" : candidate.path);
-  const result = run({
-    executable: "cargo",
-    args: ["metadata", "--locked", "--offline", "--format-version", "1"],
-    cwd,
-    root: snapshot.root,
-  });
-  if (result.status !== 0)
-    return runFailure(
-      "cargo metadata",
-      result,
-      "Commit Cargo.lock and fetch dependencies (cargo fetch) so offline resolution succeeds",
-    );
-  const parsed = cargoMetadata.safeParse(parseJson(result.stdout));
-  if (!parsed.success) return resolved(null, "cargo metadata");
-  const metadata = parsed.data;
-  const nodes = new Map<string, PackageNode>();
-  const idMap = new Map<string, string>();
-  for (const pkg of metadata.packages) {
-    const id = packageId({
-      ecosystem: "cargo",
-      name: pkg.name,
-      version: pkg.version,
-      source: {
-        kind: pkg.source ? "registry" : "workspace",
-        location: pkg.source ?? pkg.manifest_path,
-      },
-    });
-    idMap.set(pkg.id, id);
-    nodes.set(id, {
-      id,
-      name: pkg.name,
-      version: pkg.version,
-      purl: `pkg:cargo/${pkg.name}@${pkg.version}`,
-      source: {
-        kind: pkg.source ? "registry" : "workspace",
-        location: pkg.source ?? pkg.manifest_path,
-      },
-      workspace: !pkg.source,
-    });
-  }
-  const edges: DependencyEdge[] = (metadata.resolve?.nodes ?? []).flatMap(
-    (node) =>
-      node.deps.flatMap((dep) =>
-        dep.dep_kinds.flatMap((kind) => {
-          const from = idMap.get(node.id);
-          const to = idMap.get(dep.pkg);
-          return from && to
-            ? [
-                {
-                  from,
-                  to,
-                  kind:
-                    kind.kind === "dev"
-                      ? ("development" as const)
-                      : kind.kind === "build"
-                        ? ("build" as const)
-                        : ("runtime" as const),
-                  optional: false,
-                  condition: kind.target ?? undefined,
-                },
-              ]
-            : [];
-        }),
-      ),
-  );
-  const rootId = metadata.resolve?.root ?? metadata.workspace_members[0];
-  const root = rootId == null ? undefined : idMap.get(rootId);
-  return resolved(
-    root
-      ? graph("cargo-metadata", "Cargo.toml", root, nodes, edges, "cargo")
-      : null,
-    "cargo metadata",
-  );
 }
 
 function goGraph(
@@ -229,7 +122,9 @@ function goGraph(
     );
   const parsed = z.array(goPackage).safeParse(parseJsonStream(result.stdout));
   if (!parsed.success) return resolved(null, "go list");
-  const packages = parsed.data;
+  // Standard-library packages (fmt, os, internal/...) belong to the toolchain,
+  // not the module graph.
+  const packages = parsed.data.filter((pkg) => pkg.Standard !== true);
   const nodes = new Map<string, PackageNode>();
   const ids = new Map<string, string>();
   for (const pkg of packages) {

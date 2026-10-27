@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { delimiter, isAbsolute, join, relative } from "node:path";
 
-const ALLOWED = new Set(["cargo", "go"]);
+const ALLOWED = new Set(["go"]);
 
 /**
  * The only variables a resolver inherits. Anything else in the user's or CI
@@ -32,9 +32,6 @@ const INHERITED_ENV = [
   "GOPATH",
   "GOMODCACHE",
   "GOCACHE",
-  "CARGO_HOME",
-  "RUSTUP_HOME",
-  "RUSTUP_TOOLCHAIN",
 ];
 
 export interface NativeRunResult {
@@ -53,7 +50,7 @@ export function runNativeResolver({
   root,
   timeoutMs = 30_000,
 }: {
-  executable: "cargo" | "go";
+  executable: "go";
   args: string[];
   cwd: string;
   /** Project root; an executable found inside it is refused. */
@@ -78,7 +75,6 @@ export function runNativeResolver({
       GOSUMDB: "off",
       GOTOOLCHAIN: "local",
       GOFLAGS: "-mod=readonly",
-      CARGO_NET_OFFLINE: "true",
     },
   });
   const after = repositoryFingerprint(cwd);

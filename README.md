@@ -119,24 +119,43 @@ The scan skips hidden directories and common build/dependency output
 (`node_modules`, `target`, `dist`, ...). Skip other directories with
 `--exclude <dir>` (repeatable, relative to the project). Source files are read
 only when a detector inspects them.
+
+`--app <id>` audits one application, using an id from the table's APPLICATION
+column. An id is the application's directory (`services/web`), plus the target
+for Bazel and CMake binaries (`cmd/encoder:encoder`). Applications sharing a
+directory are told apart by language (`web:python`, `web:nodejs`), then by
+project file (`app:Api.csproj`). With `--app`, only diagnostics from that
+application's directory are shown. A mistyped id lists the ids that contain
+what was typed.
+
+When an application declares no runtime version, the audit reads version files
+(`.nvmrc`, `.node-version`, `.python-version`, `.ruby-version`, `.java-version`,
+`.tool-versions`) from its directory and then from parent directories, the way
+the version managers do. Bazel Java and Python targets use the workspace's
+`.bazelrc` (`--java_runtime_version`) and `MODULE.bazel` (`python.toolchain`).
+
 `observe instrumentation audit --sbom <file>` audits a CycloneDX SBOM directly,
 independent of any project on disk: the runtime is inferred from the component
 purls and the application is built from the SBOM. Add `--app <id>` to instead
 use the SBOM as a detected application's dependency graph, in which case an
-empty or incomplete SBOM cannot erase that app's declared dependencies.
+empty or incomplete SBOM cannot erase that app's declared dependencies, and
+runtime-provided framework references such as ASP.NET Core are always kept.
 Inventory-only SBOMs do not establish which dependencies are direct runtime
-dependencies.
+dependencies. The JSON result records the SBOM's SHA-256. To generate one for
+any ecosystem, run `npx @cyclonedx/cdxgen -o bom.json` in the application
+directory.
 
 The unused `--offline` flag has been removed: the built-in check is always
-offline. `--resolve` explicitly runs `cargo metadata` and `go list` in their
-locked offline modes; this is not an OS network sandbox. Resolvers receive only
-an allowlisted set of environment variables (`PATH`, home and temp
-directories, and Go/Cargo cache locations), never secrets from the calling
-shell or CI job, and run only from an absolute `PATH` location outside the
+offline. `--resolve` explicitly runs `go list` in its locked offline mode;
+this is not an OS network sandbox. The resolver receives only an allowlisted
+set of environment variables (`PATH`, home and temp directories, and Go cache
+locations), never secrets from the calling
+shell or CI job, and runs only from an absolute `PATH` location outside the
 project. Use `--resolve` only on repositories you trust. Java build tools are
 never run, because Maven and Gradle execute repository-controlled code before
 resolving dependencies; pass `--sbom` with a CycloneDX file from your build
-instead. When a resolver cannot run or fails, the application carries a
+instead. Rust dependencies are not resolved: Rust is instrumented manually and
+no Rust libraries are cataloged, so its graph would change no verdict. When a resolver cannot run or fails, the application carries a
 `RESOLVE_FAILED` diagnostic with the reason. Without a dependency graph (a `package-lock.json`,
 `pnpm-lock.yaml`, `uv.lock`, `--sbom`, or `--resolve`), only declared
 dependencies are assessed and the application gets an OTEL031 info finding.

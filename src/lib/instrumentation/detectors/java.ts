@@ -112,9 +112,8 @@ export function detectJava(snapshot: ProjectSnapshot) {
         return null;
       return createCandidate({
         directory,
-        idSuffix: posix.basename(manifest.path),
         name:
-          /<artifactId>([^<]+)<\/artifactId>/.exec(content)?.[1] ??
+          projectArtifactId(content) ??
           posix.basename(directory === "." ? snapshot.root : directory),
         language: "java",
         runtime: "jvm",
@@ -141,6 +140,20 @@ const FRAMEWORK_COORDINATES: [string, RegExp][] = [
   ["quarkus", /io\.quarkus|quarkus-/],
   ["micronaut", /io\.micronaut|\bmicronaut[.-]/],
 ];
+
+/**
+ * The POM's own artifactId. The parent, dependencies, and plugins carry
+ * artifactIds too, and `<parent>` usually precedes the project's.
+ */
+function projectArtifactId(content: string) {
+  const own = content
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(
+      /<(parent|dependencies|dependencyManagement|build|reporting|profiles)\b[^>]*>[\s\S]*?<\/\1>/gi,
+      "",
+    );
+  return /<artifactId>([^<]+)<\/artifactId>/.exec(own)?.[1]?.trim();
+}
 
 /** A Gradle build that produces build logic (convention plugins), not an app. */
 function isGradleBuildLogic(content: string) {

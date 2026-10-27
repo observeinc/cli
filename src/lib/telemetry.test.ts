@@ -129,9 +129,9 @@ describe("commandNameFromArgv", () => {
 describe("redactArgv", () => {
   for (const argumentsAfterCommand of [
     ["audit", "--resolve", "/home/private/project"],
-    ["audit", "--app", "nodejs:private", "/home/private/project"],
+    ["audit", "--app", "apps/private", "/home/private/project"],
     ["audit", "/home/private/project"],
-    ["audit", "--app=nodejs:private", "--", "-private"],
+    ["audit", "--app=apps/private", "--", "-private"],
     ["audit", "--exclude", "private/legacy", "/home/private/project"],
     ["audit", "--exclude=private/legacy", "/home/private/project"],
     [

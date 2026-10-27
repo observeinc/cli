@@ -30,6 +30,7 @@ export function detectRuby(snapshot: ProjectSnapshot) {
         name: posix.basename(directory === "." ? snapshot.root : directory),
         language: "ruby",
         runtime: "ruby",
+        version: gemfileRubyVersion(content),
         packageManager: {
           id: "bundler",
           lockfile: lockfile ? "Gemfile.lock" : undefined,
@@ -52,6 +53,18 @@ export function detectRuby(snapshot: ProjectSnapshot) {
       });
     })
     .filter((candidate) => candidate != null);
+}
+
+/**
+ * The Gemfile `ruby` directive, only when it pins an exact version. A
+ * constraint (`~> 3.2`) is left out so `.ruby-version` and the other version
+ * files, which usually hold the pin, are read instead.
+ */
+function gemfileRubyVersion(content: string) {
+  const declared = /^\s*ruby\s+["']([^"']+)["']/m.exec(content)?.[1]?.trim();
+  return declared != null && /^\d+(\.\d+)*$/.test(declared)
+    ? declared
+    : undefined;
 }
 
 /** Bundler groups that never load in a production process. */

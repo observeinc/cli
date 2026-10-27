@@ -7,7 +7,8 @@ import {
   type DependencyGraph,
   type PackageNode,
 } from "../types";
-import { fileAt } from "../../file-index";
+import { fileAt, joinPath, nearestAncestorFile } from "../../file-index";
+import type { SnapshotFile } from "../../snapshot";
 
 interface ArboristEdge {
   name: string;
@@ -26,32 +27,82 @@ interface ArboristNode {
   inventory: Map<string, ArboristNode>;
 }
 
+/**
+ * npm writes one lockfile at the workspace root, so a member's graph comes from
+ * the nearest ancestor lockfile. Each lockfile is loaded once per snapshot.
+ */
+const trees = new WeakMap<SnapshotFile, Promise<ArboristNode>>();
+
+/** An app with one of these is managed by another tool, not the npm workspace. */
+const OTHER_LOCKFILES = [
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "bun.lock",
+  "bun.lockb",
+];
+
+function nearestLockfile({ candidate, snapshot }: GraphBuildInput) {
+  const own = fileAt(
+    snapshot.files,
+    joinPath(candidate.path, "package-lock.json"),
+  );
+  if (own != null) return own;
+  const otherTool = OTHER_LOCKFILES.some(
+    (name) => fileAt(snapshot.files, joinPath(candidate.path, name)) != null,
+  );
+  return otherTool
+    ? undefined
+    : nearestAncestorFile(snapshot.files, candidate.path, [
+        "package-lock.json",
+      ]);
+}
+
 export const npmArboristProvider = {
   id: "npm-arborist",
-  supports({ candidate, snapshot }: GraphBuildInput) {
+  supports(input: GraphBuildInput) {
     return (
-      candidate.language.id === "nodejs" &&
-      fileAt(snapshot.files, local(candidate.path, "package-lock.json")) != null
+      input.candidate.language.id === "nodejs" && nearestLockfile(input) != null
     );
   },
-  async build({ candidate, snapshot }: GraphBuildInput) {
-    const lock = fileAt(
-      snapshot.files,
-      local(candidate.path, "package-lock.json"),
-    );
+  async build(input: GraphBuildInput) {
+    const { candidate, snapshot } = input;
+    const lock = nearestLockfile(input);
     if (lock == null) return null;
-    try {
+    const lockDirectory = posix.dirname(lock.path);
+    let tree = trees.get(lock);
+    if (tree == null) {
       const absolute =
-        snapshot.root === "/"
-          ? `/${candidate.path}`
-          : posix.join(
-              snapshot.root,
-              candidate.path === "." ? "" : candidate.path,
-            );
-      const tree = (await new Arborist({
+        lockDirectory === "."
+          ? snapshot.root
+          : posix.join(snapshot.root, lockDirectory);
+      tree = new Arborist({
         path: absolute,
-      }).loadVirtual()) as ArboristNode;
-      return fromArborist(tree, lock.path);
+      }).loadVirtual() as Promise<ArboristNode>;
+      trees.set(lock, tree);
+    }
+    let loaded: ArboristNode;
+    try {
+      loaded = await tree;
+    } catch {
+      // Detection already reports the app's own lockfile; only a shared
+      // ancestor's is new here.
+      if (lockDirectory !== candidate.path)
+        candidate.diagnostics.push({
+          code: "LOCKFILE_UNPARSEABLE",
+          severity: "warning",
+          message: `Could not parse ${lock.path}; falling back to declared version ranges`,
+          path: lock.path,
+        });
+      return null;
+    }
+    // A directory the lockfile does not install (outside the workspace) has
+    // no node; it keeps its declared dependencies instead of another graph.
+    const rootLocation = posix.relative(
+      lockDirectory === "." ? "" : lockDirectory,
+      candidate.path === "." ? "" : candidate.path,
+    );
+    try {
+      return fromArborist(loaded, lock.path, rootLocation);
     } catch {
       return null;
     }
@@ -63,7 +114,11 @@ export async function buildNpmArboristGraph(input: GraphBuildInput) {
   return npmArboristProvider.build(input);
 }
 
-function fromArborist(tree: ArboristNode, path: string): DependencyGraph {
+function fromArborist(
+  tree: ArboristNode,
+  path: string,
+  rootLocation: string,
+): DependencyGraph | null {
   const nodes = new Map<string, PackageNode>();
   const idByLocation = new Map<string, string>();
   const inventory = [...tree.inventory.values()];
@@ -122,8 +177,8 @@ function fromArborist(tree: ArboristNode, path: string): DependencyGraph {
       });
     }
   }
-  const root = idByLocation.get(tree.location);
-  if (root == null) throw new Error("Arborist graph has no root");
+  const root = idByLocation.get(rootLocation);
+  if (root == null) return null;
   return {
     roots: [root],
     nodes,
@@ -147,8 +202,4 @@ function edgeKind(type: ArboristEdge["type"]) {
     case "prod":
       return "runtime" as const;
   }
-}
-
-function local(directory: string, basename: string) {
-  return directory === "." ? basename : `${directory}/${basename}`;
 }

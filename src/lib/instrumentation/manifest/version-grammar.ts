@@ -40,10 +40,12 @@ function stripLeadingV(token: string) {
 
 /**
  * Translate an ecosystem-native declared spec into the full semver range it
- * admits. A bare version is treated as exact for every ecosystem: Maven and
- * NuGet resolve a bare `3.5.0` to exactly that version in practice, and a
- * lockfile-resolved version is always exact. Returns null when the spec cannot
- * be expressed as a semver range.
+ * admits. A bare full version is treated as exact for every ecosystem: Maven
+ * and NuGet resolve a bare `3.5.0` to exactly that version in practice, and a
+ * lockfile-resolved version is always exact. A bare partial version (`5.0`) is
+ * also exact on PyPI, RubyGems, Composer, Maven and NuGet, while npm reads it
+ * as an X-range (`5` is `5.x`). Returns null when the spec cannot be expressed
+ * as a semver range.
  */
 export function declaredToSemverRange(
   ecosystem: Ecosystem,
@@ -52,8 +54,28 @@ export function declaredToSemverRange(
   const raw = declared.trim();
   if (raw.length === 0) return null;
 
+  // Semver would read `33.0.0-jre` or `4.0.0-final` as a pre-release, which
+  // sorts below the release it names.
+  if (
+    (ecosystem === "maven" || ecosystem === "nuget") &&
+    MAVEN_VERSION.test(raw)
+  ) {
+    const release = semver.coerce(stripLeadingV(raw), { loose: true });
+    if (release != null) return `=${release.version}`;
+  }
+
   const exact = semver.valid(stripLeadingV(raw), { loose: true });
   if (exact != null) return `=${exact}`;
+
+  if (
+    (ecosystem === "pypi" ||
+      ecosystem === "gems" ||
+      ecosystem === "composer") &&
+    /^v?\d+(?:\.\d+)?$/.test(raw)
+  ) {
+    const partial = semver.coerce(stripLeadingV(raw), { loose: true });
+    if (partial != null) return `=${partial.version}`;
+  }
 
   let candidate: string | null;
   switch (ecosystem) {
@@ -62,11 +84,23 @@ export function declaredToSemverRange(
       candidate = raw;
       break;
     case "cargo":
-    case "composer":
       candidate = raw
         .split(",")
         .map((part) => part.trim())
         .join(" ");
+      break;
+    case "composer":
+      // Composer's `~X.Y` allows up to the next major (`>=X.Y <X+1`), where
+      // semver's stops at the next minor; `~X` and `~X.Y.Z` agree.
+      candidate = raw
+        .split(",")
+        .map((part) => part.trim())
+        .join(" ")
+        .replace(
+          /~\s*(\d+)\.(\d+)(?![\d.])/g,
+          (_, major: string, minor: string) =>
+            `>=${major}.${minor}.0 <${Number(major) + 1}.0.0-0`,
+        );
       break;
     case "gomod":
       candidate = raw
@@ -108,6 +142,16 @@ export function declaredToSemverRange(
   return null;
 }
 
+/**
+ * A Maven / NuGet release version: numeric segments (NuGet allows a fourth)
+ * plus an optional release qualifier (`4.1.100.Final`, `5.3.9.RELEASE`),
+ * which semver coercion drops. Pre-release qualifiers
+ * (`-RC1`, `-SNAPSHOT`, `.M2`) are not matched, so they stay unknown rather
+ * than being compared as the final release.
+ */
+const MAVEN_VERSION =
+  /^v?\d+(?:\.\d+)*(?:[.-](?:final|release|ga|jre|android))?$/i;
+
 interface BracketRange {
   floor?: string;
   ceilingExclusive?: string;
@@ -125,7 +169,7 @@ function parseBracketRange(raw: string): BracketRange | null {
     value,
   );
   if (interval == null) {
-    if (!/^v?\d+(?:\.\d+){0,2}$/.test(value)) return null;
+    if (!MAVEN_VERSION.test(value)) return null;
     const bare = semver.coerce(stripLeadingV(value), { loose: true });
     return bare == null ? null : { floor: bare.version };
   }
@@ -135,7 +179,7 @@ function parseBracketRange(raw: string): BracketRange | null {
       (bound) =>
         bound != null &&
         bound.trim() !== "" &&
-        !/^v?\d+(?:\.\d+){0,2}$/.test(bound.trim()),
+        !MAVEN_VERSION.test(bound.trim()),
     )
   )
     return null;
@@ -340,7 +384,14 @@ export function normalizeRuntimeVersion(
     }
     const tfm = /^net(?:coreapp)?(\d+)\.(\d+)(?:-[A-Za-z0-9.]+)?$/i.exec(raw);
     if (tfm != null) return `${tfm[1]}.${tfm[2]}.0`;
-    if (/^net\d{2,3}$/i.test(raw) || /^netstandard/i.test(raw)) return null;
+    // .NET Framework TFMs are dotless: net48 is 4.8, net472 is 4.7.2.
+    const framework = /^net(\d)(\d)(\d)?$/i.exec(raw);
+    if (framework != null)
+      return `${framework[1]}.${framework[2]}.${framework[3] ?? "0"}`;
+    // Legacy project <TargetFrameworkVersion>: v4.8, v4.7.2.
+    const legacy = /^v(\d+)\.(\d+)(?:\.(\d+))?$/i.exec(raw);
+    if (legacy != null) return `${legacy[1]}.${legacy[2]}.${legacy[3] ?? "0"}`;
+    if (/^netstandard/i.test(raw)) return null;
   }
   if (runtime === "java") {
     const legacy = /^1\.(\d+)(?:\.\d+)?(?:_\d+)?$/.exec(raw);

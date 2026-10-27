@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { resolveNative } from "./native-providers";
+import { SBOM_COMMAND } from "./providers/cyclonedx";
 import type { CandidateApplication } from "../types";
 import type { ProjectSnapshot } from "../snapshot";
 
 const candidate: CandidateApplication = {
-  id: "go:.",
+  id: ".",
   path: ".",
   name: "app",
   language: { id: "go" },
@@ -38,18 +39,15 @@ const snapshot: ProjectSnapshot = {
 };
 
 describe("native resolver parsing", () => {
-  test.each(["rust", "go"] as const)(
-    "%s reports malformed output instead of a graph",
-    (language) => {
-      const resolution = resolveNative({
-        candidate: { ...candidate, language: { id: language } },
-        snapshot,
-        run: () => ({ stdout: "{invalid}", stderr: "", status: 0 }),
-      });
-      expect(resolution?.graph).toBeNull();
-      expect(resolution?.diagnostic?.code).toBe("RESOLVE_FAILED");
-    },
-  );
+  test("go reports malformed output instead of a graph", () => {
+    const resolution = resolveNative({
+      candidate: { ...candidate, language: { id: "go" } },
+      snapshot,
+      run: () => ({ stdout: "{invalid}", stderr: "", status: 0 }),
+    });
+    expect(resolution?.graph).toBeNull();
+    expect(resolution?.diagnostic?.code).toBe("RESOLVE_FAILED");
+  });
 
   test("a resolver that cannot run explains why", () => {
     const resolution = resolveNative({
@@ -83,7 +81,7 @@ describe("native resolver parsing", () => {
   });
 
   test.each(["pom.xml", "build.gradle"])(
-    "Java (%s) runs no build tool and points to --sbom",
+    "Java (%s) runs no build tool and points to a CycloneDX SBOM",
     (manifest) => {
       const resolution = resolveNative({
         candidate: {
@@ -100,11 +98,11 @@ describe("native resolver parsing", () => {
         code: "RESOLVE_UNSUPPORTED",
         severity: "info",
       });
-      expect(resolution?.diagnostic?.message).toContain("--sbom");
+      expect(resolution?.diagnostic?.message).toContain(SBOM_COMMAND);
     },
   );
 
-  test("resolvers exist only for Rust and Go", () => {
+  test("a resolver exists only for Go", () => {
     expect(
       resolveNative({
         candidate: { ...candidate, language: { id: "python" } },
@@ -137,29 +135,45 @@ describe("native resolver parsing", () => {
     expect(result?.graph?.edges).toHaveLength(1);
   });
 
-  test("Cargo parses typed package and resolution metadata", () => {
+  test("Go standard-library packages are not dependencies", () => {
     const result = resolveNative({
-      candidate: { ...candidate, language: { id: "rust" } },
+      candidate,
       snapshot,
       run: () => ({
-        stdout: JSON.stringify({
-          packages: [
-            {
-              id: "app",
-              name: "app",
-              version: "1.0.0",
-              manifest_path: "/repo/Cargo.toml",
-              source: null,
-            },
-          ],
-          workspace_members: ["app"],
-          resolve: { root: "app", nodes: [{ id: "app", deps: [] }] },
-        }),
+        stdout: [
+          { ImportPath: "fmt", Standard: true },
+          { ImportPath: "internal/abi", Standard: true },
+          { ImportPath: "app", Name: "main", Imports: ["fmt", "dependency"] },
+          { ImportPath: "dependency", Imports: ["fmt"] },
+        ]
+          .map((pkg) => JSON.stringify(pkg))
+          .join("\n"),
         stderr: "",
         status: 0,
       }),
     });
-    expect(result?.graph?.roots).toHaveLength(1);
+    expect(
+      [...(result?.graph?.nodes.values() ?? [])].map((node) => node.name),
+    ).toEqual(["app", "dependency"]);
+    expect(result?.graph?.edges).toHaveLength(1);
+  });
+
+  test("Rust is instrumented manually, so cargo is never run", () => {
+    let ran = false;
+    const result = resolveNative({
+      candidate: { ...candidate, language: { id: "rust" } },
+      snapshot,
+      run: () => {
+        ran = true;
+        return { stdout: "", stderr: "", status: 0 };
+      },
+    });
+    expect(result?.graph).toBeNull();
+    expect(result?.diagnostic).toMatchObject({
+      code: "RESOLVE_UNSUPPORTED",
+      severity: "info",
+    });
+    expect(ran).toBe(false);
   });
 
   test("resolvers are told the project root", () => {

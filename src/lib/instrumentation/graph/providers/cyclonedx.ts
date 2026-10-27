@@ -1,7 +1,11 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { Diagnostic } from "../../types";
 import type { DependencyGraph } from "../types";
 import { packageId, type DependencyEdge, type PackageNode } from "../types";
+
+/** Generates a CycloneDX SBOM for any ecosystem, for use with `--sbom`. */
+export const SBOM_COMMAND = "npx @cyclonedx/cdxgen -o bom.json";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value != null && typeof value === "object" && !Array.isArray(value)
@@ -10,8 +14,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 export function loadCycloneDx(path: string): DependencyGraph {
-  const document = JSON.parse(readFileSync(path, "utf8")) as unknown;
-  return parseCycloneDx(document, path);
+  const bytes = readFileSync(path);
+  const graph = parseCycloneDx(JSON.parse(bytes.toString("utf8")), path);
+  graph.provenance.sha256 = createHash("sha256").update(bytes).digest("hex");
+  return graph;
 }
 
 export function parseCycloneDx(
@@ -25,16 +31,20 @@ export function parseCycloneDx(
     ? root.components
     : [];
   const metadataComponent = asRecord(asRecord(root.metadata)?.component);
+  const metadataRef = metadataComponent?.["bom-ref"];
   const all =
     metadataComponent == null ? components : [metadataComponent, ...components];
   const nodes = new Map<string, PackageNode>();
   const idByRef = new Map<string, string>();
-  for (const raw of all) {
+  for (const [index, raw] of all.entries()) {
     const component = asRecord(raw);
     if (component == null) continue;
     const ref = component["bom-ref"];
     const name = component.name;
     if (typeof ref !== "string" || typeof name !== "string") continue;
+    // cdxgen repeats the root component inside `components` under the same
+    // bom-ref; that entry is the root, not a second component.
+    if (index > 0 && metadataComponent != null && ref === metadataRef) continue;
     if (idByRef.has(ref))
       throw new Error(`Duplicate CycloneDX bom-ref: ${ref}`);
     const version =

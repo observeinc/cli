@@ -1,5 +1,6 @@
 import { posix } from "node:path";
 import type { ProjectSnapshot } from "../snapshot";
+import { fileAt, joinPath } from "../file-index";
 import {
   createCandidate,
   detectLockfiles,
@@ -70,8 +71,14 @@ export function detectNodejs(snapshot: ProjectSnapshot) {
         (json.bin != null && typeof json.bin === "object");
       // A framework dependency does not make a package an application. Shared
       // libraries often depend on Express/Fastify types. Require an executable
-      // contract from scripts, bin, or a main entry point.
-      if (!start && !serve && !main && !bin) return [];
+      // contract from scripts, bin, or a main entry point. A workspace root's
+      // `main` is usually `npm init`'s default and runs nothing; its members are
+      // the applications, so a root needs a script or bin.
+      const workspaceRoot =
+        json.workspaces != null ||
+        fileAt(snapshot.files, joinPath(directory, "pnpm-workspace.yaml")) !=
+          null;
+      if (!start && !serve && !bin && (!main || workspaceRoot)) return [];
       const lockfiles = detectLockfiles({
         files: snapshot.files,
         directory,

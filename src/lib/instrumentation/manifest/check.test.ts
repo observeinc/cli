@@ -74,6 +74,11 @@ describe("checkCompatibility — package names", () => {
   test("npm names are not PEP 503 normalized", () => {
     expect(supportedNames("nodejs", ["io_redis"])).toEqual([]);
   });
+
+  test("only Maven artifacts are treated as starter or BOM aggregators", () => {
+    expect(supportedNames("nodejs", ["strip-bom"])).toEqual([]);
+    expect(supportedNames("java", ["jackson-bom"])).toEqual(["jackson-bom"]);
+  });
 });
 
 describe("checkCompatibility — auto-instrumentation runtimes", () => {
@@ -273,6 +278,22 @@ describe("checkCompatibility — auto-instrumentation runtimes", () => {
       manifest,
     });
     expect(profile.runtimeVersionSupported).toBe("no");
+  });
+
+  test("reports how many libraries the manifest catalogs for the runtime", () => {
+    const bundled = loadManifest();
+    expect(
+      checkCompatibility({
+        candidate: candidate({ language: "go" }),
+        manifest: bundled,
+      }).catalogedPackages,
+    ).toBe(bundled.runtimes.go?.packages.length ?? -1);
+    expect(
+      checkCompatibility({
+        candidate: candidate({ language: "cpp" }),
+        manifest: bundled,
+      }).catalogedPackages,
+    ).toBe(0);
   });
 
   test("runtime version uses the runtime's own grammar", () => {
@@ -525,6 +546,125 @@ describe("bundled manifest artifact", () => {
   });
 
   test.each([
+    ["net48", "yes"],
+    ["v4.6.2", "yes"],
+    ["v4.5", "no"],
+    ["net6.0", "no"],
+    ["net8.0", "yes"],
+    ["net48;net8.0", "yes"],
+  ] as const)("dotnet runtime %s is supported: %s", (version, verdict) => {
+    expect(
+      checkCompatibility({
+        candidate: candidate({ language: "dotnet", version }),
+        manifest: loadManifest(),
+      }).runtimeVersionSupported,
+    ).toBe(verdict);
+  });
+
+  test.each([
+    // Instrumentation that runs only on .NET, never on .NET Framework.
+    ["MySql.Data", "8.1.0", "net48", "unsupported", "runtime-unsupported"],
+    ["MySql.Data", "8.1.0", "net8.0", "supported", undefined],
+    [
+      "Microsoft.EntityFrameworkCore",
+      "3.1.32",
+      "net48",
+      "unsupported",
+      "runtime-unsupported",
+    ],
+    ["GraphQL", "7.5.0", "v4.7.2", "unsupported", "runtime-unsupported"],
+    // ASP.NET MVC and Web API run only on .NET Framework.
+    ["Microsoft.AspNet.Mvc", "5.2.9", "v4.7.2", "supported", undefined],
+    [
+      "Microsoft.AspNet.Mvc",
+      "5.2.9",
+      "net8.0",
+      "unsupported",
+      "runtime-unsupported",
+    ],
+    ["Microsoft.AspNet.WebApi", "5.2.9", "v4.8", "supported", undefined],
+    // Unrestricted instrumentation is unaffected by the runtime.
+    ["StackExchange.Redis", "2.6.122", "net48", "supported", undefined],
+    // A multi-target app that includes a .NET target can use it.
+    ["MySql.Data", "8.1.0", "net48;net8.0", "supported", undefined],
+    // An unknown runtime version cannot rule the instrumentation out.
+    ["MySql.Data", "8.1.0", undefined, "supported", undefined],
+  ] as const)(
+    "dotnet %s %s on %s is %s (%s)",
+    (name, version, runtime, bucket, reason) => {
+      const profile = checkCompatibility({
+        candidate: candidate({
+          language: "dotnet",
+          version: runtime,
+          dependencies: [{ name, version }],
+        }),
+        manifest: loadManifest(),
+      });
+      const hit = profile.packages[bucket][0];
+      expect(hit?.name).toBe(name);
+      expect(hit?.reason).toBe(reason);
+    },
+  );
+
+  test("a runtime-unsupported library reports the runtimes its instrumentation needs", () => {
+    const [hit] = checkCompatibility({
+      candidate: candidate({
+        language: "dotnet",
+        version: "net48",
+        dependencies: [{ name: "MySql.Data", version: "8.1.0" }],
+      }),
+      manifest: loadManifest(),
+    }).packages.unsupported;
+    expect(hit?.runtimeVersions).toBe(">=8.0.0");
+    expect(hit?.versionMatch).toBe("in-range");
+  });
+
+  test.each([
+    ["14.21.3", "no"],
+    ["18.0.0", "no"],
+    ["18.19.0", "yes"],
+    ["20.5.0", "no"],
+    ["20.6.0", "yes"],
+    ["22.11.0", "yes"],
+  ] as const)("nodejs runtime %s is supported: %s", (version, verdict) => {
+    expect(
+      checkCompatibility({
+        candidate: candidate({ language: "nodejs", version }),
+        manifest: loadManifest(),
+      }).runtimeVersionSupported,
+    ).toBe(verdict);
+  });
+
+  test.each([
+    // mongodb 7.x is instrumented; the catalog once capped it below 7.
+    ["mongodb", "7.6.0", "supported"],
+    ["mongodb", "8.0.0", "unsupported"],
+    // redis 4+ is instrumented through @redis/client, so redis stays open.
+    ["redis", "4.7.0", "supported"],
+    ["@redis/client", "1.6.0", "supported"],
+    ["@redis/client", "5.8.0", "supported"],
+    ["@redis/client", "4.0.0", "unsupported"],
+    ["@node-redis/client", "1.0.4", "supported"],
+    // knex's four upstream ranges are contiguous from 0.10 to before 4.
+    ["knex", "0.10.0", "supported"],
+    ["knex", "3.1.0", "supported"],
+    ["knex", "4.0.0", "unsupported"],
+    ["pg", "8.0.0", "unsupported"],
+    ["pg-pool", "3.6.2", "supported"],
+    ["socket.io", "2.5.0", "supported"],
+  ] as const)("nodejs %s %s is %s", (name, version, bucket) => {
+    const profile = checkCompatibility({
+      candidate: candidate({
+        language: "nodejs",
+        version: "22.11.0",
+        dependencies: [{ name, version }],
+      }),
+      manifest: loadManifest(),
+    });
+    expect(profile.packages[bucket][0]?.name).toBe(name);
+  });
+
+  test.each([
     [
       "Elastic.Clients.Elasticsearch",
       "8.5.0",
@@ -677,9 +817,11 @@ describe("bundled manifest artifact", () => {
     // is out of range rather than an unbounded floor.
     ["requests", "2.32.0", "supported", "in-range"],
     ["requests", "3.0.0", "unsupported", "out-of-range"],
-    // SQLAlchemy carries an explicit upper bound of `< 2.1.0`.
+    // SQLAlchemy is `>= 1.4.3, < 2.2.0`.
     ["sqlalchemy", "2.0.30", "supported", "in-range"],
-    ["sqlalchemy", "2.1.0", "unsupported", "out-of-range"],
+    ["sqlalchemy", "2.1.0", "supported", "in-range"],
+    ["sqlalchemy", "2.2.0", "unsupported", "out-of-range"],
+    ["sqlalchemy", "1.4.2", "unsupported", "out-of-range"],
     // PyMySQL is upper-bound only (`< 2`).
     ["pymysql", "1.1.1", "supported", "in-range"],
     ["pymysql", "2.0.0", "unsupported", "out-of-range"],
@@ -689,6 +831,19 @@ describe("bundled manifest artifact", () => {
     // Django's floor moved up to 2.0.
     ["django", "4.2.0", "supported", "in-range"],
     ["django", "1.11.0", "unsupported", "out-of-range"],
+    // mysqlclient is upper-bound only (`< 3`).
+    ["mysqlclient", "2.2.4", "supported", "in-range"],
+    ["mysqlclient", "3.0.0", "unsupported", "out-of-range"],
+    // `cassandra-driver ~= 3.25`; scylla-driver is the same library.
+    ["cassandra-driver", "3.29.0", "supported", "in-range"],
+    ["cassandra-driver", "3.24.0", "unsupported", "out-of-range"],
+    ["scylla-driver", "3.26.0", "supported", "in-range"],
+    // aio-pika's upstream name is aio_pika; PEP 503 makes them one name.
+    ["aio_pika", "10.0.0", "supported", "in-range"],
+    ["aio-pika", "11.0.0", "unsupported", "out-of-range"],
+    // `valkey ~= 6.0`.
+    ["valkey", "6.1.0", "supported", "in-range"],
+    ["valkey", "7.0.0", "unsupported", "out-of-range"],
   ] as const)("python %s %s is %s (%s)", (name, version, bucket, match) => {
     const bundled = loadManifest();
     const profile = checkCompatibility({
@@ -702,6 +857,28 @@ describe("bundled manifest artifact", () => {
     const hit = profile.packages[bucket][0];
     expect(hit?.name).toBe(name);
     expect(hit?.versionMatch).toBe(match);
+  });
+
+  test("aiohttp lists its client and server instrumentation, both automatic", () => {
+    const [hit] = checkCompatibility({
+      candidate: candidate({
+        language: "python",
+        version: "3.12.0",
+        dependencies: [{ name: "aiohttp", version: "3.9.5" }],
+      }),
+      manifest: loadManifest(),
+    }).packages.supported;
+    expect(hit?.activation).toBe("automatic");
+    expect(hit?.supportedVersions).toBe(">=3.0.0 <4.0.0");
+    expect(
+      hit?.instrumentationOptions?.map((option) => [
+        option.instrumentation,
+        option.versionMatch,
+      ]),
+    ).toEqual([
+      ["opentelemetry-instrumentation-aiohttp-client", "in-range"],
+      ["opentelemetry-instrumentation-aiohttp-server", "in-range"],
+    ]);
   });
 
   test("rejects unknown keys", () => {

@@ -9,8 +9,12 @@ import type { InstrumentationOption, SdkStability } from "./schema";
 
 export type RuntimeVersionSupport = "yes" | "no" | "partial" | "unknown";
 
-/** Why a package landed in the `unsupported` bucket. */
-export type UnsupportedReason = "out-of-range";
+/**
+ * Why a package landed in the `unsupported` bucket: its version is outside the
+ * instrumented range, or no instrumentation for it runs on the application's
+ * runtime version (e.g. MySql.Data on .NET Framework).
+ */
+export type UnsupportedReason = "out-of-range" | "runtime-unsupported";
 
 export interface InstrumentationOptionAssessment {
   id: string;
@@ -18,6 +22,7 @@ export interface InstrumentationOptionAssessment {
   kind: InstrumentationOption["kind"] | "unknown";
   supportedVersions?: string;
   inAutoInstrumentation?: boolean;
+  runtimeVersions?: string;
   activation?: InstrumentationOption["activation"];
   versionMatch: VersionMatch;
 }
@@ -37,6 +42,8 @@ export interface PackageAssessment {
   unverifiedReason?: "support-range-missing" | "application-version-unknown";
   /** Present only for `unsupported` entries. */
   reason?: UnsupportedReason;
+  /** For `runtime-unsupported`: the runtime versions the instrumentation runs on. */
+  runtimeVersions?: string;
   instrumentationOptions?: InstrumentationOptionAssessment[];
   /**
    * Whether the covering instrumentation is on by default. Set only for
@@ -80,6 +87,8 @@ export interface CompatibilityProfile {
   runtimeMetricsSupported: boolean;
   /** Per-signal SDK maturity; null when the runtime is absent from the manifest. */
   sdkStability: SdkStability | null;
+  /** Libraries the manifest catalogs for this runtime; 0 when it lists none. */
+  catalogedPackages: number;
   packages: {
     /** Instrumentation exists; versionMatch distinguishes full and partial support. */
     supported: PackageAssessment[];

@@ -81,4 +81,71 @@ describe("applyGraph", () => {
       "redis",
     ]);
   });
+
+  test("a complete graph replaces declared packages but keeps framework references", () => {
+    const candidate = createCandidate({
+      directory: ".",
+      name: "api",
+      language: "dotnet",
+      runtime: "dotnet",
+      dependencies: [
+        {
+          name: "Microsoft.AspNetCore.App",
+          scope: "runtime",
+          sourceKind: "framework-reference",
+        },
+        { name: "Npgsql.EntityFrameworkCore.PostgreSQL", version: "9.0.4" },
+      ],
+    });
+    const root = packageId({ ecosystem: "nuget", name: "api", version: "1" });
+    const npgsql = packageId({
+      ecosystem: "nuget",
+      name: "Npgsql",
+      version: "9.0.3",
+    });
+    applyGraph({
+      candidate,
+      graph: {
+        roots: [root],
+        nodes: new Map([
+          [root, { id: root, name: "api", source: { kind: "workspace" } }],
+          [
+            npgsql,
+            {
+              id: npgsql,
+              name: "Npgsql",
+              version: "9.0.3",
+              source: { kind: "registry" },
+            },
+          ],
+        ]),
+        edges: [{ from: root, to: npgsql, kind: "runtime", optional: false }],
+        completeness: "resolved-graph",
+        provenance: { provider: "cyclonedx", path: "bom.json" },
+        diagnostics: [],
+      },
+    });
+    expect(candidate.dependencies.map((item) => item.name)).toEqual([
+      "Microsoft.AspNetCore.App",
+      "Npgsql",
+    ]);
+  });
+
+  test("does not list the application's own lockfile twice", () => {
+    const candidate = createCandidate({
+      directory: "services/web",
+      name: "web",
+      language: "nodejs",
+      runtime: "node",
+      lockfiles: ["pnpm-lock.yaml"],
+    });
+    applyGraph({
+      candidate,
+      graph: {
+        ...partialGraph(),
+        provenance: { provider: "test", path: "services/web/pnpm-lock.yaml" },
+      },
+    });
+    expect(candidate.lockfiles).toEqual(["pnpm-lock.yaml"]);
+  });
 });

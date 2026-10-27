@@ -145,6 +145,33 @@ describe("deriveFindings", () => {
     expect(rules).toContain("OTEL031");
   });
 
+  test("OTEL031 suggests only the graph sources the runtime supports", () => {
+    const fixFor = (files: Record<string, string>) =>
+      deriveFindings(detectApplications(snapshot(files))).find(
+        (finding) => finding.ruleId === "OTEL031",
+      )?.fix;
+    expect(
+      fixFor({
+        "package.json": JSON.stringify({
+          name: "app",
+          engines: { node: "22" },
+          scripts: { start: "node index.js" },
+          dependencies: { express: "^4.19.0" },
+        }),
+      }),
+    ).toBe(
+      "Commit a package-lock.json or pnpm-lock.yaml, or generate a CycloneDX SBOM (npx @cyclonedx/cdxgen -o bom.json) and pass it with --app <id> --sbom bom.json",
+    );
+    expect(
+      fixFor({
+        "Api.csproj":
+          '<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>',
+      }),
+    ).toBe(
+      "Generate a CycloneDX SBOM (npx @cyclonedx/cdxgen -o bom.json) and pass it with --app <id> --sbom bom.json",
+    );
+  });
+
   test("OTEL031 is not raised when a dependency graph was applied", () => {
     const detection = detectApplications(
       snapshot({
@@ -190,6 +217,49 @@ describe("deriveFindings", () => {
       }),
     });
     expect(rules).toContain("OTEL003");
+  });
+
+  test("OTEL003 says a runtime version that cannot be compared was not compared", () => {
+    const findings = deriveFindings(
+      detectApplications(
+        snapshot({
+          "Lib.csproj":
+            '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>netstandard2.0</TargetFramework></PropertyGroup></Project>',
+        }),
+      ),
+    );
+    const otel003 = findings.find((finding) => finding.ruleId === "OTEL003");
+    expect(otel003?.message).toBe(
+      "dotnet netstandard2.0 could not be compared with the supported range",
+    );
+  });
+
+  test("OTEL010 names the runtime when a library's instrumentation does not run on it", () => {
+    const findings = deriveFindings(
+      detectApplications(
+        snapshot({
+          "Job.csproj":
+            '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net48</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include="MySql.Data" Version="8.1.0" /></ItemGroup></Project>',
+        }),
+      ),
+    );
+    expect(findings.map((finding) => finding.ruleId)).not.toContain("OTEL003");
+    expect(
+      findings.find((finding) => finding.ruleId === "OTEL010")?.message,
+    ).toBe(
+      "MySql.Data is not instrumented on dotnet net48; its instrumentation needs dotnet >=8.0.0",
+    );
+  });
+
+  test("an unsupported runtime is reported once, not per runtime-restricted library", () => {
+    const rules = rulesFor({
+      "Portal.csproj":
+        "<Project><PropertyGroup><OutputType>Exe</OutputType><TargetFrameworkVersion>v4.5</TargetFrameworkVersion></PropertyGroup></Project>",
+      "packages.config":
+        '<packages><package id="Microsoft.AspNet.Mvc" version="5.2.3" /></packages>',
+    });
+    expect(rules).toContain("OTEL002");
+    expect(rules).not.toContain("OTEL010");
   });
 
   test("OTEL010 out of range, OTEL012 overlap, OTEL013 unverified", () => {

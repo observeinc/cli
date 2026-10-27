@@ -23,7 +23,7 @@ export interface ApplicationDiscovery {
 
 export interface DiscoveredApplication {
   directory: string;
-  idSuffix?: string;
+  target?: string;
   name: string;
   language: LanguageId;
   runtime: string;

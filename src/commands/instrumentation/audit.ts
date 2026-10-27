@@ -31,9 +31,10 @@ import { checkCompatibility } from "../../lib/instrumentation/manifest/check";
 import { loadManifest } from "../../lib/instrumentation/manifest/load";
 import { buildNpmArboristGraph } from "../../lib/instrumentation/graph/providers/npm-arborist";
 import { resolveNative } from "../../lib/instrumentation/graph/native-providers";
-import { renderAudit } from "./render";
-
+import { renderAudit, safeTerminalText } from "./render";
 const FORMATS = ["table", "json", "sarif", "github"] as const;
+/** Most application ids an unknown-`--app` error lists before it summarizes. */
+const MAX_LISTED_APPS = 10;
 const FAIL_ON = ["none", "info", "warning", "error"] as const;
 
 type AuditFormat = (typeof FORMATS)[number];
@@ -107,6 +108,23 @@ function sbomLanguage(graph: DependencyGraph): LanguageId | undefined {
       bestCount = count;
     }
   return best;
+}
+
+/** Why a run produced no trustworthy verdict, from its project-level errors. */
+function failureReason(result: InstrumentationResult) {
+  const errors = result.diagnostics
+    .filter((diagnostic) => diagnostic.severity === "error")
+    .map((diagnostic) => diagnostic.message);
+  return errors.length > 0
+    ? errors.join("; ")
+    : "No supported runnable application found";
+}
+
+/** Whether a root-relative `path` is `directory` or inside it ("." is the root). */
+function isWithin(directory: string, path: string) {
+  return (
+    directory === "." || path === directory || path.startsWith(`${directory}/`)
+  );
 }
 
 /**
@@ -208,6 +226,7 @@ export async function audit(
           "SCAN_LIMIT_REACHED",
           "METADATA_UNREADABLE",
           "METADATA_TOO_LARGE",
+          "DIRECTORY_UNREADABLE",
         ].includes(diagnostic.code),
       );
       if (incomplete != null)
@@ -220,13 +239,23 @@ export async function audit(
         const available = detection.candidates
           .map((candidate) => candidate.id)
           .sort((a, b) => a.localeCompare(b));
+        // A monorepo has hundreds of ids; list only those containing what was
+        // typed, so the likely intended one is visible.
+        const typed = flags.app.toLowerCase();
+        const matching = available.filter((id) =>
+          id.toLowerCase().includes(typed),
+        );
         // Name the scanned directory: a common cause is running --app without
         // the same project path, so the id belongs to a different project.
         throw new Error(
           `No application with id "${flags.app}" in ${root}. ` +
             (available.length === 0
               ? "No applications were detected there."
-              : `Pass the same project path, and use one of: ${available.join(", ")}`),
+              : available.length <= MAX_LISTED_APPS
+                ? `Pass the same project path, and use one of: ${available.join(", ")}`
+                : matching.length > 0 && matching.length <= MAX_LISTED_APPS
+                  ? `Pass the same project path. Ids containing "${flags.app}": ${matching.join(", ")}`
+                  : `Pass the same project path; run without --app to list all ${available.length} application ids.`),
         );
       }
       // With --app, an SBOM is the dependency graph for that one application.
@@ -254,8 +283,15 @@ export async function audit(
         }
       }
       // MULTIPLE_CANDIDATES is irrelevant here: audit evaluates every candidate.
+      // With --app, project diagnostics from other directories are not about
+      // the selected application; pathless ones concern the whole scan.
       const diagnostics = detection.diagnostics.filter(
-        (diagnostic) => diagnostic.code !== "MULTIPLE_CANDIDATES",
+        (diagnostic) =>
+          diagnostic.code !== "MULTIPLE_CANDIDATES" &&
+          (selected == null ||
+            !flags.app ||
+            diagnostic.path == null ||
+            isWithin(selected.path, diagnostic.path)),
       );
       result = {
         schemaVersion: INSTRUMENTATION_SCHEMA_VERSION,
@@ -307,6 +343,12 @@ export async function audit(
         );
         break;
     }
+    // SARIF and GitHub output carry findings only, so a run with no verdict
+    // would exit 2 with nothing saying why.
+    if (analysisFailed && (format === "sarif" || format === "github"))
+      process.stderr.write(
+        `${JSON.stringify({ error: { message: failureReason(result) } })}\n`,
+      );
     process.exitCode = analysisFailed
       ? AUDIT_EXIT.error
       : failed
@@ -314,7 +356,10 @@ export async function audit(
         : AUDIT_EXIT.clean;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (format === "table") writer.error(`Error: ${message}`);
+    if (format === "table")
+      writer.error(
+        `Error: ${message.split(/\r?\n/).map(safeTerminalText).join("\n")}`,
+      );
     else process.stderr.write(`${JSON.stringify({ error: { message } })}\n`);
     process.exitCode = AUDIT_EXIT.error;
   } finally {
@@ -368,13 +413,13 @@ export const auditCommand = defineCommand({
         kind: "parsed",
         parse: String,
         brief:
-          "Audit a CycloneDX SBOM: standalone (runtime inferred from purls), or as the graph for a detected app / --app selection",
+          "Audit a CycloneDX SBOM: standalone (runtime inferred from purls), or with --app as that app's dependency graph",
         optional: true,
       },
       resolve: {
         kind: "boolean",
         brief:
-          "Resolve Cargo and Go graphs with the installed toolchain in locked offline mode",
+          "Resolve Go graphs with the installed Go toolchain in locked offline mode",
         optional: true,
       },
       exclude: {

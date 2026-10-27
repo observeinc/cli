@@ -1,3 +1,4 @@
+import { posix } from "node:path";
 import type { ProjectSnapshot } from "./snapshot";
 import type { CandidateApplication, Diagnostic } from "./types";
 import { detectDotnet } from "./detectors/dotnet";
@@ -10,7 +11,7 @@ import { nativeApplicationProvider } from "./detectors/native";
 import { checkCompatibility } from "./manifest/check";
 import { loadManifest } from "./manifest/load";
 import { applyResolvedVersions, resolveFromLockfiles } from "./lockfiles";
-import { detectRuntimeVersion } from "./runtime-version";
+import { detectRuntimeVersion, inheritedVersionFile } from "./runtime-version";
 import type { LanguageId } from "./types";
 import { uvLockProvider } from "./graph/providers/uv-lock";
 import { pnpmLockProvider } from "./graph/providers/pnpm-lock";
@@ -74,11 +75,12 @@ function resolveEvidence(
 
   inheritNodeRuntimeVersion(snapshot, candidate);
   if (candidate.language.version == null) {
-    const found = detectRuntimeVersion({
+    const input = {
       files: snapshot.files,
       directory: candidate.path,
       runtime: candidate.language.id,
-    });
+    };
+    const found = detectRuntimeVersion(input) ?? inheritedVersionFile(input);
     if (found != null) {
       candidate.language.version = found.version;
       candidate.runtime.version ??= found.version;
@@ -164,6 +166,13 @@ export function detectApplications(snapshot: ProjectSnapshot) {
       enrichBazelCandidate(candidate, ecosystemCandidates),
     ),
   ];
+  qualifySharedIds(candidates, (candidate) => candidate.language.id);
+  qualifySharedIds(candidates, (candidate) => {
+    const manifest = candidate.evidence.find(
+      (item) => item.kind === "manifest",
+    );
+    return manifest == null ? undefined : posix.basename(manifest.path);
+  });
   candidates.map((candidate) => auditCandidate(snapshot, candidate));
   candidates.sort((a, b) => a.id.localeCompare(b.id));
   const diagnostics: Diagnostic[] = [
@@ -187,6 +196,27 @@ export function detectApplications(snapshot: ProjectSnapshot) {
   return { candidates, diagnostics };
 }
 
+/**
+ * Applications in one directory share its id. Only those get a qualifier, and
+ * only one that tells them apart, so every other id stays the bare directory.
+ */
+function qualifySharedIds(
+  candidates: CandidateApplication[],
+  qualifier: (candidate: CandidateApplication) => string | undefined,
+) {
+  const groups = new Map<string, CandidateApplication[]>();
+  for (const candidate of candidates)
+    groups.set(candidate.id, [...(groups.get(candidate.id) ?? []), candidate]);
+  for (const group of groups.values()) {
+    const suffixes = group.map(qualifier);
+    if (group.length < 2 || new Set(suffixes).size < 2) continue;
+    group.forEach((candidate, index) => {
+      const suffix = suffixes[index];
+      if (suffix != null) candidate.id = `${candidate.id}:${suffix}`;
+    });
+  }
+}
+
 function enrichBazelCandidate(
   candidate: CandidateApplication,
   ecosystemCandidates: CandidateApplication[],
@@ -199,8 +229,10 @@ function enrichBazelCandidate(
   if (matches.length !== 1) return candidate;
   const existing = matches[0];
   if (existing == null) return candidate;
-  candidate.language.version = existing.language.version;
-  candidate.runtime.version = existing.runtime.version;
+  candidate.language.version =
+    existing.language.version ?? candidate.language.version;
+  candidate.runtime.version =
+    existing.runtime.version ?? candidate.runtime.version;
   candidate.runtime.moduleSystem = existing.runtime.moduleSystem;
   candidate.frameworks = existing.frameworks;
   candidate.packageManager = existing.packageManager;

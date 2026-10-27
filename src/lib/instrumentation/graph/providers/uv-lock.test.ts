@@ -4,7 +4,7 @@ import { runtimeClosure } from "../traverse";
 import type { CandidateApplication } from "../../types";
 
 const candidate = {
-  id: "python:service/semantic_search",
+  id: "service/semantic_search",
   path: "service/semantic_search",
   name: "semantic_search",
   language: { id: "python" },

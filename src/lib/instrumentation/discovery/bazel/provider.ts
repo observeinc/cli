@@ -13,7 +13,7 @@ import {
   parseBazelRuleCalls,
   type BazelLiteral,
 } from "./parser";
-import { nearestAncestorFile } from "../../file-index";
+import { fileAt, joinPath, nearestAncestorFile } from "../../file-index";
 import { createDiskBzlLoader, type BzlLoader } from "./labels";
 import { buildMacroFamilyMap, resolveCallRule, type Family } from "./macros";
 
@@ -145,17 +145,26 @@ export function discoverBazelApplications(
         directory,
         attributes: call.attributes,
       });
+      const inherited = inheritedRuntimeVersion({
+        files: snapshot.files,
+        directory,
+        language: resolved.language,
+      });
+      const workspaceVersion =
+        inherited == null
+          ? bazelWorkspaceVersion({
+              files: snapshot.files,
+              workspaceRoot,
+              language: resolved.language,
+            })
+          : undefined;
       const candidate = createCandidate({
         directory,
-        idSuffix: name.value,
+        target: name.value,
         name: name.value,
         language: resolved.language,
         runtime: resolved.runtime,
-        version: inheritedRuntimeVersion({
-          files: snapshot.files,
-          directory,
-          language: resolved.language,
-        }),
+        version: inherited ?? workspaceVersion?.value,
         entrypoints,
         evidence: [
           {
@@ -164,6 +173,9 @@ export function discoverBazelApplications(
             key: "target",
             value: target,
           },
+          ...(workspaceVersion == null
+            ? []
+            : [{ kind: "runtime-version" as const, ...workspaceVersion }]),
         ],
         discovery: {
           completeness,
@@ -295,6 +307,78 @@ function inheritedRuntimeVersion({
     default:
       return undefined;
   }
+}
+
+/**
+ * The Java or Python version a Bazel workspace builds with, from the
+ * workspace's own `.bazelrc` and `MODULE.bazel`. Only `build` and `common`
+ * lines count, since they apply to every build; config-specific lines
+ * (`build:ci`) and imported rc files are not followed. The last matching flag
+ * wins, as in Bazel. Java reads `--java_runtime_version`, the JVM the target
+ * runs on; a non-numeric value such as `local_jdk` stays unknown.
+ */
+function bazelWorkspaceVersion({
+  files,
+  workspaceRoot,
+  language,
+}: {
+  files: SnapshotFile[];
+  workspaceRoot: string;
+  language: LanguageId;
+}): { path: string; key: string; value: string } | undefined {
+  if (language !== "java" && language !== "python") return undefined;
+  const rcPath = joinPath(workspaceRoot, ".bazelrc");
+  const flag =
+    language === "java"
+      ? /^--java_runtime_version=(\S+)$/
+      : /^--@{1,2}rules_python\/\/python\/config_settings:python_version=(\S+)$/;
+  let rcValue: string | undefined;
+  for (const line of fileAt(files, rcPath)?.content?.split("\n") ?? []) {
+    const [command, ...options] = line.trim().split(/\s+/);
+    if (command !== "build" && command !== "common") continue;
+    for (const option of options) {
+      const value = flag.exec(option)?.[1];
+      if (value != null) rcValue = value;
+    }
+  }
+  if (rcValue != null) {
+    const version =
+      language === "java"
+        ? /^(?:remotejdk_?)?(\d+)$/.exec(rcValue)?.[1]
+        : /^\d+\.\d+(?:\.\d+)?$/.exec(rcValue)?.[0];
+    return version == null
+      ? undefined
+      : {
+          path: rcPath,
+          key:
+            language === "java" ? "--java_runtime_version" : "python_version",
+          value: version,
+        };
+  }
+  if (language !== "python") return undefined;
+  const modulePath = joinPath(workspaceRoot, "MODULE.bazel");
+  const toolchains = [
+    ...(fileAt(files, modulePath)?.content ?? "").matchAll(
+      /\b\w+\.toolchain\(([^)]*)\)/g,
+    ),
+  ].flatMap((match) => {
+    const args = match[1] ?? "";
+    const version = /\bpython_version\s*=\s*"(\d+\.\d+(?:\.\d+)?)"/.exec(
+      args,
+    )?.[1];
+    return version == null
+      ? []
+      : [{ version, isDefault: /\bis_default\s*=\s*True\b/.test(args) }];
+  });
+  const chosen =
+    toolchains.length === 1
+      ? toolchains[0]
+      : toolchains.filter((toolchain) => toolchain.isDefault).length === 1
+        ? toolchains.find((toolchain) => toolchain.isDefault)
+        : undefined;
+  return chosen == null
+    ? undefined
+    : { path: modulePath, key: "python.toolchain", value: chosen.version };
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

@@ -5,6 +5,7 @@ import type {
   InstrumentationResult,
 } from "./types";
 import type { PackageAssessment } from "./manifest/profile";
+import { SBOM_COMMAND } from "./graph/providers/cyclonedx";
 
 /**
  * Stable rule identifiers. Scripts and downstream consumers key on these, so an
@@ -72,6 +73,12 @@ export const RULES = {
 >;
 
 export type RuleId = keyof typeof RULES;
+
+/** Lockfiles the audit reads a dependency graph from, per runtime. */
+const GRAPH_LOCKFILES: Partial<Record<string, string>> = {
+  nodejs: "package-lock.json or pnpm-lock.yaml",
+  python: "uv.lock",
+};
 
 export interface Finding {
   ruleId: RuleId;
@@ -231,29 +238,43 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
         message:
           version == null
             ? `No ${runtime} runtime version is declared`
-            : `${runtime} ${version} admits versions outside the supported range`,
+            : compat.runtimeVersionSupported === "partial"
+              ? `${runtime} ${version} admits versions outside the supported range`
+              : `${runtime} ${version} could not be compared with the supported range`,
         fix:
           version == null
             ? "Declare the runtime version (engines, .nvmrc, .ruby-version, .python-version, .tool-versions, TargetFramework, or a Dockerfile FROM tag)"
-            : "Pin the runtime to a version inside the supported range",
+            : compat.runtimeVersionSupported === "partial"
+              ? "Pin the runtime to a version inside the supported range"
+              : "Declare the runtime as a specific version so support can be checked",
       }),
     );
 
   for (const pkg of compat.packages.unsupported) {
+    // An unsupported runtime is reported once (OTEL002), not again for every
+    // library whose verdict follows from it.
     if (
-      pkg.versionSource === "runtime" &&
-      compat.runtimeVersionSupported === "no"
+      compat.runtimeVersionSupported === "no" &&
+      (pkg.versionSource === "runtime" || pkg.reason === "runtime-unsupported")
     )
       continue;
     out.push(
-      finding({
-        ruleId: "OTEL010",
-        candidate,
-        pkg,
-        message:
-          `${pkg.name} ${pkg.declaredVersion ?? ""} is outside the instrumented range ${pkg.supportedVersions ?? ""}`.trim(),
-        fix: `Move ${pkg.name} to a version in ${pkg.supportedVersions ?? "the supported range"}`,
-      }),
+      pkg.reason === "runtime-unsupported"
+        ? finding({
+            ruleId: "OTEL010",
+            candidate,
+            pkg,
+            message: `${pkg.name} is not instrumented on ${runtime} ${version ?? ""}; its instrumentation needs ${runtime} ${pkg.runtimeVersions ?? "a different runtime"}`,
+            fix: `Instrument ${pkg.name} manually, or move the application to ${runtime} ${pkg.runtimeVersions ?? "a supported runtime"}`,
+          })
+        : finding({
+            ruleId: "OTEL010",
+            candidate,
+            pkg,
+            message:
+              `${pkg.name} ${pkg.declaredVersion ?? ""} is outside the instrumented range ${pkg.supportedVersions ?? ""}`.trim(),
+            fix: `Move ${pkg.name} to a version in ${pkg.supportedVersions ?? "the supported range"}`,
+          }),
     );
   }
 
@@ -355,16 +376,24 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
   // an instrumented library pulled in transitively (Npgsql under
   // Npgsql.EntityFrameworkCore.PostgreSQL) goes unreported. Say so rather than
   // let a short supported list read as complete coverage.
-  if (compat.autoInstrumentationSupported && candidate.dependencyGraph == null)
+  if (
+    compat.autoInstrumentationSupported &&
+    candidate.dependencyGraph == null
+  ) {
+    const lockfiles = GRAPH_LOCKFILES[runtime];
     out.push(
       finding({
         ruleId: "OTEL031",
         candidate,
         message:
           "Only declared dependencies were assessed; libraries pulled in transitively were not checked",
-        fix: "Commit a package-lock.json, pnpm-lock.yaml, or uv.lock, or pass --sbom with a CycloneDX file",
+        fix:
+          lockfiles == null
+            ? `Generate a CycloneDX SBOM (${SBOM_COMMAND}) and pass it with --app <id> --sbom bom.json`
+            : `Commit a ${lockfiles}, or generate a CycloneDX SBOM (${SBOM_COMMAND}) and pass it with --app <id> --sbom bom.json`,
       }),
     );
+  }
 
   if (compat.autoInstrumentationSupported && !compat.runtimeMetricsSupported)
     out.push(

@@ -17,7 +17,7 @@ type PackageAssessment = NonNullable<
   CandidateApplication["compatibility"]
 >["packages"]["supported"][number];
 
-function safeTerminalText(value: string) {
+export function safeTerminalText(value: string) {
   let safe = "";
   for (let index = 0; index < value.length; index++) {
     const code = value.charCodeAt(index);
@@ -47,8 +47,9 @@ function libraryStatus(
     return pkg.components && pkg.components.length > 0
       ? green("✓ covered via components")
       : muted("• aggregator (no components)");
+  if (pkg.reason === "runtime-unsupported") return red("✗ not on this runtime");
   if (pkg.versionMatch === "out-of-range") return red("✗ out of range");
-  // On a code-based-auto-instrumentation-only runtime the whole app is wired in
+  // On a runtime without zero-code instrumentation the whole app is wired in
   // by hand (stated in the header), so don't repeat it per row. On a zero-code
   // runtime a manual/opt-in library is the exception, so call it out.
   const action = !autoInstrumentationSupported
@@ -96,7 +97,7 @@ function renderCompatibility(candidate: CandidateApplication) {
 
   const status = runtimeStatusLabel(compat, candidate.language.version != null);
   const version = candidate.language.version
-    ? ` ${candidate.language.version}`
+    ? ` ${safeTerminalText(candidate.language.version)}`
     : "";
   lines.push(
     keyValue(
@@ -142,7 +143,9 @@ function renderCompatibility(candidate: CandidateApplication) {
       const supportedCount = rated.filter(isCovered).length;
       const unverifiedCount = compat.packages.unverified.length;
       const partialCount = rated.filter(
-        (pkg) => pkg.versionMatch === "overlap",
+        (pkg) =>
+          pkg.versionMatch === "overlap" &&
+          pkg.reason !== "runtime-unsupported",
       ).length;
       const aggregatorSuffix =
         neutralCount > 0 ? ` · ${neutralCount} aggregator` : "";
@@ -166,7 +169,7 @@ function renderCompatibility(candidate: CandidateApplication) {
       const columns: ColumnDef<PackageAssessment>[] = [
         {
           header: "LIBRARY",
-          accessorFn: (row) => row.name,
+          accessorFn: (row) => safeTerminalText(row.name),
           flex: true,
           maxWidth: 34,
           format: (value) => cyan(String(value)),
@@ -177,12 +180,12 @@ function renderCompatibility(candidate: CandidateApplication) {
             row.declaredVersion == null
               ? "—"
               : row.versionSource === "lockfile"
-                ? `${row.declaredVersion} (lock)`
-                : row.declaredVersion,
+                ? `${safeTerminalText(row.declaredVersion)} (lock)`
+                : safeTerminalText(row.declaredVersion),
         },
         {
           header: "SUPPORTED",
-          accessorFn: (row) => row.supportedVersions ?? "—",
+          accessorFn: (row) => safeTerminalText(row.supportedVersions ?? "—"),
           maxWidth: 22,
         },
         {
@@ -190,7 +193,7 @@ function renderCompatibility(candidate: CandidateApplication) {
           accessorFn: (row) =>
             row.depth == null || row.depth <= 1
               ? "direct"
-              : `via ${row.via?.join(" → ") ?? "transitive"}`,
+              : `via ${safeTerminalText(row.via?.join(" → ") ?? "transitive")}`,
           maxWidth: 28,
           format: (value) => muted(String(value)),
         },
@@ -205,7 +208,7 @@ function renderCompatibility(candidate: CandidateApplication) {
           accessorFn: (row) => {
             if (row.aggregator)
               return row.components && row.components.length > 0
-                ? `via ${row.components.join(", ")}`
+                ? `via ${safeTerminalText(row.components.join(", "))}`
                 : "—";
             const instrumentation =
               row.instrumentationOptions
@@ -215,7 +218,7 @@ function renderCompatibility(candidate: CandidateApplication) {
               row.coveredInternals && row.coveredInternals.length > 0
                 ? ` (+${String(row.coveredInternals.length)} internal)`
                 : "";
-            return `${instrumentation}${internals}`;
+            return safeTerminalText(`${instrumentation}${internals}`);
           },
           flex: true,
           maxWidth: 46,
@@ -230,10 +233,10 @@ function renderCompatibility(candidate: CandidateApplication) {
 
 function candidateHeading(candidate: CandidateApplication) {
   const version = candidate.language.version
-    ? ` ${candidate.language.version}`
+    ? ` ${safeTerminalText(candidate.language.version)}`
     : "";
   const manager = candidate.packageManager
-    ? ` · ${candidate.packageManager.id}`
+    ? ` · ${safeTerminalText(candidate.packageManager.id)}`
     : "";
   return `${bold(safeTerminalText(candidate.name))}  ${muted(`· ${candidate.language.id}${version}${manager}${discoverySummary(candidate)}  (${safeTerminalText(candidate.id)})`)}`;
 }
@@ -243,6 +246,10 @@ function discoverySummary(candidate: CandidateApplication) {
   return discovery == null
     ? ""
     : ` · discovery ${discovery.completeness} (${discovery.provenance.provider})`;
+}
+
+function severityColor(severity: Finding["severity"]) {
+  return severity === "error" ? red : severity === "warning" ? yellow : cyan;
 }
 
 function severityMark(severity: Finding["severity"]) {
@@ -257,11 +264,14 @@ type Compatibility = NonNullable<CandidateApplication["compatibility"]>;
 
 /** The ● model line: how (and whether) OpenTelemetry instruments this runtime. */
 function runtimeModelLine(compat: Compatibility) {
-  return compat.autoInstrumentationSupported
-    ? green("● zero-code instrumentation available")
-    : compat.sdkStability == null
-      ? red("● runtime not supported by OpenTelemetry")
-      : yellow("● code-based auto-instrumentation only");
+  if (compat.autoInstrumentationSupported)
+    return green("● zero-code instrumentation available");
+  if (compat.sdkStability == null)
+    return red("● runtime not supported by OpenTelemetry");
+  // An empty catalog is not proof that no instrumentation libraries exist.
+  return compat.catalogedPackages > 0
+    ? yellow("● code-based auto-instrumentation for some libraries")
+    : yellow("● SDK only · no instrumentation libraries cataloged");
 }
 
 /** Runtime-version support label, e.g. "supported" / "unsupported". */
@@ -293,7 +303,7 @@ function librarySummaryText(compat: Compatibility) {
     ...compat.packages.unsupported,
     ...compat.packages.unverified,
   ].filter((pkg) => !isNeutralAggregator(pkg));
-  if (rated.length === 0) return "none detected";
+  if (rated.length === 0) return "none in catalog";
   const names = rated.map((pkg) => pkg.name).sort((a, b) => a.localeCompare(b));
   return names.length <= 3
     ? names.join(", ")
@@ -347,14 +357,19 @@ function groupByRuntime(candidates: CandidateApplication[]) {
  * Used when more than one application is detected; a single app (or `--app`)
  * still gets the full per-app block via `renderCompatibility`.
  */
-function renderRuntimeGroup(
-  group: CandidateApplication[],
-  byCandidate: Map<string, Finding[]>,
-) {
+function renderRuntimeGroup({
+  group,
+  byCandidate,
+}: {
+  group: CandidateApplication[];
+  byCandidate: Map<string, Finding[]>;
+}) {
   const lines: string[] = [];
   const [first] = group;
   if (first == null) return lines;
-  const version = first.language.version ? ` ${first.language.version}` : "";
+  const version = first.language.version
+    ? ` ${safeTerminalText(first.language.version)}`
+    : "";
   const compat = first.compatibility;
   if (compat == null) {
     lines.push(
@@ -374,45 +389,53 @@ function renderRuntimeGroup(
   }
   const columns: ColumnDef<CandidateApplication>[] = [
     {
-      // The full candidate id, verbatim, so it can be copied straight into
-      // `--app <id>` (the same id the findings footer and headings show).
-      header: "APPLICATION",
-      accessorFn: (row) => safeTerminalText(row.id),
-      maxWidth: 40,
-      format: (value) => cyan(String(value)),
-    },
-    {
-      header: "LIBRARIES",
-      accessorFn: (row) =>
-        row.compatibility ? librarySummaryText(row.compatibility) : "—",
-      maxWidth: 50,
-      format: (value) =>
-        value === "none detected" || value === "—"
-          ? muted(String(value))
-          : String(value),
-    },
-    {
       header: "FINDINGS",
       accessorFn: (row) => {
         const rules = findingRules(row.id, byCandidate);
         return rules.length === 0
-          ? "✓"
-          : rules.map(([ruleId]) => ruleId).join(" · ");
+          ? "none"
+          : rules
+              .map(([ruleId, severity]) => `${ruleId} (${severity})`)
+              .join(", ");
       },
       format: (_value, row) => {
         const rules = findingRules(row.id, byCandidate);
         return rules.length === 0
-          ? green("✓")
+          ? green("none")
           : rules
               .map(
                 ([ruleId, severity]) =>
-                  `${severityMark(severity)} ${cyan(ruleId)}`,
+                  `${ruleId} (${severityColor(severity)(severity)})`,
               )
-              .join(" · ");
+              .join(", ");
       },
     },
+    {
+      header: "LIBRARIES",
+      accessorFn: (row) =>
+        safeTerminalText(
+          row.compatibility == null
+            ? "not assessed"
+            : row.dependencies.length === 0
+              ? "no dependencies found"
+              : librarySummaryText(row.compatibility),
+        ),
+    },
+    {
+      // Last and never shrunk: the full id stays copyable into `--app <id>`
+      // even when it is wider than the terminal.
+      header: "APPLICATION (use with --app)",
+      accessorFn: (row) => safeTerminalText(row.id),
+      format: (value) => cyan(String(value)),
+    },
   ];
-  lines.push(formatTable(group, columns).trimEnd());
+  lines.push(
+    "",
+    formatTable(group, columns, {
+      maxWidth: Number.POSITIVE_INFINITY,
+      showSeparator: false,
+    }).trimEnd(),
+  );
   for (const candidate of group)
     for (const diagnostic of candidate.diagnostics)
       lines.push(
@@ -472,11 +495,11 @@ export function renderAudit({
       else byCandidate.set(finding.candidateId, [finding]);
     }
     for (const group of groupByRuntime(candidates))
-      lines.push("", ...renderRuntimeGroup(group, byCandidate));
+      lines.push("", ...renderRuntimeGroup({ group, byCandidate }));
     lines.push(
       "",
       muted(
-        `Inspect one app: observe instrumentation audit ${safeTerminalText(result.root)} --app <APPLICATION>` +
+        `Inspect one app: observe instrumentation audit ${safeTerminalText(result.root)} --app <id>` +
           ` (a value from the APPLICATION column, e.g. ${safeTerminalText(candidates[0]?.id ?? "<id>")})`,
       ),
     );
@@ -521,11 +544,11 @@ export function renderAudit({
         `  ${severityMark(finding.severity)} ${cyan(finding.ruleId)}  ${safeTerminalText(finding.message)}${where}`,
       );
       if (group.length > 1) {
-        const ids = group.map((item) => safeTerminalText(item.candidateId));
+        const apps = group.map((item) => safeTerminalText(item.candidateId));
         const shown =
-          ids.length > 8
-            ? [...ids.slice(0, 8), `+${ids.length - 8} more`]
-            : ids;
+          apps.length > 8
+            ? [...apps.slice(0, 8), `+${apps.length - 8} more`]
+            : apps;
         lines.push(
           `      ${muted(`${group.length} apps · ${shown.join(", ")}`)}`,
         );
@@ -537,7 +560,7 @@ export function renderAudit({
     lines.push("", bold("Diagnostics"));
     for (const diagnostic of result.diagnostics)
       lines.push(
-        `  ${severityMark(diagnostic.severity)} ${muted(diagnostic.code)}  ${diagnostic.message}`,
+        `  ${severityMark(diagnostic.severity)} ${muted(diagnostic.code)}  ${safeTerminalText(diagnostic.message)}`,
       );
   }
   return lines.join("\n");

@@ -17,13 +17,23 @@ agent or call a model API from a script.
    and the current `otel-support-manifest.yaml`. If the user only wants
    validation, run `bun run test:otel-manifest` and stop.
 2. Use the requested runtime; if none is given, confirm scope before researching.
-3. Research upstream support (the current session's read-only web tools or
-   `gh api` GET requests) and edit the YAML runtime/package entries directly.
-4. Update the top-level `generatedAt` (ISO). Add or adjust a regression fixture
+3. **Sync** (the default for "sync", "refresh", or a whole-runtime request):
+   enumerate the runtime's full upstream list with the recipe under
+   "Where to research upstream support", then compare it with the catalog and
+   report, before editing:
+   - upstream instrumentations missing from the catalog;
+   - catalog entries whose range differs from upstream;
+   - catalog entries with no upstream counterpart (candidates for removal).
+
+   **Targeted** (named libraries only): research just those, but still say
+   whether each is covered under another catalog name.
+
+4. Edit the YAML runtime/package entries directly.
+5. Update the top-level `generatedAt` (ISO). Add or adjust a regression fixture
    (see "Validation") for any tricky range or `instrumentationOptions` entry.
-5. Validate: `bun run test:otel-manifest` (schema shape + semver ranges), then
+6. Validate: `bun run test:otel-manifest` (schema shape + semver ranges), then
    `bun run typecheck`. Fix the data, never loosen the schema or tests to pass.
-6. Report what changed. Do not commit, push, or open a PR unless asked.
+7. Report what changed. Do not commit, push, or open a PR unless asked.
 
 ## Scope and safety
 
@@ -76,6 +86,11 @@ Each package entry (scalar form — the common case):
   unknown. Omission means unknown, never wildcard.
 - `inAutoInstrumentation` — optional boolean (covered by the zero-code bundle).
 - `instrumentation` — the OpenTelemetry package that instruments it.
+- `runtimeVersions` — optional semver range of runtime versions the
+  instrumentation runs on, only when narrower than the runtime entry's
+  `supportedRuntimeVersions`. .NET uses it for instrumentation upstream marks
+  "Not supported on .NET Framework" (`>=8.0.0`) or "Not supported on .NET"
+  (`>=4.6.2 <5.0.0`). With `instrumentationOptions`, set it per option instead.
 
 ## Scalar fields vs `instrumentationOptions`
 
@@ -87,7 +102,10 @@ automatically. Reach for `instrumentationOptions` ONLY when one of these is true
   (a "native handoff": e.g. an external gem covers older versions and the library
   ships native OpenTelemetry support in newer ones), or
 - you need to record that a path is **off by default** (`activation: opt-in`),
-  or that it must be **wired into application code** (`activation: manual`).
+  or that it must be **wired into application code** (`activation: manual`), or
+- one library is instrumented by two or more separate instrumentation packages
+  covering different parts of it (e.g. aiohttp's client and server), even when
+  their ranges match.
 
 Do not wrap a single automatic path in `instrumentationOptions`; keep it scalar.
 
@@ -185,6 +203,44 @@ semver. Verify a specific range before trusting it:
 - The language instrumentation repositories — e.g.
   `open-telemetry/opentelemetry-java-instrumentation` (`docs/instrumentation-list.yaml`)
   and the `-contrib` repos for python, ruby, js, php, and go.
+- Python: `open-telemetry/opentelemetry-python-contrib`.
+  - The `libraries` list in
+    `opentelemetry-instrumentation/src/opentelemetry/instrumentation/bootstrap_gen.py`
+    is the zero-code set: each entry pairs a library requirement
+    (`"aiohttp ~= 3.0"`) with its instrumentation package. Every entry there
+    is `inAutoInstrumentation: true`.
+  - Also list `instrumentation/` and `instrumentation-genai/` for packages not
+    yet in `bootstrap_gen.py` (development status). For each, read
+    `src/opentelemetry/instrumentation/<module>/package.py`: `_instruments`
+    names the library and range; `_instruments_any` names alternatives
+    (aliases, or separate distributions such as `aiobotocore`).
+  - Skip standard-library instrumentations (no distribution to name: asyncio,
+    logging, sqlite3, threading, urllib, wsgi, dbapi).
+- Node.js: `open-telemetry/opentelemetry-js-contrib`.
+  - List every `packages/instrumentation-*`. The authoritative range is the
+    `InstrumentationNodeModuleDefinition(name, versions)` call in the package's
+    `src/instrumentation.ts` (often via `SUPPORTED_VERSIONS` in
+    `src/constants.ts`); the README's "Supported Versions" is a cross-check.
+  - One instrumentation can target several modules (`pg` and `pg-pool`, `koa`
+    and `@koa/router`): add one catalog entry per module.
+  - `inAutoInstrumentation: true` only if the package is a dependency of
+    `packages/auto-instrumentations-node/package.json`.
+  - Packages hosted in js-contrib are first-party even when the registry entry
+    still links a former community repository (sequelize, typeorm). Do not
+    exclude them as community packages.
+  - Skip Node built-ins (`dns`, `fs`, `net`, `http`), browser-only packages,
+    host metrics, and AWS Lambda. Report wildcard module names
+    (`@aws-sdk/client-*`) as not expressible rather than inventing names.
+- Java: `docs/instrumentation-list.yaml` in
+  `open-telemetry/opentelemetry-java-instrumentation`.
+  - Each `javaagent_target_versions` item is `group:artifact:range`; the
+    catalog `name` is the artifactId and the Maven interval becomes the semver
+    range.
+  - Names containing `$` (e.g. `play_$scalaVersion`) are templates: expand
+    them to the published artifact names or skip them; never catalog them
+    literally.
+  - Entries with no coordinates (JDBC: "Java 8+") cannot be named; list them in
+    the report as not catalogable instead of inventing driver names.
 - Follow native handoffs and library-maintainer references, including support
   absent from the registry.
 - Go: enumerate `data/registry/instrumentation-go-*.yml` in

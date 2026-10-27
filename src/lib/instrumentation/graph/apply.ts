@@ -1,4 +1,5 @@
 import type { CandidateApplication } from "../types";
+import { joinPath } from "../file-index";
 import { runtimeClosure } from "./traverse";
 import type { DependencyGraph } from "./types";
 
@@ -44,6 +45,15 @@ export function applyGraph({
         dependency,
       );
     }
+  } else {
+    // Framework references (Microsoft.AspNetCore.App) ship with the runtime,
+    // not as packages, so a package graph never contains them.
+    for (const declared of candidate.dependencies)
+      if (declared.sourceKind === "framework-reference")
+        dependencies.set(
+          `${declared.name.toLowerCase()}@${declared.version ?? "unknown"}`,
+          declared,
+        );
   }
   for (const item of closure) {
     const path = item.path.map((id) => graph.nodes.get(id)?.name ?? id);
@@ -82,7 +92,15 @@ export function applyGraph({
     nodeCount: graph.nodes.size,
     edgeCount: graph.edges.length,
   };
-  if (!candidate.lockfiles.includes(graph.provenance.path))
+  // Detectors list lockfiles relative to the application directory; the graph
+  // names the same file relative to the scan root.
+  if (
+    !candidate.lockfiles.some(
+      (lockfile) =>
+        lockfile === graph.provenance.path ||
+        joinPath(candidate.path, lockfile) === graph.provenance.path,
+    )
+  )
     candidate.lockfiles.push(graph.provenance.path);
   if (
     !candidate.evidence.some(

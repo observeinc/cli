@@ -38,21 +38,21 @@ afterEach(() => {
 
 describe("findExecutable", () => {
   test("returns the absolute path of the first match on PATH", () => {
-    const cargo = plant(tools, exe("cargo"));
+    const go = plant(tools, exe("go"));
     expect(
-      findExecutable({ executable: "cargo", root: repo, searchPath: tools }),
-    ).toEqual({ path: cargo });
+      findExecutable({ executable: "go", root: repo, searchPath: tools }),
+    ).toEqual({ path: go });
   });
 
   test("never searches the working directory or relative PATH entries", () => {
-    plant(repo, exe("cargo"));
+    plant(repo, exe("go"));
     const searchPath = [".", "bin", ""].join(delimiter);
     const previous = process.cwd();
     process.chdir(repo);
     try {
       expect(
-        findExecutable({ executable: "cargo", root: repo, searchPath }),
-      ).toEqual({ error: "cargo is not installed or not on PATH" });
+        findExecutable({ executable: "go", root: repo, searchPath }),
+      ).toEqual({ error: "go is not installed or not on PATH" });
     } finally {
       process.chdir(previous);
     }
@@ -60,10 +60,10 @@ describe("findExecutable", () => {
 
   test("refuses a match inside the project instead of skipping it", () => {
     const bin = join(repo, "bin");
-    plant(bin, exe("cargo"));
-    plant(tools, exe("cargo"));
+    plant(bin, exe("go"));
+    plant(tools, exe("go"));
     const lookup = findExecutable({
-      executable: "cargo",
+      executable: "go",
       root: repo,
       searchPath: [bin, tools].join(delimiter),
     });
@@ -73,11 +73,11 @@ describe("findExecutable", () => {
   test.skipIf(windows)(
     "follows symlinks before the inside-project check",
     () => {
-      plant(join(repo, "bin"), "cargo");
+      plant(join(repo, "bin"), "go");
       mkdirSync(tools);
-      symlinkSync(join(repo, "bin", "cargo"), join(tools, "cargo"));
+      symlinkSync(join(repo, "bin", "go"), join(tools, "go"));
       const lookup = findExecutable({
-        executable: "cargo",
+        executable: "go",
         root: repo,
         searchPath: tools,
       });
@@ -87,30 +87,30 @@ describe("findExecutable", () => {
 
   test.skipIf(windows)("skips files that are not executable", () => {
     mkdirSync(tools);
-    writeFileSync(join(tools, "cargo"), "", { mode: 0o644 });
+    writeFileSync(join(tools, "go"), "", { mode: 0o644 });
     expect(
-      findExecutable({ executable: "cargo", root: repo, searchPath: tools }),
-    ).toEqual({ error: "cargo is not installed or not on PATH" });
+      findExecutable({ executable: "go", root: repo, searchPath: tools }),
+    ).toEqual({ error: "go is not installed or not on PATH" });
   });
 
   test.skipIf(!windows)("accepts only .exe on Windows", () => {
-    plant(tools, "cargo.cmd");
-    plant(tools, "cargo.bat");
-    plant(tools, "cargo");
+    plant(tools, "go.cmd");
+    plant(tools, "go.bat");
+    plant(tools, "go");
     expect(
-      findExecutable({ executable: "cargo", root: repo, searchPath: tools }),
-    ).toEqual({ error: "cargo is not installed or not on PATH" });
+      findExecutable({ executable: "go", root: repo, searchPath: tools }),
+    ).toEqual({ error: "go is not installed or not on PATH" });
   });
 
   test.skipIf(!windows)("accepts a quoted PATH entry", () => {
-    const cargo = plant(tools, "cargo.exe");
+    const go = plant(tools, "go.exe");
     expect(
       findExecutable({
-        executable: "cargo",
+        executable: "go",
         root: repo,
         searchPath: `"${tools}"`,
       }),
-    ).toEqual({ path: cargo });
+    ).toEqual({ path: go });
   });
 });
 

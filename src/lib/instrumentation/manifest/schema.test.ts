@@ -52,6 +52,7 @@ test("a package accepts native and external options in v1", () => {
 
 test.each([
   "mixed",
+  "mixed-runtime",
   "empty",
   "duplicate",
   "unknown-key",
@@ -61,6 +62,8 @@ test.each([
   const manifest = proposedManifest();
   const entry = manifest.runtimes.ruby.packages[0]!;
   if (mode === "mixed") Object.assign(entry, { supportedVersions: "*" });
+  if (mode === "mixed-runtime")
+    Object.assign(entry, { runtimeVersions: ">=3.0.0" });
   if (mode === "empty") entry.instrumentationOptions = [];
   if (mode === "duplicate") entry.instrumentationOptions.push({ ...option });
   if (mode === "unknown-key")
@@ -76,6 +79,17 @@ test("manual activation is a valid instrumentation option", () => {
   const manifest = proposedManifest();
   manifest.runtimes.ruby.packages[0]!.instrumentationOptions[0]!.activation =
     "manual";
+  expect(() => parseManifest(manifest)).not.toThrow();
+});
+
+test("an instrumentation option may narrow the runtime versions it runs on", () => {
+  const manifest = proposedManifest();
+  Object.assign(
+    manifest.runtimes.ruby.packages[0]!.instrumentationOptions[0]!,
+    {
+      runtimeVersions: ">=3.0.0",
+    },
+  );
   expect(() => parseManifest(manifest)).not.toThrow();
 });
 

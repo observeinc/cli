@@ -1,5 +1,5 @@
 schemaVersion: 1
-generatedAt: 2026-09-25T00:00:00.000Z
+generatedAt: 2026-10-27T00:00:00.000Z
 runtimes:
   cpp:
     ecosystem: cargo
@@ -13,7 +13,11 @@ runtimes:
     packages: []
   dotnet:
     ecosystem: nuget
-    supportedRuntimeVersions: ">=8.0.0"
+    # .NET Framework from 4.6.2, and officially supported .NET. .NET Core
+    # skipped version 4, so the two ranges cannot collide. Instrumentation that
+    # runs on only one of the two carries runtimeVersions: ">=4.6.2 <5.0.0" for
+    # .NET Framework or ">=8.0.0" for .NET.
+    supportedRuntimeVersions: ">=4.6.2 <5.0.0 || >=8.0.0"
     autoInstrumentationSupported: true
     runtimeMetricsSupported: true
     sdkStability:
@@ -52,6 +56,7 @@ runtimes:
         supportedVersions: ">=1.8.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
       - name: Elastic.Clients.Elasticsearch
         instrumentationOptions:
           - id: elasticsearch
@@ -74,6 +79,7 @@ runtimes:
         supportedVersions: ">=7.5.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
       - name: Grpc.Net.Client
         supportedVersions: ">=2.52.0 <3.0.0"
         inAutoInstrumentation: true
@@ -82,10 +88,27 @@ runtimes:
         supportedVersions: ">=8.0.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
+      # ASP.NET (.NET Framework) MVC and Web API, through the IIS integrated
+      # pipeline only; not on ARM64.
+      - name: Microsoft.AspNet.Mvc
+        supportedVersions: "*"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.AspNet
+        runtimeVersions: ">=4.6.2 <5.0.0"
+      - name: Microsoft.AspNet.WebApi.Core
+        aliases:
+          - Microsoft.AspNet.WebApi
+          - Microsoft.AspNet.WebApi.WebHost
+        supportedVersions: "*"
+        inAutoInstrumentation: true
+        instrumentation: OpenTelemetry.Instrumentation.AspNet
+        runtimeVersions: ">=4.6.2 <5.0.0"
       - name: Microsoft.AspNetCore.App
         supportedVersions: ">=8.0.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.Instrumentation.AspNetCore
+        runtimeVersions: ">=8.0.0"
       # Native OpenTelemetry tracing (ActivitySource "Azure.Cosmos.*") since
       # 3.36.0; opt-in (DisableDistributedTracing=false plus the experimental
       # Azure.Experimental.EnableActivitySource switch).
@@ -109,10 +132,12 @@ runtimes:
         supportedVersions: ">=6.0.12"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.Instrumentation.EntityFrameworkCore
+        runtimeVersions: ">=8.0.0"
       - name: Microsoft.Extensions.Logging
         supportedVersions: ">=8.0.0 <12.0.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
       - name: MongoDB.Driver
         instrumentationOptions:
           - id: contrib
@@ -135,6 +160,7 @@ runtimes:
         supportedVersions: ">=8.1.0"
         inAutoInstrumentation: true
         instrumentation: OpenTelemetry.AutoInstrumentation
+        runtimeVersions: ">=8.0.0"
       - name: MySqlConnector
         supportedVersions: ">=2.0.0"
         inAutoInstrumentation: true
@@ -867,10 +893,6 @@ runtimes:
         supportedVersions: ">=1.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-javaagent
-      - name: play_$scalaVersion
-        supportedVersions: ">=2.6.0"
-        inAutoInstrumentation: true
-        instrumentation: opentelemetry-javaagent
       - name: play_2.11
         supportedVersions: ">=2.4.0 <2.6.0"
         inAutoInstrumentation: true
@@ -901,10 +923,6 @@ runtimes:
         instrumentation: opentelemetry-javaagent
       - name: play-ahc-ws-standalone_3
         supportedVersions: ">=3.0.0"
-        inAutoInstrumentation: true
-        instrumentation: opentelemetry-javaagent
-      - name: postgresql
-        supportedVersions: ">=9.4.1207"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-javaagent
       - name: powerjob-worker
@@ -1225,7 +1243,8 @@ runtimes:
     packages: []
   nodejs:
     ecosystem: npm
-    supportedRuntimeVersions: ">=14"
+    # auto-instrumentations-node 0.81.x; 0.82.0 raised the floor to >=22.15.0.
+    supportedRuntimeVersions: "^18.19.0 || >=20.6.0"
     autoInstrumentationSupported: true
     runtimeMetricsSupported: true
     sdkStability:
@@ -1235,61 +1254,176 @@ runtimes:
       profiles: none
     packages:
       - name: "@grpc/grpc-js"
-        supportedVersions: ">=1.0.0"
+        supportedVersions: ">=1.0.0 <2.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-grpc"
+      - name: "@hapi/hapi"
+        supportedVersions: ">=17.0.0 <22.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-hapi"
+      - name: "@langchain/core"
+        supportedVersions: ">=1.0.0 <2.0.0"
+        inAutoInstrumentation: false
+        instrumentation: "@opentelemetry/instrumentation-langchain"
       - name: "@nestjs/core"
-        supportedVersions: ">=4.0.0"
+        supportedVersions: ">=4.0.0 <12.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-nestjs-core"
+      - name: "@openai/agents"
+        supportedVersions: ">=0.14.0 <1.0.0"
+        inAutoInstrumentation: false
+        instrumentation: "@opentelemetry/instrumentation-openai-agents"
       - name: "@prisma/client"
         supportedVersions: ">=4.0.0"
         inAutoInstrumentation: false
         instrumentation: "@prisma/instrumentation"
+      # redis 4+ is instrumented through this client package (named
+      # @node-redis/client in redis 4.0.x), not through `redis` itself.
+      - name: "@redis/client"
+        aliases:
+          - "@node-redis/client"
+        supportedVersions: ">=1.0.0 <2.0.0 || >=5.0.0 <7.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-redis"
       - name: amqplib
-        supportedVersions: ">=0.5.5"
+        supportedVersions: ">=0.5.5 <3.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-amqplib"
+      - name: bunyan
+        supportedVersions: ">=1.0.0 <2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-bunyan"
+      - name: cassandra-driver
+        supportedVersions: ">=4.4.0 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-cassandra-driver"
+      - name: connect
+        supportedVersions: ">=3.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-connect"
+      - name: dataloader
+        supportedVersions: ">=2.0.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-dataloader"
       - name: express
         supportedVersions: ">=4.0.0 <6.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-express"
       - name: fastify
-        supportedVersions: ">=3.0.0"
+        supportedVersions: ">=4.0.0 <6.0.0"
         inAutoInstrumentation: false
         instrumentation: "@fastify/otel"
+      - name: generic-pool
+        supportedVersions: ">=2.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-generic-pool"
+      - name: graphql
+        supportedVersions: ">=14.0.0 <17.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-graphql"
       - name: ioredis
-        supportedVersions: ">=2.0.0"
+        supportedVersions: ">=2.0.0 <7.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-ioredis"
       - name: kafkajs
-        supportedVersions: ">=0.3.0"
+        supportedVersions: ">=0.3.0 <3.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-kafkajs"
+      - name: knex
+        supportedVersions: ">=0.10.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-knex"
       - name: koa
-        supportedVersions: ">=2.0.0"
+        supportedVersions: ">=2.0.0 <4.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-koa"
+      - name: langchain
+        supportedVersions: ">=1.0.0 <2.0.0"
+        inAutoInstrumentation: false
+        instrumentation: "@opentelemetry/instrumentation-langchain"
+      - name: lru-memoizer
+        supportedVersions: ">=1.3.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-lru-memoizer"
+      - name: memcached
+        supportedVersions: ">=2.2.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-memcached"
       - name: mongodb
-        supportedVersions: ">=3.3.0 <7.0.0"
+        supportedVersions: ">=3.3.0 <8.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-mongodb"
       - name: mongoose
-        supportedVersions: ">=5.9.7 <9.0.0"
+        supportedVersions: ">=5.9.7 <10.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-mongoose"
+      - name: mysql
+        supportedVersions: ">=2.0.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-mysql"
       - name: mysql2
-        supportedVersions: ">=1.4.2"
+        supportedVersions: ">=1.4.2 <4.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-mysql2"
+      - name: openai
+        supportedVersions: ">=4.19.0 <7.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-openai"
+      - name: oracledb
+        supportedVersions: ">=6.7.0 <27.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-oracledb"
       - name: pg
-        supportedVersions: ">=8.0.0"
+        supportedVersions: ">=8.0.3 <9.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-pg"
+      - name: pg-pool
+        supportedVersions: ">=2.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-pg"
+      - name: pino
+        supportedVersions: ">=5.14.0 <11.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-pino"
+      # Instrumented directly for 2.x-3.x; 4+ through @redis/client, which apps
+      # rarely declare, so the range stays open rather than flagging redis 4+.
       - name: redis
         supportedVersions: ">=2.6.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-redis"
+      - name: restify
+        supportedVersions: ">=4.1.0 <13.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-restify"
+      - name: router
+        supportedVersions: ">=1.0.0 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-router"
+      - name: sequelize
+        supportedVersions: ">=6.0.0 <7.0.0"
+        inAutoInstrumentation: false
+        instrumentation: "@opentelemetry/instrumentation-sequelize"
+      - name: socket.io
+        supportedVersions: ">=2.0.0 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-socket.io"
+      - name: tedious
+        supportedVersions: ">=1.11.0 <21.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-tedious"
+      - name: typeorm
+        supportedVersions: ">=0.3.0 <2.0.0"
+        inAutoInstrumentation: false
+        instrumentation: "@opentelemetry/instrumentation-typeorm"
+      # Range from the package README; the code has no version guard.
+      - name: undici
+        supportedVersions: ">=5.12.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-undici"
+      - name: winston
+        supportedVersions: ">=1.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: "@opentelemetry/instrumentation-winston"
   php:
     ecosystem: composer
     supportedRuntimeVersions: ">=8.1.0"
@@ -1390,18 +1524,69 @@ runtimes:
       logs: development
       profiles: none
     packages:
+      - name: aio-pika
+        supportedVersions: ">=7.2.0 <11.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-aio-pika
+      - name: aiobotocore
+        supportedVersions: ">=2.0.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-botocore
+      # One library, two instrumentation packages: the client traces outbound
+      # requests, the server traces incoming ones. Dependencies only show
+      # aiohttp, so both are listed.
+      - name: aiohttp
+        instrumentationOptions:
+          - id: client
+            instrumentation: opentelemetry-instrumentation-aiohttp-client
+            kind: external
+            supportedVersions: ">=3.0.0 <4.0.0"
+            inAutoInstrumentation: true
+            activation: automatic
+          - id: server
+            instrumentation: opentelemetry-instrumentation-aiohttp-server
+            kind: external
+            supportedVersions: ">=3.0.0 <4.0.0"
+            inAutoInstrumentation: true
+            activation: automatic
+      - name: aiokafka
+        supportedVersions: ">=0.8.0 <1.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-aiokafka
+      - name: aiopg
+        supportedVersions: ">=0.13.0 <2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-aiopg
+      - name: asyncclick
+        supportedVersions: ">=8.0.0 <9.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-asyncclick
       - name: asyncpg
         supportedVersions: ">=0.12.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-asyncpg
+      # Instruments SQS calls; other AWS calls are traced through botocore.
+      - name: boto3
+        supportedVersions: ">=1.0.0 <2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-boto3sqs
       - name: botocore
         supportedVersions: ">=1.0.0 <2.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-botocore
+      - name: cassandra-driver
+        aliases: [scylla-driver]
+        supportedVersions: ">=3.25.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-cassandra
       - name: celery
         supportedVersions: ">=4.0.0 <6.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-celery
+      - name: click
+        supportedVersions: ">=8.1.3 <9.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-click
       - name: confluent-kafka
         supportedVersions: ">=1.8.2 <3.0.0"
         inAutoInstrumentation: true
@@ -1422,6 +1607,10 @@ runtimes:
         supportedVersions: ">=1.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-flask
+      - name: google-cloud-aiplatform
+        supportedVersions: ">=1.64.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-vertexai
       - name: grpcio
         supportedVersions: ">=1.42.0"
         inAutoInstrumentation: true
@@ -1430,10 +1619,34 @@ runtimes:
         supportedVersions: ">=0.18.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-httpx
+      - name: httpx2
+        supportedVersions: ">=2.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-httpx
+      - name: jinja2
+        supportedVersions: ">=2.7.0 <4.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-jinja2
       - name: kafka-python
         supportedVersions: ">=2.0.0 <4.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-kafka-python
+      - name: mysql-connector-python
+        supportedVersions: ">=8.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-mysql
+      - name: mysqlclient
+        supportedVersions: "<3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-mysqlclient
+      - name: openai
+        supportedVersions: ">=1.26.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-openai-v2
+      - name: openai-agents
+        supportedVersions: ">=0.3.3"
+        inAutoInstrumentation: false
+        instrumentation: opentelemetry-instrumentation-openai-agents-v2
       - name: pika
         supportedVersions: ">=0.12.0"
         inAutoInstrumentation: true
@@ -1447,10 +1660,18 @@ runtimes:
         supportedVersions: ">=2.7.3"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-psycopg2
+      - name: pymemcache
+        supportedVersions: ">=1.3.5 <5.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-pymemcache
       - name: pymongo
         supportedVersions: ">=3.1.0 <5.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-pymongo
+      - name: pymssql
+        supportedVersions: ">=2.1.5 <3.0.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-pymssql
       - name: pymysql
         supportedVersions: "<2.0.0"
         inAutoInstrumentation: true
@@ -1463,26 +1684,43 @@ runtimes:
         supportedVersions: ">=2.6.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-redis
+      - name: remoulade
+        supportedVersions: ">=0.50.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-remoulade
       - name: requests
         supportedVersions: ">=2.0.0 <3.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-requests
       - name: sqlalchemy
-        supportedVersions: ">=1.0.0 <2.1.0"
+        supportedVersions: ">=1.4.3 <2.2.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-sqlalchemy
       - name: starlette
         supportedVersions: ">=0.13.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-starlette
+      - name: structlog
+        supportedVersions: ">=21.1.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-structlog
       - name: tornado
         supportedVersions: ">=5.1.1"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-tornado
+      - name: tortoise-orm
+        supportedVersions: ">=0.17.0"
+        inAutoInstrumentation: true
+        instrumentation: opentelemetry-instrumentation-tortoiseorm
       - name: urllib3
         supportedVersions: ">=1.0.0 <3.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-urllib3
+      # In development upstream; not in the zero-code bundle yet.
+      - name: valkey
+        supportedVersions: ">=6.0.0 <7.0.0"
+        inAutoInstrumentation: false
+        instrumentation: opentelemetry-instrumentation-valkey-py
   ruby:
     ecosystem: gems
     supportedRuntimeVersions: ">=3.3"

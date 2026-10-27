@@ -247,12 +247,27 @@ function addSection({
       }
     } else {
       const version = cleanVersion(selected);
+      // An alias selects another package under this name:
+      // `string-width-cjs: string-width@4.2.3`.
+      const alias = /^((?:@[^/@]+\/)?[^/@]+)@(\d.*)$/.exec(version);
+      const [targetName, targetVersion] =
+        alias?.[1] != null && alias[2] != null
+          ? [alias[1], alias[2]]
+          : [name, version];
       target =
-        packageIds.get(`${name}@${version}`) ??
+        packageIds.get(`${targetName}@${targetVersion}`) ??
         [...nodes.values()].find(
-          (node) => node.name === normalize(name) && node.version === version,
+          (node) =>
+            node.name === normalize(targetName) &&
+            node.version === targetVersion,
         )?.id;
     }
+    // A `file:`/`link:` path that is not a workspace importer is a vendored
+    // tarball or directory, which the lockfile records as a package entry.
+    if (target == null && /^(?:link:|file:)/.test(selected))
+      target = packageIds.get(
+        `${normalize(name)}@${selected.replace(/\(.*$/, "")}`,
+      );
     if (target != null) {
       edges.push({ from, to: target, kind, optional: kind === "optional" });
       const targetImporter = nodes.get(target)?.source.location;

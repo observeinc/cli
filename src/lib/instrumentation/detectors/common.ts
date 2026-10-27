@@ -36,7 +36,7 @@ export function createCandidate({
   entrypoints = [],
   dependencies = [],
   evidence = [],
-  idSuffix,
+  target,
   discovery,
 }: {
   directory: string;
@@ -50,11 +50,12 @@ export function createCandidate({
   entrypoints?: { path: string; command?: string }[];
   dependencies?: DetectedDependency[];
   evidence?: Evidence[];
-  idSuffix?: string;
+  /** A build target; one directory can define several (Bazel, CMake). */
+  target?: string;
   discovery?: ApplicationDiscovery;
 }): CandidateApplication {
   return {
-    id: `${language}:${directory}${idSuffix ? `:${idSuffix}` : ""}`,
+    id: target ? `${directory}:${target}` : directory,
     path: directory,
     name,
     language: { id: language, version },

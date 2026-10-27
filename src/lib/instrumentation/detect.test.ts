@@ -93,6 +93,32 @@ describe("instrumentation detection", () => {
     ).toEqual([["requests", "==2.32.0"]]);
   });
 
+  test("hashed pip-compile pins keep a parseable version", () => {
+    const root = fixture({
+      "requirements.txt": [
+        "django==4.2.7 \\",
+        "    --hash=sha256:aaaa \\",
+        "    --hash=sha256:bbbb",
+        "requests==2.32.0 \\",
+        "    --hash=sha256:cccc",
+        "",
+      ].join("\n"),
+      "main.py": "print('hello')",
+    });
+    const candidate = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates[0];
+    expect(
+      candidate?.dependencies.map((dependency) => [
+        dependency.name,
+        dependency.version,
+      ]),
+    ).toEqual([
+      ["django", "==4.2.7"],
+      ["requests", "==2.32.0"],
+    ]);
+  });
+
   test.each([
     [
       "Pipfile",
@@ -173,7 +199,7 @@ describe("instrumentation detection", () => {
     );
     expect(detection.candidates).toHaveLength(1);
     const candidate = detection.candidates[0]!;
-    expect(candidate.id).toBe("nodejs:.");
+    expect(candidate.id).toBe(".");
     expect(candidate.frameworks[0]?.id).toBe("express");
     expect(candidate.packageManager?.id).toBe("pnpm");
     const compat = candidate.compatibility!;
@@ -202,9 +228,196 @@ describe("instrumentation detection", () => {
       createProjectSnapshot({ targetPath: root }),
     ).candidates;
     expect(candidates.map((candidate) => candidate.id)).toEqual([
-      "dotnet:.:Api",
-      "dotnet:.:Worker",
+      ".:Api.csproj",
+      ".:Worker.csproj",
     ]);
+  });
+
+  test("detects an ASP.NET (.NET Framework) web application and its packages.config", () => {
+    const root = fixture({
+      "web/Orders.Web.csproj":
+        '<Project ToolsVersion="15.0"><PropertyGroup><ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids><OutputType>Library</OutputType><TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion></PropertyGroup></Project>',
+      "web/packages.config":
+        '<?xml version="1.0" encoding="utf-8"?><packages><package id="Microsoft.AspNet.Mvc" version="5.2.9" targetFramework="net472" /><package id="Microsoft.CodeDom.Providers.DotNetCompilerPlatform" version="2.0.1" targetFramework="net472" developmentDependency="true" /></packages>',
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.id).toBe("web");
+    expect(candidate?.frameworks).toEqual([{ id: "aspnet" }]);
+    expect(candidate?.language.version).toBe("v4.7.2");
+    expect(candidate?.compatibility?.runtimeVersionSupported).toBe("yes");
+    expect(
+      candidate?.dependencies.map(({ name, version }) => [name, version]),
+    ).toEqual([["Microsoft.AspNet.Mvc", "5.2.9"]]);
+    expect(
+      candidate?.compatibility?.packages.supported.map((pkg) => pkg.name),
+    ).toEqual(["Microsoft.AspNet.Mvc"]);
+  });
+
+  test("a Global.asax marks a legacy class-library project as a web application", () => {
+    const root = fixture({
+      "Portal.csproj":
+        "<Project><PropertyGroup><OutputType>Library</OutputType><TargetFrameworkVersion>v4.8</TargetFrameworkVersion></PropertyGroup></Project>",
+      "Global.asax": '<%@ Application Inherits="Portal.MvcApplication" %>',
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.frameworks).toEqual([{ id: "aspnet" }]);
+  });
+
+  describe("Node workspace roots", () => {
+    const paths = (files: Record<string, string>) =>
+      detectApplications(
+        createProjectSnapshot({ targetPath: fixture(files) }),
+      ).candidates.map((candidate) => candidate.path);
+    const service = JSON.stringify({
+      name: "api",
+      scripts: { start: "node server.js" },
+    });
+
+    test.each([
+      [
+        "a workspaces field",
+        {
+          "package.json": JSON.stringify({
+            main: "index.js",
+            workspaces: ["apps/*"],
+          }),
+        },
+      ],
+      [
+        "a pnpm-workspace.yaml",
+        {
+          "package.json": JSON.stringify({ main: "index.js" }),
+          "pnpm-workspace.yaml": "packages:\n  - apps/*\n",
+        },
+      ],
+    ])(
+      "a root declared by %s is not an application on main alone",
+      (_, root) => {
+        expect(paths({ ...root, "apps/api/package.json": service })).toEqual([
+          "apps/api",
+        ]);
+      },
+    );
+
+    test("a workspace root with a start script is still an application", () => {
+      expect(
+        paths({
+          "package.json": JSON.stringify({
+            workspaces: ["apps/*"],
+            scripts: { start: "node server.js" },
+          }),
+        }),
+      ).toEqual(["."]);
+    });
+
+    test("main still counts outside a workspace root", () => {
+      expect(
+        paths({ "package.json": JSON.stringify({ main: "server.js" }) }),
+      ).toEqual(["."]);
+    });
+  });
+
+  describe("runtime version files in parent directories", () => {
+    const nodeApp = JSON.stringify({
+      name: "web",
+      scripts: { start: "node index.js" },
+    });
+    const versionOf = (files: Record<string, string>) =>
+      detectApplications(createProjectSnapshot({ targetPath: fixture(files) }))
+        .candidates[0]?.language.version;
+
+    test("uses the nearest parent's version file", () => {
+      expect(
+        versionOf({
+          ".nvmrc": "18\n",
+          "js/.nvmrc": "v22.11.0\n",
+          "js/apps/web/package.json": nodeApp,
+        }),
+      ).toBe("22.11.0");
+    });
+
+    test("reads a parent's .tool-versions entry for the runtime", () => {
+      expect(
+        versionOf({
+          ".tool-versions": "nodejs 24.13.0\npython 3.11.9\n",
+          "apps/web/package.json": nodeApp,
+        }),
+      ).toBe("24.13.0");
+    });
+
+    test("the application's own version file still wins", () => {
+      expect(
+        versionOf({
+          ".nvmrc": "18\n",
+          "apps/web/.nvmrc": "22\n",
+          "apps/web/package.json": nodeApp,
+        }),
+      ).toBe("22");
+    });
+
+    test("a parent Dockerfile describes another image and is not used", () => {
+      expect(
+        versionOf({
+          Dockerfile: "FROM node:20-alpine\n",
+          "apps/web/package.json": nodeApp,
+        }),
+      ).toBeUndefined();
+    });
+  });
+
+  test("reads the Ruby version from the Gemfile ruby directive", () => {
+    const root = fixture({
+      Gemfile:
+        'source "https://rubygems.org"\n\nruby "3.3.4"\n\ngem "rails", "~> 7.1"\n',
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.language.version).toBe("3.3.4");
+    expect(candidate?.compatibility?.runtimeVersionSupported).toBe("yes");
+  });
+
+  test("a Gemfile ruby constraint defers to the .ruby-version pin", () => {
+    const root = fixture({
+      Gemfile:
+        'source "https://rubygems.org"\n\nruby "~> 3.2"\n\ngem "rails", "~> 7.1"\n',
+      ".ruby-version": "3.3.4\n",
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.language.version).toBe("3.3.4");
+    expect(candidate?.compatibility?.runtimeVersionSupported).toBe("yes");
+  });
+
+  test("names a Maven application after its own artifactId, not its parent's", () => {
+    const root = fixture({
+      "pom.xml":
+        "<project><parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.3.2</version></parent><artifactId>payments-service</artifactId><dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency></dependencies></project>",
+      "src/main/java/App.java":
+        "@SpringBootApplication public class App { public static void main(String[] a) {} }",
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.name).toBe("payments-service");
+  });
+
+  test("a legacy class library without web markers is not an application", () => {
+    const root = fixture({
+      "Shared.csproj":
+        "<Project><PropertyGroup><OutputType>Library</OutputType><TargetFrameworkVersion>v4.8</TargetFrameworkVersion></PropertyGroup></Project>",
+      "packages.config":
+        '<packages><package id="Newtonsoft.Json" version="13.0.3" /></packages>',
+    });
+    expect(
+      detectApplications(createProjectSnapshot({ targetPath: root }))
+        .candidates,
+    ).toEqual([]);
   });
 
   test("matches library coverage for each language", () => {
@@ -226,7 +439,8 @@ describe("instrumentation detection", () => {
       candidates.find((candidate) => candidate.language.id === language)
         ?.compatibility?.packages.supported.length;
     expect(supportedCount("python")).toBe(2);
-    expect(supportedCount("java")).toBe(2);
+    // spring-boot-starter-web; JDBC drivers such as postgresql are not cataloged.
+    expect(supportedCount("java")).toBe(1);
     expect(supportedCount("dotnet")).toBe(3);
     expect(supportedCount("ruby")).toBe(2);
   });
@@ -581,7 +795,7 @@ describe("instrumentation detection", () => {
     const candidate = detectApplications(
       createProjectSnapshot({ targetPath: root }),
     ).candidates.find((c) => c.language.id === "php")!;
-    expect(candidate.id).toBe("php:.");
+    expect(candidate.id).toBe(".");
     expect(candidate.language.version).toBe("^8.2");
     expect(candidate.frameworks[0]?.id).toBe("laravel/framework");
     expect(candidate.dependencies.map((d) => d.name)).not.toContain("ext-pdo");
@@ -674,7 +888,7 @@ describe("instrumentation detection", () => {
     const candidate = detectApplications(
       createProjectSnapshot({ targetPath: root }),
     ).candidates.find((item) => item.language.id === "python")!;
-    expect(candidate.id).toBe("python:service_directory");
+    expect(candidate.id).toBe("service_directory");
     expect(candidate.name).toBe("poetry-service");
   });
 
@@ -698,7 +912,7 @@ describe("instrumentation detection", () => {
       createProjectSnapshot({ targetPath: root }),
     ).candidates.filter((candidate) => candidate.language.id === "python");
     expect(candidates.map((candidate) => candidate.id)).toEqual([
-      "python:apps/nested",
+      "apps/nested",
     ]);
   });
 
@@ -720,8 +934,8 @@ describe("instrumentation detection", () => {
       createProjectSnapshot({ targetPath: root }),
     ).candidates;
     expect(candidates.map((candidate) => candidate.id)).toEqual([
-      "go:cmd/server",
-      "python:tools",
+      "cmd/server",
+      "tools",
     ]);
   });
 
@@ -735,9 +949,7 @@ describe("instrumentation detection", () => {
     const candidates = detectApplications(
       createProjectSnapshot({ targetPath: root }),
     ).candidates.filter((candidate) => candidate.language.id === "java");
-    expect(candidates.map((candidate) => candidate.id)).toEqual([
-      "java:child:pom.xml",
-    ]);
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["child"]);
   });
 
   test.each([
@@ -852,7 +1064,7 @@ describe("instrumentation detection", () => {
     ).candidates.filter((candidate) => candidate.language.id === "go");
     expect(
       candidates.map((candidate) => [candidate.id, candidate.name]),
-    ).toEqual([["go:svc", "svc"]]);
+    ).toEqual([["svc", "svc"]]);
   });
 
   test("Go direct requirements become dependencies; indirect ones do not", () => {
@@ -919,7 +1131,7 @@ describe("instrumentation detection", () => {
       createProjectSnapshot({ targetPath: root }),
     ).candidates.filter((candidate) => candidate.language.id === "go");
     expect(candidates.map((candidate) => candidate.id)).toEqual([
-      "go:nested/cmd/tool",
+      "nested/cmd/tool",
     ]);
   });
 
@@ -935,7 +1147,7 @@ describe("instrumentation detection", () => {
     const candidates = detectApplications(
       createProjectSnapshot({ targetPath: root }),
     ).candidates.filter((candidate) => candidate.language.id === "go");
-    expect(candidates.map((candidate) => candidate.id)).toEqual(["go:."]);
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["."]);
   });
 
   test("detects production C++ binaries from Bazel rules and wrapper macros", () => {
@@ -983,9 +1195,9 @@ describe("instrumentation detection", () => {
       createProjectSnapshot({ targetPath: root }),
     ).candidates.filter((candidate) => candidate.language.id === "cpp");
     expect(candidates.map((candidate) => candidate.id)).toEqual([
-      "cpp:code/cpp/cmd/collector:collector_v2",
-      "cpp:code/cpp/cmd/collector:tags_bench",
-      "cpp:tools:native_tool",
+      "code/cpp/cmd/collector:collector_v2",
+      "code/cpp/cmd/collector:tags_bench",
+      "tools:native_tool",
     ]);
     expect(candidates[0]?.entrypoints[0]?.path).toBe(
       "code/cpp/cmd/collector/src/main.cpp",
@@ -998,6 +1210,36 @@ describe("instrumentation detection", () => {
         rule: "hardened_cc_binary",
       },
     });
+  });
+
+  test("keeps a Bazel workspace Python version when the requirements file declares none", () => {
+    const root = fixture({
+      "MODULE.bazel": 'module(name = "mono")',
+      ".bazelrc":
+        "common --@rules_python//python/config_settings:python_version=3.11",
+      "app/BUILD.bazel": 'py_binary(name = "app", srcs = ["main.py"])',
+      "app/requirements.txt": "flask==3.0.0\n",
+      "app/main.py": "print('hi')\n",
+    });
+    const [candidate] = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    ).candidates;
+    expect(candidate?.id).toBe("app:app");
+    expect(candidate?.language.version).toBe("3.11");
+  });
+
+  test("a root CMake project includes targets from add_subdirectory children", () => {
+    const root = fixture({
+      "CMakeLists.txt": "project(app)\nadd_subdirectory(server)\n",
+      "server/CMakeLists.txt": "add_executable(server main.cpp)\n",
+      "server/main.cpp": "int main() { return 0; }",
+    });
+    const names = detectApplications(
+      createProjectSnapshot({ targetPath: root }),
+    )
+      .candidates.filter((item) => item.language.id === "cpp")
+      .map((item) => item.name);
+    expect(names).toEqual(["server"]);
   });
 
   test("reports dynamic CMake targets without hiding literal executable names", () => {

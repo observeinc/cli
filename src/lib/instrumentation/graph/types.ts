@@ -35,6 +35,8 @@ export interface GraphProvenance {
   path: string;
   tool?: string;
   toolVersion?: string;
+  /** SHA-256 of the file the graph was read from, when it came from one. */
+  sha256?: string;
 }
 
 export interface DependencyGraph {

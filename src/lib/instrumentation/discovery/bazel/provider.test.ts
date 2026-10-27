@@ -100,7 +100,7 @@ describe("bazelApplicationProvider", () => {
       ),
     ).toBe(true);
     expect(result.candidates[3]?.entrypoints[0]?.command).toBe("com.acme.Main");
-    expect(result.candidates[0]?.id).toBe("cpp:.:cpp");
+    expect(result.candidates[0]?.id).toBe(".:cpp");
     expect(result.candidates[0]?.discovery?.provenance.target).toBe("//:cpp");
   });
 
@@ -279,5 +279,101 @@ describe("bazelApplicationProvider", () => {
     expect(
       result.candidates.map((candidate) => candidate.language.version),
     ).toEqual(["1.24", ">=3.12", "1.85"]);
+  });
+});
+
+describe("Bazel workspace runtime versions", () => {
+  const javaApp = {
+    "MODULE.bazel": 'module(name = "root")',
+    "app/BUILD.bazel":
+      'java_binary(name = "app", main_class = "com.example.Main")',
+  };
+  const pythonApp = {
+    "app/BUILD.bazel": 'py_binary(name = "app", srcs = ["main.py"])',
+  };
+  const versions = (files: Record<string, string>) =>
+    discoverBazelApplications(snapshot(files)).candidates.map(
+      (candidate) => candidate.language.version,
+    );
+
+  test.each([
+    ["build --java_runtime_version=11", "11"],
+    ["common --java_runtime_version=remotejdk_21", "21"],
+    ["build --java_runtime_version=11\nbuild --java_runtime_version=17", "17"],
+    ["build --java_runtime_version=local_jdk", undefined],
+    ["build:ci --java_runtime_version=17", undefined],
+    ["build --java_language_version=11", undefined],
+  ])("reads Java from .bazelrc %j", (rc, expected) => {
+    expect(versions({ ...javaApp, ".bazelrc": rc })).toEqual([expected]);
+  });
+
+  test("records where the Java version came from", () => {
+    const [candidate] = discoverBazelApplications(
+      snapshot({ ...javaApp, ".bazelrc": "build --java_runtime_version=11" }),
+    ).candidates;
+    expect(candidate?.evidence).toContainEqual({
+      kind: "runtime-version",
+      path: ".bazelrc",
+      key: "--java_runtime_version",
+      value: "11",
+    });
+  });
+
+  test("a pom.xml above the target still wins", () => {
+    expect(
+      versions({
+        ...javaApp,
+        ".bazelrc": "build --java_runtime_version=11",
+        "app/pom.xml":
+          "<project><properties><java.version>17</java.version></properties></project>",
+      }),
+    ).toEqual(["17"]);
+  });
+
+  test("reads Python from the MODULE.bazel toolchain", () => {
+    expect(
+      versions({
+        ...pythonApp,
+        "MODULE.bazel":
+          'python = use_extension("@rules_python//python/extensions:python.bzl", "python")\npython.toolchain(\n    python_version = "3.9",\n)',
+      }),
+    ).toEqual(["3.9"]);
+  });
+
+  test("picks the default of several Python toolchains, or none", () => {
+    const twoToolchains = (defaultFlag: string) =>
+      `python.toolchain(python_version = "3.11"${defaultFlag})\npython.toolchain(python_version = "3.12")`;
+    expect(
+      versions({
+        ...pythonApp,
+        "MODULE.bazel": twoToolchains(", is_default = True"),
+      }),
+    ).toEqual(["3.11"]);
+    expect(
+      versions({ ...pythonApp, "MODULE.bazel": twoToolchains("") }),
+    ).toEqual([undefined]);
+  });
+
+  test("a .bazelrc python_version flag beats the MODULE.bazel toolchain", () => {
+    expect(
+      versions({
+        ...pythonApp,
+        "MODULE.bazel": 'python.toolchain(python_version = "3.9")',
+        ".bazelrc":
+          "common --@rules_python//python/config_settings:python_version=3.13",
+      }),
+    ).toEqual(["3.13"]);
+  });
+
+  test("a nested workspace does not inherit the outer .bazelrc", () => {
+    expect(
+      versions({
+        ".bazelrc": "build --java_runtime_version=11",
+        "MODULE.bazel": 'module(name = "root")',
+        "vendor/MODULE.bazel": 'module(name = "vendor")',
+        "vendor/app/BUILD.bazel":
+          'java_binary(name = "app", main_class = "com.example.Main")',
+      }),
+    ).toEqual([undefined]);
   });
 });

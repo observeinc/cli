@@ -2,6 +2,7 @@ import { posix } from "node:path";
 import type { SnapshotFile } from "./snapshot";
 import type { Evidence, LanguageId } from "./types";
 import { findLocalFiles } from "./detectors/common";
+import { fileAt, joinPath } from "./file-index";
 
 /**
  * Version files and Docker base images that declare a runtime version when the
@@ -141,5 +142,70 @@ export function detectRuntimeVersion({
       }
   }
 
+  return null;
+}
+
+/**
+ * Version files whose tools (nvm, nodenv, rbenv, pyenv, jenv, asdf) look for
+ * them in parent directories too. Dockerfiles, `runtime.txt`, and `.sdkmanrc`
+ * describe one directory only.
+ */
+const INHERITED_VERSION_FILES: Partial<Record<LanguageId, string[]>> = {
+  nodejs: [".nvmrc", ".node-version"],
+  ruby: [".ruby-version"],
+  python: [".python-version"],
+  java: [".java-version"],
+};
+
+/**
+ * A runtime version from the nearest parent directory of `directory` (up to the
+ * scan root) holding a version file or a `.tool-versions` entry for the
+ * runtime, the way the version managers themselves resolve one.
+ */
+export function inheritedVersionFile({
+  files,
+  directory,
+  runtime,
+}: {
+  files: SnapshotFile[];
+  directory: string;
+  runtime: LanguageId;
+}): RuntimeVersionEvidence | null {
+  const parts = directory === "." ? [] : directory.split("/");
+  while (parts.length > 0) {
+    parts.pop();
+    const parent = parts.length === 0 ? "." : parts.join("/");
+    for (const name of INHERITED_VERSION_FILES[runtime] ?? []) {
+      const file = fileAt(files, joinPath(parent, name));
+      if (file?.content == null) continue;
+      const version = cleanVersion(runtime, firstLine(file.content));
+      if (version != null)
+        return {
+          version,
+          evidence: {
+            kind: "runtime-version",
+            path: file.path,
+            value: version,
+          },
+        };
+    }
+    const toolVersions = fileAt(files, joinPath(parent, ".tool-versions"));
+    const keys = TOOL_VERSIONS_KEYS[runtime] ?? [];
+    for (const line of toolVersions?.content?.split("\n") ?? []) {
+      const [tool, value] = line.trim().split(/\s+/);
+      if (tool == null || value == null || !keys.includes(tool)) continue;
+      const version = cleanVersion(runtime, value);
+      if (version != null && toolVersions != null)
+        return {
+          version,
+          evidence: {
+            kind: "runtime-version",
+            path: toolVersions.path,
+            key: tool,
+            value: version,
+          },
+        };
+    }
+  }
   return null;
 }
