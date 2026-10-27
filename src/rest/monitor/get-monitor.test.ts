@@ -26,7 +26,7 @@ function parsedMonitor(overrides: Partial<Monitor> = {}): Monitor {
     id: "41072994",
     name: "clone-config-parity",
     ruleKind: MonitorV2RuleKind.Threshold,
-    definition: {} as Monitor["definition"],
+    definition: {},
     ...overrides,
   };
 }

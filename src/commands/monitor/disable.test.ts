@@ -27,7 +27,7 @@ function monitorStub(overrides: Partial<Monitor> = {}): Monitor {
     id: TEST_MONITOR_ID,
     name: "Joe - Test Monitor",
     ruleKind: MonitorV2RuleKind.Count,
-    definition: {} as Monitor["definition"],
+    definition: {},
     disabled: true,
     ...overrides,
   };

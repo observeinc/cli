@@ -30,7 +30,7 @@ function monitorStub(id: string, overrides: Partial<Monitor> = {}): Monitor {
     id,
     name: "Test Monitor",
     ruleKind: MonitorV2RuleKind.Count,
-    definition: {} as Monitor["definition"],
+    definition: {},
     ...overrides,
   };
 }
