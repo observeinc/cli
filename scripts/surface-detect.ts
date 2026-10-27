@@ -301,6 +301,38 @@ export function dumpFailureMarkdown(): string {
   ].join("\n");
 }
 
+function asText(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (v instanceof Error) return v.message;
+  if (v instanceof Uint8Array) return new TextDecoder().decode(v);
+  return "";
+}
+
+/** Job-log text for a dump failure. Captured child stderr stays off stdout. */
+export function dumpFailureLog(err: unknown): string {
+  const first = (err instanceof Error ? err.message : String(err)).split(
+    "\n",
+  )[0];
+  const cause = err instanceof Error ? err.cause : undefined;
+  const lines = [first];
+  if (cause && typeof cause === "object") {
+    const rec = cause as {
+      stderr?: unknown;
+      status?: unknown;
+      signal?: unknown;
+      message?: unknown;
+    };
+    const stderr = asText(rec.stderr).trimEnd();
+    if (stderr) lines.push(stderr);
+    else if (rec.signal != null && rec.signal !== "")
+      lines.push(`signal ${asText(rec.signal)}`);
+    else if (rec.status != null) lines.push(`exit ${asText(rec.status)}`);
+    else if (asText(rec.message)) lines.push(asText(rec.message));
+  }
+  return lines.filter(Boolean).join("\n");
+}
+
 export function indexKey(name: string): string {
   return `observe ${name}`;
 }
@@ -506,9 +538,7 @@ export function main(argv: string[]): number {
     surfaces = detect(base, head);
   } catch (err) {
     if (!isDumpFailure(err)) throw err;
-    console.error(
-      (err instanceof Error ? err.message : String(err)).split("\n")[0],
-    );
+    console.error(dumpFailureLog(err));
     if (argv.includes("--markdown"))
       process.stdout.write(dumpFailureMarkdown());
     return 0;

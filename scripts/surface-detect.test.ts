@@ -18,6 +18,7 @@ import {
   coverageOf,
   detect,
   errorReason,
+  dumpFailureLog,
   dumpFailureMarkdown,
   isDumpFailure,
   loadCoverageIndex,
@@ -806,5 +807,30 @@ describe("dump failure", () => {
     expect(md).toContain("Could not dump a command tree; see the run log.");
     expect(md).not.toContain("cannot load the command tree");
     expect(md).not.toContain("observeinc.com");
+  });
+
+  test("the job log includes captured child stderr from the cause", () => {
+    const err = new Error(
+      "cannot load the command tree at HEAD^1: unknown error",
+      {
+        cause: {
+          stderr: "error TS2304: Cannot find name 'MonitorV2RuleKind'.\n",
+          status: 1,
+        },
+      },
+    );
+    const log = dumpFailureLog(err);
+    expect(log).toContain("cannot load the command tree at HEAD^1");
+    expect(log).toContain("Cannot find name 'MonitorV2RuleKind'");
+  });
+
+  test("the job log still names an empty-stderr kill", () => {
+    const err = new Error(
+      "cannot load the command tree at HEAD^1: unknown error",
+      {
+        cause: { stderr: "", signal: "SIGKILL", status: null },
+      },
+    );
+    expect(dumpFailureLog(err)).toContain("signal SIGKILL");
   });
 });
