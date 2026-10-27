@@ -1,6 +1,7 @@
 import {
   SkillsApi,
   SourceDatasetApi,
+  StorageIntegrationsApi,
   AlertApi,
   APMApi,
   DashboardsApi,
@@ -31,6 +32,7 @@ export class ObserveRestSDK {
   public skillsApi: SkillsApi;
   public documentationApi: DocumentationApi;
   public sourceDatasetApi: SourceDatasetApi;
+  public storageIntegrationsApi: StorageIntegrationsApi;
   public externalSharesApi: ExternalSharesApi;
 
   constructor(_config: Config) {
@@ -49,6 +51,7 @@ export class ObserveRestSDK {
     this.skillsApi = new SkillsApi(config);
     this.documentationApi = new DocumentationApi(config);
     this.sourceDatasetApi = new SourceDatasetApi(config);
+    this.storageIntegrationsApi = new StorageIntegrationsApi(config);
     this.externalSharesApi = new ExternalSharesApi(config);
   }
 }

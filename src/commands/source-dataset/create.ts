@@ -172,7 +172,8 @@ export const createCommand = defineCommand({
       storageIntegrationId: {
         kind: "parsed",
         parse: String,
-        brief: "Storage integration ID (required with --storage Iceberg)",
+        brief:
+          "Storage integration ID (required with --storage Iceberg; see `observe storage-integration list`)",
         optional: true,
       },
       json: {
@@ -189,6 +190,7 @@ export const createCommand = defineCommand({
       "Create a source dataset via the /v1/source-datasets REST API.",
       "",
       "Signal type, storage and storage integration cannot be changed later.",
+      "Find the storage integration id with `observe storage-integration list`.",
       "",
       "Example:",
       "  observe source-dataset create --label Logs/checkout --schema-type OtelLogs",
