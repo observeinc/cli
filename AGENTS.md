@@ -47,6 +47,7 @@ src/
 │   ├── dataset/        # Dataset commands (list, view)
 │   ├── datastream/     # Datastream commands (create, list, view, update)
 │   ├── docs/           # Documentation commands (search)
+│   ├── inbound-share/  # Snowflake inbound-share commands: setup, token, offers, register, shares, tables and their datasets (experimental: gated + hidden)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
