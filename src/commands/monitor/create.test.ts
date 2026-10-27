@@ -11,9 +11,9 @@ import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
 import {
   MonitorV2RuleKind,
+  type Monitor,
   type MonitorV2Definition,
-} from "../../rest/generated";
-import type { Monitor } from "../../rest/monitor/types";
+} from "../../rest/monitor/types";
 
 const loadConfigFn = mock(
   (): Config => ({

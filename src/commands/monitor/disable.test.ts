@@ -9,7 +9,7 @@ import {
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
-import { MonitorV2RuleKind } from "../../rest/generated";
+import { MonitorV2RuleKind } from "../../rest/monitor/types";
 import type { Monitor } from "../../rest/monitor/types";
 
 const TEST_MONITOR_ID = "41076897";
