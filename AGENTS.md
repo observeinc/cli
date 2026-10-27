@@ -52,6 +52,7 @@ src/
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
 │   ├── source-dataset/ # Source dataset commands: list, view, create, update, delete (experimental: gated + hidden)
+│   ├── storage-integration/ # Storage integration commands: list, view (experimental: gated + hidden)
 │   ├── tag/            # Tag commands (list); also aliased as `tag-key` (hidden)
 │   ├── tag-value/      # Tag value commands (list)
 │   ├── query.ts        # OPAL query execution
