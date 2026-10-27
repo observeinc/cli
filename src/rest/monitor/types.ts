@@ -1,10 +1,58 @@
-import type {
-  MonitorHealth,
-  MonitorV2ActionRule,
-  MonitorV2Definition,
-  MonitorV2RuleKind,
-  MonitorV2Scheduling,
-} from "../generated";
+import type { MonitorHealth } from "../generated";
+
+/*
+ * The unversioned shape's own types. The spec now describes only the
+ * versioned shape, so codegen no longer emits these (it dropped the
+ * `MonitorV2*` models); they are kept here as the default request documents
+ * them. `definition` and the action's settings are passed through from the
+ * user's file untouched, so only the fields the CLI reads are spelled out.
+ */
+
+export enum MonitorV2RuleKind {
+  Anomaly = "Anomaly",
+  Count = "Count",
+  Promote = "Promote",
+  Threshold = "Threshold",
+}
+
+export enum MonitorV2ActionType {
+  Email = "Email",
+  PagerDuty = "PagerDuty",
+  Slack = "Slack",
+  Webhook = "Webhook",
+}
+
+/** Input query, rules, grouping and the rest of the rule's configuration. */
+export type MonitorV2Definition = Record<string, unknown>;
+
+export interface MonitorV2ActionDefinition {
+  type?: MonitorV2ActionType;
+  inline?: boolean;
+  [key: string]: unknown;
+}
+
+export interface MonitorV2ActionRule {
+  actionId?: string;
+  levels?: string[];
+  conditions?: Record<string, unknown>;
+  sendEndNotifications?: boolean;
+  sendRemindersInterval?: boolean;
+  definition?: MonitorV2ActionDefinition;
+}
+
+export interface MonitorV2Scheduling {
+  transform?: { freshnessGoal?: string };
+  scheduled?: { cronConfig?: string; timezone: string; alarmMode?: string };
+}
+
+export interface MonitorV2PatchRequest {
+  name?: string;
+  disabled?: boolean;
+  description?: string;
+  ruleKind?: MonitorV2RuleKind;
+  definition?: MonitorV2Definition;
+  actionRules?: MonitorV2ActionRule[];
+}
 
 /**
  * The monitor body returned by the *unversioned* `/v1/monitors` endpoints,

@@ -1,5 +1,6 @@
 import chalk from "chalk";
-import { MonitorRuleKind, type MonitorV2RuleKind } from "../../rest/generated";
+import { MonitorRuleKind } from "../../rest/generated";
+import { type MonitorV2RuleKind } from "../../rest/monitor/types";
 
 export function ruleKindColor(
   kind: MonitorRuleKind | MonitorV2RuleKind | undefined,

@@ -9,13 +9,13 @@ import {
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
+import { MonitorHealth } from "../../rest/generated";
 import {
-  MonitorHealth,
+  type Monitor,
   MonitorV2ActionType,
   MonitorV2RuleKind,
   type MonitorV2ActionRule,
-} from "../../rest/generated";
-import type { Monitor } from "../../rest/monitor/types";
+} from "../../rest/monitor/types";
 
 const loadConfigFn = mock(
   (): Config => ({
@@ -30,7 +30,7 @@ function monitorStub(id: string, overrides: Partial<Monitor> = {}): Monitor {
     id,
     name: "Test Monitor",
     ruleKind: MonitorV2RuleKind.Count,
-    definition: {} as Monitor["definition"],
+    definition: {},
     ...overrides,
   };
 }
