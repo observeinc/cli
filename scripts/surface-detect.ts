@@ -479,14 +479,31 @@ export function markdown(
   return out.join("\n");
 }
 
-function main(argv: string[]): void {
+export function main(argv: string[]): number {
   const arg = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
     return i >= 0 ? argv[i + 1] : undefined;
   };
   const base = arg("--base") ?? "HEAD^";
   const head = arg("--head") ?? "HEAD";
-  const surfaces = detect(base, head);
+  let surfaces: Surface[];
+  try {
+    surfaces = detect(base, head);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(reason);
+    if (argv.includes("--markdown")) {
+      process.stdout.write(
+        [
+          "<!-- observe-cli-surface-detect -->",
+          `Could not dump a command tree (${reason}).`,
+          "Coverage was not checked; the PR is not blocked.",
+          "",
+        ].join("\n"),
+      );
+    }
+    return 0;
+  }
   const source = coverageIndexSource(argv);
   let indexError: string | undefined;
   let indexLoaded = false;
@@ -514,6 +531,7 @@ function main(argv: string[]): void {
   if (argv.includes("--markdown"))
     process.stdout.write(markdown(surfaces, { indexError }));
   else if (!json) process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  return 0;
 }
 
-if (import.meta.main) main(process.argv.slice(2));
+if (import.meta.main) process.exitCode = main(process.argv.slice(2));

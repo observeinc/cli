@@ -19,6 +19,7 @@ import {
   detect,
   errorReason,
   loadCoverageIndex,
+  main,
   markdown,
   type Surface,
 } from "./surface-detect";
@@ -781,5 +782,17 @@ describe("baseCoverageIndex", () => {
     sh(dir, "add", ".");
     sh(dir, "commit", "-q", "-m", "base");
     expect(baseCoverageIndex("HEAD", dir)).toBeUndefined();
+  });
+});
+
+describe("main", () => {
+  test("exits 0 when a command tree cannot be dumped", () => {
+    const logErr = console.error;
+    console.error = () => undefined;
+    try {
+      expect(main(["--base", "no-such-rev"])).toBe(0);
+    } finally {
+      console.error = logErr;
+    }
   });
 });
