@@ -18,7 +18,7 @@ interface IngestTokenJson {
 const tenant = loadTenantConfig();
 
 describe("ingest-token CLI integration", () => {
-  test("create, list, view, and update", async () => {
+  test("create, list, view, update, and revoke", async () => {
     const prefix = testPrefix();
     const name = `${prefix}-ingest-token`;
     const description = "integration test token";
@@ -31,7 +31,10 @@ describe("ingest-token CLI integration", () => {
           --description ${JSON.stringify(description)}
       `;
       const created = parseJsonOutput(createResult) as IngestTokenJson;
-      fixture.registerCleanup(() => deleteIngestToken(tenant, created.id));
+      let revoked = false;
+      fixture.registerCleanup(() =>
+        revoked ? Promise.resolve() : deleteIngestToken(tenant, created.id),
+      );
 
       expect(typeof created.id).toBe("string");
       expect(created.id.length).toBeGreaterThan(0);
@@ -120,6 +123,25 @@ describe("ingest-token CLI integration", () => {
       ) as IngestTokenJson;
 
       expect(viewedAfterEnable.disabled).toBe(false);
+
+      // ingest-token revoke
+      const revokeResult = await fixture.runCli`
+        observe ingest-token revoke ${created.id} --yes
+      `;
+
+      expect(revokeResult.exitCode).toBe(0);
+      expect(revokeResult.stdout).toContain(
+        `Ingest token ${created.id} revoked.`,
+      );
+      revoked = true;
+
+      // ingest-token view: revoked token is gone
+      const viewAfterRevokeResult = await fixture.runCli`
+        observe ingest-token view ${created.id}
+      `;
+
+      expect(viewAfterRevokeResult.exitCode).toBe(1);
+      expect(viewAfterRevokeResult.stderr).toContain("HTTP 404 Not Found");
     });
   });
 });

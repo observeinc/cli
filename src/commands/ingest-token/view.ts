@@ -1,11 +1,12 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
-import { viewIngestToken } from "../../gql/ingest-token/view-ingest-token";
-import { GqlApiError } from "../../gql/gql-request";
+import { getIngestToken } from "../../rest/ingest-token/get-ingest-token";
 import { loadConfig } from "../../lib/config";
+import { formatApiError } from "../../lib/format-error";
 
 export interface ViewIngestTokenDeps {
   loadConfig?: typeof loadConfig;
+  getIngestToken?: typeof getIngestToken;
 }
 
 export async function view(
@@ -14,20 +15,18 @@ export async function view(
   id: string,
   deps: ViewIngestTokenDeps = {},
 ): Promise<void> {
-  const { loadConfig: loadConfigImpl = loadConfig } = deps;
+  const {
+    loadConfig: loadConfigImpl = loadConfig,
+    getIngestToken: getIngestTokenImpl = getIngestToken,
+  } = deps;
   const { process, writer } = this;
 
   try {
     const config = loadConfigImpl();
-    const result = await viewIngestToken(config, { id });
+    const result = await getIngestTokenImpl({ config, id });
     writer.write(JSON.stringify(result, null, 2));
   } catch (error) {
-    if (error instanceof GqlApiError) {
-      writer.error(`API Error (${error.statusCode}): ${error.message}`);
-    } else {
-      const message = error instanceof Error ? error.message : String(error);
-      writer.error(`Error: ${message}`);
-    }
+    writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;
   }
 }

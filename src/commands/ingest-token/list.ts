@@ -1,9 +1,9 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
-import { searchIngestToken } from "../../gql/ingest-token/search-ingest-token";
-import { GqlApiError } from "../../gql/gql-request";
+import { listIngestTokens } from "../../rest/ingest-token/list-ingest-tokens";
 import { loadConfig } from "../../lib/config";
-import { filterByName } from "../../lib/filter";
+import { celMatchesInsensitive } from "../../lib/cel";
+import { formatApiError } from "../../lib/format-error";
 
 interface ListIngestTokenFlags {
   match?: string;
@@ -11,27 +11,45 @@ interface ListIngestTokenFlags {
 
 export interface ListIngestTokenDeps {
   loadConfig?: typeof loadConfig;
+  listIngestTokens?: typeof listIngestTokens;
 }
+
+const PAGE_SIZE = 100;
 
 export async function list(
   this: LocalContext,
   flags: ListIngestTokenFlags,
   deps: ListIngestTokenDeps = {},
 ): Promise<void> {
-  const { loadConfig: loadConfigImpl = loadConfig } = deps;
+  const {
+    loadConfig: loadConfigImpl = loadConfig,
+    listIngestTokens: listIngestTokensImpl = listIngestTokens,
+  } = deps;
   const { process, writer } = this;
 
   try {
     const config = loadConfigImpl();
-    const result = await searchIngestToken(config);
-    writer.write(JSON.stringify(filterByName(result, flags.match), null, 2));
-  } catch (error) {
-    if (error instanceof GqlApiError) {
-      writer.error(`API Error (${error.statusCode}): ${error.message}`);
-    } else {
-      const message = error instanceof Error ? error.message : String(error);
-      writer.error(`Error: ${message}`);
+    const tokens = [];
+    for (;;) {
+      const response = await listIngestTokensImpl({
+        config,
+        filter: flags.match
+          ? celMatchesInsensitive("name", flags.match)
+          : undefined,
+        offset: tokens.length,
+        limit: PAGE_SIZE,
+      });
+      tokens.push(...response.tokens);
+      if (
+        response.tokens.length < PAGE_SIZE ||
+        tokens.length >= response.meta.totalCount
+      ) {
+        break;
+      }
     }
+    writer.write(JSON.stringify(tokens, null, 2));
+  } catch (error) {
+    writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;
   }
 }

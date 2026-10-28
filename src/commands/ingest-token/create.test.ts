@@ -1,135 +1,91 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  test,
-} from "bun:test";
-import { createMockContext, suppressAnsiColor } from "../../test-helpers";
-import { resolve } from "node:path";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { createMockContext } from "../../test-helpers";
+import type { Config } from "../../lib/config";
+import type { IngestTokenCreateResponse } from "../../rest/generated";
+import type { CreateIngestTokenDeps } from "./create";
+import { create } from "./create";
 
-const repoRoot = resolve(import.meta.dir, "../../..");
-const createTokenModulePath = resolve(
-  repoRoot,
-  "src/gql/ingest-token/create-ingest-token.ts",
-);
-const associationModulePath = resolve(
-  repoRoot,
-  "src/gql/ingest-token/update-ingest-token-association.ts",
-);
-
-const loadConfigFn = mock(() => ({
+const config: Config = {
   customerId: "test-customer",
   token: "test-token",
   domain: "observeinc.com",
-}));
+};
 
-const createIngestTokenFn = mock((_config: unknown, _variables: unknown) =>
-  Promise.resolve({
-    id: "token-789",
-    name: "k8s-ingest",
-    description: null,
-    disabled: false,
-    secret: "secret-abc-xyz",
-  }),
+const token: IngestTokenCreateResponse = {
+  id: "ds1-token-789",
+  name: "k8s-ingest",
+  description: "",
+  disabled: false,
+  secret: "ds1-token-789:secret-abc-xyz",
+  createdBy: { id: "user-1" },
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedBy: { id: "user-1" },
+  updatedAt: "2026-01-01T00:00:00Z",
+};
+
+const loadConfigFn = mock(() => config);
+const createIngestTokenFn = mock(
+  (
+    _params: Parameters<
+      NonNullable<CreateIngestTokenDeps["createIngestToken"]>
+    >[0],
+  ) => Promise.resolve(token),
 );
 
-const updateAssociationFn = mock((_config: unknown, _variables: unknown) =>
-  Promise.resolve(true),
-);
-
-let create: (typeof import("./create"))["create"];
-
-const deps = {
+const deps: CreateIngestTokenDeps = {
   loadConfig: loadConfigFn,
-} as Parameters<(typeof import("./create"))["create"]>[1];
-
-suppressAnsiColor();
-
-beforeAll(async () => {
-  void mock.module(createTokenModulePath, () => ({
-    createIngestToken: createIngestTokenFn,
-  }));
-
-  void mock.module(associationModulePath, () => ({
-    updateIngestTokenAssociation: updateAssociationFn,
-  }));
-
-  const mod = await import("./create.ts");
-  create = mod.create;
-});
-
-afterAll(() => {
-  mock.restore();
-});
+  createIngestToken: createIngestTokenFn,
+};
 
 describe("ingest-token create", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     createIngestTokenFn.mockClear();
-    updateAssociationFn.mockClear();
   });
 
-  test("creates token and associates with datastreams", async () => {
+  test("creates a token through the REST backend", async () => {
     const { context, stdout } = createMockContext();
     await create.call(
       context,
-      {
-        name: "k8s-ingest",
-        datastreamIds: "ds-1,ds-2,ds-3",
-      },
+      { name: "k8s-ingest", description: "Kubernetes ingest" },
       deps,
     );
 
     expect(createIngestTokenFn).toHaveBeenCalledTimes(1);
-    const [, createVars] = createIngestTokenFn.mock.calls[0]!;
-    expect(createVars).toMatchObject({
-      input: { name: "k8s-ingest" },
-    });
-
-    expect(updateAssociationFn).toHaveBeenCalledTimes(1);
-    const [, assocVars] = updateAssociationFn.mock.calls[0]!;
-    expect(assocVars).toMatchObject({
-      id: "token-789",
-      datastreamIDs: ["ds-1", "ds-2", "ds-3"],
-    });
-
-    const output = JSON.parse(stdout.join(""));
-    expect(output.id).toBe("token-789");
-    expect(output.secret).toBe("secret-abc-xyz");
-  });
-
-  test("trims whitespace in datastream IDs", async () => {
-    const { context } = createMockContext();
-    await create.call(
-      context,
-      {
-        name: "test",
-        datastreamIds: " ds-1 , ds-2 ",
+    expect(createIngestTokenFn.mock.calls[0]![0]).toEqual({
+      config,
+      ingestTokenCreateRequest: {
+        name: "k8s-ingest",
+        description: "Kubernetes ingest",
       },
-      deps,
-    );
-
-    const [, assocVars] = updateAssociationFn.mock.calls[0]!;
-    expect(assocVars).toMatchObject({
-      datastreamIDs: ["ds-1", "ds-2"],
     });
+    expect(JSON.parse(stdout.join(""))).toEqual(token);
   });
 
-  test("outputs token secret for agent consumption", async () => {
+  test("outputs the one-time token secret", async () => {
     const { context, stdout } = createMockContext();
-    await create.call(
-      context,
-      {
-        name: "test",
-        datastreamIds: "ds-1",
-      },
-      deps,
-    );
+    await create.call(context, { name: "k8s-ingest" }, deps);
 
-    const output = JSON.parse(stdout.join(""));
-    expect(output.secret).toBeDefined();
+    expect(JSON.parse(stdout.join("")).secret).toBe(token.secret);
+  });
+
+  test("allows the API to generate a name", async () => {
+    const { context } = createMockContext();
+    await create.call(context, {}, deps);
+
+    expect(
+      createIngestTokenFn.mock.calls[0]![0].ingestTokenCreateRequest.name,
+    ).toBeUndefined();
+  });
+
+  test("exits with code 1 on API error", async () => {
+    createIngestTokenFn.mockImplementationOnce(() =>
+      Promise.reject(new Error("Server error")),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    await create.call(context, { name: "fail" }, deps);
+
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("Server error");
   });
 });
