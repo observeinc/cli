@@ -20,7 +20,7 @@ permissions:
 # Opened plus labeled, unlabel, a push while polling, or a later CI success:
 # only the latest event's run should merge.
 concurrency:
-  group: eval-coverage-automerge-${{ github.event.pull_request.number || github.event.workflow_run.head_branch }}
+  group: eval-coverage-automerge-${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch }}
   cancel-in-progress: true
 
 jobs:
@@ -91,9 +91,14 @@ jobs:
             --author "$AUTHOR" "${labels[@]}" "${files[@]}"
           rc=$?
           set -e
+          disable_auto_if_bot() {
+            if [ "$HEAD_REF" = bot/eval-coverage ] && [ "$HEAD_REPO" = "$REPO" ]; then
+              gh pr merge "$PR" --repo "$REPO" --disable-auto 2>/dev/null || true
+            fi
+          }
           if [ "$rc" -eq 2 ]; then
             echo "not the eval-coverage bot PR; leaving it"
-            gh pr merge "$PR" --repo "$REPO" --disable-auto 2>/dev/null || true
+            disable_auto_if_bot
             exit 0
           fi
           if [ "$rc" -ne 0 ]; then
@@ -135,8 +140,13 @@ jobs:
           set -e
           if [ "$rc" -ne 0 ]; then
             echo "gate refused just before merge"
-            gh pr merge "$PR" --repo "$REPO" --disable-auto 2>/dev/null || true
+            disable_auto_if_bot
             if [ "$rc" -eq 2 ]; then exit 0; fi
             exit "$rc"
+          fi
+          state=$(gh api "repos/$REPO/pulls/$PR" --jq .state)
+          if [ "$state" != open ]; then
+            echo "PR #$PR is $state; nothing to merge"
+            exit 0
           fi
           gh pr merge "$PR" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
