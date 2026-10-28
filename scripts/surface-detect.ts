@@ -351,13 +351,10 @@ export function coverageOf(
     s.aliasOf
   )
     return undefined;
-  let n = index.cli?.[indexKey(s.name)];
-  if (n === undefined) {
-    for (const alias of aliasNames) {
-      n = index.cli?.[indexKey(alias)];
-      if (n !== undefined) break;
-    }
-  }
+  const counts = [s.name, ...aliasNames]
+    .map((name) => index.cli?.[indexKey(name)])
+    .filter((v): v is number => v !== undefined);
+  const n = counts.length ? Math.max(...counts) : undefined;
   if (n === undefined) {
     return {
       status: "unmapped",

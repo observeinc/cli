@@ -710,6 +710,16 @@ describe("coverageOf", () => {
       ]),
     ).toEqual({ status: "covered", evals: 2 });
   });
+
+  test("a zero primary does not hide a positive alias count", () => {
+    expect(
+      coverageOf(
+        row("tag list"),
+        { cli: { "observe tag list": 0, "observe tag-key list": 3 } },
+        ["tag-key list"],
+      ),
+    ).toEqual({ status: "covered", evals: 3 });
+  });
 });
 
 describe("loadCoverageIndex", () => {
