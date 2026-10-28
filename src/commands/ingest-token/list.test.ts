@@ -96,6 +96,24 @@ describe("ingest-token list", () => {
     expect(JSON.parse(stdout.join(""))).toHaveLength(101);
   });
 
+  test("continues after a short page when the total count is unknown", async () => {
+    const firstPage = [token("ds1-1", "Token 1"), token("ds1-2", "Token 2")];
+    listIngestTokensFn
+      .mockImplementationOnce(() =>
+        Promise.resolve({ tokens: firstPage, meta: { totalCount: -1 } }),
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve({ tokens: [], meta: { totalCount: -1 } }),
+      );
+
+    const { context, stdout } = createMockContext();
+    await list.call(context, {}, deps);
+
+    expect(listIngestTokensFn).toHaveBeenCalledTimes(2);
+    expect(listIngestTokensFn.mock.calls[1]![0].offset).toBe(2);
+    expect(JSON.parse(stdout.join(""))).toEqual(firstPage);
+  });
+
   test("exits with code 1 on API error", async () => {
     listIngestTokensFn.mockImplementationOnce(() =>
       Promise.reject(new Error("Server error")),
