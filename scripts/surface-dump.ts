@@ -69,6 +69,8 @@ const scanner = new Bun.Transpiler({ loader: "ts" });
 
 /** Repo-relative src files `file` imports directly (static and dynamic). */
 function imports(root: string, file: string): string[] {
+  // Data files (YAML, JSON, GraphQL) import nothing and are not TypeScript.
+  if (!/\.[cm]?[jt]sx?$/.test(file)) return [];
   const abs = path.join(root, file);
   let text: string;
   try {
