@@ -13,7 +13,7 @@
  * See integration/README.md.
  */
 import { parseArgs } from "node:util";
-import { searchIngestToken } from "../src/gql/ingest-token/search-ingest-token";
+import { listIngestTokens } from "../src/rest/ingest-token/list-ingest-tokens";
 import { listDatastreams } from "../src/gql/datastream/list-datastreams";
 import { listDatasets } from "../src/rest/dataset/list-datasets";
 import { listSkills } from "../src/rest/skill/list-skills";
@@ -94,11 +94,15 @@ const SWEEPERS: readonly Sweeper[] = [
   },
   {
     type: "ingest-token",
-    list: async (config) =>
-      (await searchIngestToken(config)).map((t) => ({
-        id: t.id,
-        name: t.name,
-      })),
+    list: (config) =>
+      paginate(async (offset) => {
+        const { tokens } = await listIngestTokens({
+          config,
+          limit: PAGE_SIZE,
+          offset,
+        });
+        return tokens.map((token) => ({ id: token.id, name: token.name }));
+      }),
     remove: deleteIngestToken,
   },
   {
