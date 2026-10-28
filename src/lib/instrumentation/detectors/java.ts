@@ -146,12 +146,16 @@ const FRAMEWORK_COORDINATES: [string, RegExp][] = [
  * artifactIds too, and `<parent>` usually precedes the project's.
  */
 function projectArtifactId(content: string) {
-  const own = content
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(
-      /<(parent|dependencies|dependencyManagement|build|reporting|profiles)\b[^>]*>[\s\S]*?<\/\1>/gi,
-      "",
-    );
+  let uncommented = content;
+  let previous: string;
+  do {
+    previous = uncommented;
+    uncommented = previous.replace(/<!--[\s\S]*?-->/g, "");
+  } while (uncommented !== previous);
+  const own = uncommented.replace(
+    /<(parent|dependencies|dependencyManagement|build|reporting|profiles)\b[^>]*>[\s\S]*?<\/\1>/gi,
+    "",
+  );
   return /<artifactId>([^<]+)<\/artifactId>/.exec(own)?.[1]?.trim();
 }
 
