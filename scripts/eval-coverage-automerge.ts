@@ -1,9 +1,10 @@
 /**
  * Decide whether a PR may be auto-merged as the eval-coverage counts bot.
  *
- * The workflow never checks out the PR. It asks this gate, then `gh pr merge
- * --auto`. Forks, other authors, extra files, or a missing label are a skip,
- * not a failure, so a human PR cannot be merged this way.
+ * The workflow never checks out the PR head. It asks this gate, waits for
+ * the CI test check on that SHA, then `gh pr merge --squash
+ * --match-head-commit`. Forks, other authors, extra files, or a missing
+ * label are a skip, not a failure, so a human PR cannot be merged this way.
  */
 
 export const BOT_LOGIN = "observe-ai-automation[bot]";

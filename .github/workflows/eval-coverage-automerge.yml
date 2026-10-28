@@ -1,5 +1,7 @@
-# Merge the daily counts PR once CI is green. Never checks out the PR.
-# Forks and any other author/path/label stay skipped (exit 2).
+# Merge the daily counts PR once the CI "test" check on the gated SHA is
+# green. Never checks out the PR head. Forks and any other author/path/label
+# stay skipped (exit 2); a skip turns auto-merge off if an earlier run
+# enabled it.
 name: Auto-merge eval coverage
 
 on:
@@ -35,17 +37,21 @@ jobs:
           REPO: ${{ github.repository }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
           files=()
           labels=()
-          while IFS= read -r f; do files+=(--file "$f"); done < <(
-            gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename'
-          )
-          while IFS= read -r l; do labels+=(--label "$l"); done < <(
-            gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name'
-          )
+          files_out=$(gh api "repos/$REPO/compare/${BASE_SHA}...${HEAD_SHA}" --jq '.files[].filename')
+          labels_out=$(gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name')
+          while IFS= read -r f; do
+            [ -n "$f" ] && files+=(--file "$f")
+          done <<< "$files_out"
+          while IFS= read -r l; do
+            [ -n "$l" ] && labels+=(--label "$l")
+          done <<< "$labels_out"
           set +e
           bun run scripts/eval-coverage-automerge.ts \
             --repo "$REPO" --head-repo "$HEAD_REPO" --head-ref "$HEAD_REF" \
@@ -54,12 +60,30 @@ jobs:
           set -e
           if [ "$rc" -eq 2 ]; then
             echo "not the eval-coverage bot PR; leaving it"
+            gh pr merge "$PR" --repo "$REPO" --disable-auto 2>/dev/null || true
             exit 0
           fi
           if [ "$rc" -ne 0 ]; then
             exit "$rc"
           fi
-          # Wait for required checks when the repo has them; squash immediately
-          # when auto-merge is not configured (no protection / ruleset).
-          gh pr merge "$PR" --repo "$REPO" --squash --auto ||
-            gh pr merge "$PR" --repo "$REPO" --squash
+          # Wait for CI "test" on this SHA. Do not `gh pr checks --watch` the
+          # whole PR: this job is itself a check and would deadlock. Do not
+          # fall back to an unguarded merge if --auto is unavailable.
+          deadline=$((SECONDS + 900))
+          while :; do
+            conclusion=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.name == "test")][0].conclusion // empty')
+            case "$conclusion" in
+              success) break ;;
+              failure|cancelled|timed_out|startup_failure|stale|action_required)
+                echo "CI test check is $conclusion"
+                exit 1
+                ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "timed out waiting for test check on $HEAD_SHA"
+              exit 1
+            fi
+            sleep 10
+          done
+          gh pr merge "$PR" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
