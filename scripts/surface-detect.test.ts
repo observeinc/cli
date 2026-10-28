@@ -321,6 +321,19 @@ describe("detect (end to end)", () => {
     expect(got.query?.tags).toEqual(["indirect"]);
   });
 
+  test("a data file import is followed but not parsed as TypeScript", () => {
+    write("src/lib/catalog.yaml", "generatedAt: 2026-10-27T00:00:00.000Z\n");
+    write(
+      "src/commands/query.ts",
+      `import catalog from "../lib/catalog.yaml";\n${QUERY.replace("return;", "void catalog;")}`,
+    );
+    const base = commit();
+    write("src/lib/catalog.yaml", "generatedAt: 2026-10-28T00:00:00.000Z\n");
+    const got = byName(detect(base, commit(), dir));
+    expect(got.query?.tags).toEqual(["indirect"]);
+    expect(got.query?.files).toEqual(["src/lib/catalog.yaml"]);
+  });
+
   test("hiding a route is contract on the hidden command", () => {
     const base = commit();
     write(
