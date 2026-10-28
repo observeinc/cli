@@ -28,5 +28,5 @@ jobs:
       - run: |
           files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$SHA" --jq '[.files[].filename] | join(",")')
           if [ "$files" != scripts/eval-coverage.json ]; then echo "skip: $files"; exit 0; fi
-          gh pr review "$PR" --repo "$GITHUB_REPOSITORY" --approve
           gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$SHA"
+          gh pr review "$PR" --repo "$GITHUB_REPOSITORY" --approve
