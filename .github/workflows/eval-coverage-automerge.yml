@@ -1,0 +1,65 @@
+# Merge the daily counts PR once CI is green. Never checks out the PR.
+# Forks and any other author/path/label stay skipped (exit 2).
+name: Auto-merge eval coverage
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - scripts/eval-coverage.json
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "^1.4.4"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Gate and merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          files=()
+          labels=()
+          while IFS= read -r f; do files+=(--file "$f"); done < <(
+            gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename'
+          )
+          while IFS= read -r l; do labels+=(--label "$l"); done < <(
+            gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name'
+          )
+          set +e
+          bun run scripts/eval-coverage-automerge.ts \
+            --repo "$REPO" --head-repo "$HEAD_REPO" --head-ref "$HEAD_REF" \
+            --author "$AUTHOR" "${labels[@]}" "${files[@]}"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 2 ]; then
+            echo "not the eval-coverage bot PR; leaving it"
+            exit 0
+          fi
+          if [ "$rc" -ne 0 ]; then
+            exit "$rc"
+          fi
+          # Wait for required checks when the repo has them; squash immediately
+          # when auto-merge is not configured (no protection / ruleset).
+          gh pr merge "$PR" --repo "$REPO" --squash --auto ||
+            gh pr merge "$PR" --repo "$REPO" --squash
