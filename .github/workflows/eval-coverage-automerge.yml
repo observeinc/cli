@@ -14,6 +14,12 @@ permissions:
   contents: write
   pull-requests: write
 
+# Opened plus labeled, or a push while an older run is still polling:
+# only the latest event's run should merge.
+concurrency:
+  group: eval-coverage-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   merge:
     if: github.event.pull_request.head.repo.full_name == github.repository
