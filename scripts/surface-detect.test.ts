@@ -10,9 +10,19 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  attachCoverage,
+  baseCoverageIndex,
   classify,
+  COVERAGE_INDEX_PATH,
+  coverageIndexSource,
+  coverageOf,
   detect,
   errorReason,
+  dumpFailureLog,
+  dumpFailureMarkdown,
+  isDumpFailure,
+  loadCoverageIndex,
+  MARKER,
   markdown,
   type Surface,
 } from "./surface-detect";
@@ -56,6 +66,20 @@ describe("classify", () => {
     expect(classify(BASE, BASE, [])).toEqual([]);
   });
 
+  test("copies aliasOf from the dump", () => {
+    const before: Dump = {
+      ...BASE,
+      "tag list": cmd("src/commands/tag/list.ts", "List tags"),
+      "tag-key list": {
+        ...cmd("src/commands/tag/list.ts", "List tags"),
+        aliasOf: "tag list",
+      },
+    };
+    const got = byName(classify(before, before, ["src/commands/tag/list.ts"]));
+    expect(got["tag list"]?.aliasOf).toBeUndefined();
+    expect(got["tag-key list"]?.aliasOf).toBe("tag list");
+  });
+
   test("a contract change is contract", () => {
     const after = withSurface(
       "query",
@@ -66,6 +90,7 @@ describe("classify", () => {
     expect(classify(BASE, after, ["src/commands/query.ts"])).toEqual([
       {
         kind: "cli",
+        node: "command",
         name: "query",
         change: "modified",
         tags: ["contract"],
@@ -139,6 +164,8 @@ describe("classify", () => {
     );
     expect(got["logs list"]?.change).toBe("added");
     expect(got.logs?.change).toBe("added");
+    expect(got.logs?.node).toBe("group");
+    expect(got["logs list"]?.node).toBe("command");
     expect(got["(root)"]).toBeUndefined();
   });
 
@@ -318,6 +345,7 @@ describe("detect (end to end)", () => {
     expect(detect(base, commit(), dir)).toEqual([
       {
         kind: "cli",
+        node: "group",
         name: "(root)",
         change: "modified",
         tags: ["impl"],
@@ -369,6 +397,7 @@ describe("detect (end to end)", () => {
     expect(detect(base, commit(), dir)).toEqual([
       {
         kind: "cli",
+        node: "command",
         name: "query",
         change: "modified",
         tags: ["indirect"],
@@ -448,5 +477,437 @@ describe("markdown", () => {
     const rows = md.split("\n").filter((l) => l.startsWith("| `"));
     expect(rows[0]).toContain("observe b");
     expect(md).toContain("1 with a contract change");
+  });
+
+  test("names uncovered and unmapped commands", () => {
+    const surfaces: Surface[] = [
+      {
+        kind: "cli",
+        name: "query",
+        change: "modified",
+        tags: ["contract"],
+        files: [],
+      },
+      {
+        kind: "cli",
+        name: "brand-new",
+        change: "added",
+        tags: ["contract"],
+        files: [],
+      },
+      {
+        kind: "cli",
+        name: "tag-key list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+      {
+        kind: "cli",
+        name: "(shared src)",
+        change: "modified",
+        tags: ["indirect"],
+        files: ["src/bin.ts"],
+      },
+    ];
+    attachCoverage(surfaces, {
+      cli: {
+        "observe query": 1,
+        "observe tag-key list": 0,
+      },
+    });
+    const md = markdown(surfaces);
+    expect(md).toContain("| Coverage |");
+    expect(md).toContain("1 eval(s)");
+    expect(md).toContain("**none** (uncovered)");
+    expect(md).toContain("**none** (unmapped)");
+    expect(md).toContain("**Missing eval coverage:**");
+    expect(md).toContain(
+      "`observe brand-new`: unknown to the coverage index (unmapped)",
+    );
+    expect(md).toContain(
+      "`observe tag-key list`: no covering stem (uncovered)",
+    );
+    expect(md).not.toContain("`observe (shared");
+  });
+
+  test("does not list an alias mount as missing coverage", () => {
+    const surfaces: Surface[] = [
+      {
+        kind: "cli",
+        name: "tag list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+      {
+        kind: "cli",
+        name: "tag-key list",
+        aliasOf: "tag list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+    ];
+    attachCoverage(surfaces, { cli: { "observe tag list": 1 } });
+    const md = markdown(surfaces);
+    expect(md).not.toContain("**Missing eval coverage:**");
+    expect(md).toContain("`observe tag-key list`");
+  });
+
+  test("uses an alias index key when the primary name is absent", () => {
+    const surfaces: Surface[] = [
+      {
+        kind: "cli",
+        name: "tag list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+      {
+        kind: "cli",
+        name: "tag-key list",
+        aliasOf: "tag list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+    ];
+    attachCoverage(surfaces, { cli: { "observe tag-key list": 3 } });
+    const md = markdown(surfaces);
+    expect(md).not.toContain("**Missing eval coverage:**");
+    expect(md).toContain("3 eval(s)");
+    expect(md).not.toContain("unmapped");
+  });
+
+  test("does not list a removed command as missing coverage", () => {
+    const surfaces: Surface[] = [
+      {
+        kind: "cli",
+        name: "gone",
+        change: "removed",
+        tags: ["contract"],
+        files: [],
+      },
+      {
+        kind: "cli",
+        name: "brand-new",
+        change: "added",
+        tags: ["contract"],
+        files: [],
+      },
+    ];
+    attachCoverage(surfaces, { cli: { "observe query": 1 } });
+    const md = markdown(surfaces);
+    const missing = md.slice(md.indexOf("**Missing eval coverage:**"));
+    expect(missing).not.toContain("`observe gone`");
+    expect(missing).toContain(
+      "`observe brand-new`: unknown to the coverage index (unmapped)",
+    );
+  });
+
+  test("notes when the missing list is truncated", () => {
+    const surfaces: Surface[] = Array.from({ length: 22 }, (_, i) => ({
+      kind: "cli" as const,
+      name: `cmd-${String(i)}`,
+      change: "added" as const,
+      tags: ["contract"],
+      files: [],
+    }));
+    attachCoverage(surfaces, { cli: {} });
+    const md = markdown(surfaces);
+    expect(md).toContain("- … 2 more");
+  });
+
+  test("says so when the index cannot be read and carries on", () => {
+    const md = markdown(
+      [
+        {
+          kind: "cli",
+          name: "query",
+          change: "modified",
+          tags: ["impl"],
+          files: [],
+        },
+      ],
+      {
+        indexError:
+          "eval coverage index unreachable (scripts/eval-coverage.json): ENOENT",
+      },
+    );
+    expect(md).toContain("eval coverage index unreachable");
+    expect(md).toContain("Coverage was not checked; the PR is not blocked.");
+    expect(md).toContain("`observe query`");
+  });
+});
+
+describe("coverageOf", () => {
+  const row = (name: string): Surface => ({
+    kind: "cli",
+    name,
+    change: "modified",
+    tags: ["contract"],
+    files: [],
+  });
+
+  test("exact observe <command> key", () => {
+    const index = { cli: { "observe monitor list": 2 } };
+    expect(coverageOf(row("monitor list"), index)).toEqual({
+      status: "covered",
+      evals: 2,
+    });
+    expect(coverageOf(row("monitor create"), index)?.status).toBe("unmapped");
+    expect(
+      coverageOf(row("monitor list"), { cli: { "observe monitor list": 0 } })
+        ?.status,
+    ).toBe("uncovered");
+    expect(coverageOf(row("(shared src)"), index)).toBeUndefined();
+  });
+
+  test("skips route groups", () => {
+    const groupRow: Surface = {
+      kind: "cli",
+      node: "group",
+      name: "logs",
+      change: "added",
+      tags: ["contract"],
+      files: [],
+    };
+    expect(coverageOf(groupRow, { cli: {} })).toBeUndefined();
+  });
+
+  test("skips removed commands", () => {
+    const removed: Surface = {
+      kind: "cli",
+      name: "monitor list",
+      change: "removed",
+      tags: ["contract"],
+      files: [],
+    };
+    expect(
+      coverageOf(removed, { cli: { "observe monitor list": 1 } }),
+    ).toBeUndefined();
+  });
+
+  test("skips alias mounts of the same route", () => {
+    const alias: Surface = {
+      kind: "cli",
+      name: "tag-key list",
+      aliasOf: "tag list",
+      change: "modified",
+      tags: ["impl"],
+      files: [],
+    };
+    expect(
+      coverageOf(alias, { cli: { "observe tag-key list": 0 } }),
+    ).toBeUndefined();
+  });
+
+  test("falls back to an alias key when the primary is missing", () => {
+    expect(
+      coverageOf(row("tag list"), { cli: { "observe tag-key list": 2 } }, [
+        "tag-key list",
+      ]),
+    ).toEqual({ status: "covered", evals: 2 });
+  });
+
+  test("a zero primary does not hide a positive alias count", () => {
+    expect(
+      coverageOf(
+        row("tag list"),
+        { cli: { "observe tag list": 0, "observe tag-key list": 3 } },
+        ["tag-key list"],
+      ),
+    ).toEqual({ status: "covered", evals: 3 });
+  });
+});
+
+describe("loadCoverageIndex", () => {
+  test("reads counts, and counts a stem id list without keeping the ids", () => {
+    const file = writeIndex({
+      version: 1,
+      cli: { "observe query": 3, "observe monitor list": ["acme-1", "300"] },
+    });
+    const got = loadCoverageIndex(file);
+    expect(got.ok).toBe(true);
+    if (got.ok) {
+      expect(got.index.cli).toEqual({
+        "observe query": 3,
+        "observe monitor list": 2,
+      });
+      expect(JSON.stringify(got.index)).not.toContain("acme-1");
+    }
+  });
+
+  test("missing file is unreachable, not a throw", () => {
+    const got = loadCoverageIndex("/no/such/eval-coverage.json");
+    expect(got.ok).toBe(false);
+    if (!got.ok) expect(got.error).toContain("unreachable");
+  });
+
+  test("rejects a missing cli map", () => {
+    const file = writeIndex({ version: 1 });
+    const got = loadCoverageIndex(file);
+    expect(got.ok).toBe(false);
+    if (!got.ok) expect(got.error).toContain("no cli map");
+  });
+
+  test("rejects an entry that is not a stem count", () => {
+    for (const bad of [null, "110", -1, 1.5]) {
+      const got = loadCoverageIndex(
+        writeIndex({ cli: { "observe query": bad } }),
+      );
+      expect(got.ok).toBe(false);
+      if (!got.ok) expect(got.error).toContain("not a stem count");
+    }
+  });
+
+  test("invalid JSON is a parse error, not unreachable", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cov-index-"));
+    const file = path.join(dir, "eval-coverage.json");
+    writeFileSync(file, "<html>not json</html>");
+    const got = loadCoverageIndex(file);
+    expect(got.ok).toBe(false);
+    if (!got.ok) {
+      expect(got.error).toBe(`${file}: not valid JSON`);
+      expect(got.error).not.toContain("unreachable");
+    }
+  });
+});
+
+function writeIndex(body: unknown): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "cov-index-"));
+  const file = path.join(dir, "eval-coverage.json");
+  writeFileSync(file, JSON.stringify(body));
+  return file;
+}
+
+describe("coverageIndexSource", () => {
+  test("flag, then COVERAGE_INDEX, else none", () => {
+    expect(
+      coverageIndexSource(["--coverage-index", "/tmp/i.json"], {
+        COVERAGE_INDEX: "env-path",
+      }),
+    ).toBe("/tmp/i.json");
+    expect(coverageIndexSource([], { COVERAGE_INDEX: "env-path" })).toBe(
+      "env-path",
+    );
+    expect(coverageIndexSource([], {})).toBeUndefined();
+  });
+});
+
+describe("baseCoverageIndex", () => {
+  const sh = (dir: string, ...args: string[]) =>
+    execFileSync("git", args, { cwd: dir, encoding: "utf-8" }).trim();
+
+  test("reads the base commit's file and ignores the PR's edit", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cov-base-"));
+    sh(dir, "init", "-q", "-b", "main");
+    sh(dir, "config", "user.email", "t@example.com");
+    sh(dir, "config", "user.name", "t");
+    mkdirSync(path.join(dir, "scripts"));
+    const file = path.join(dir, COVERAGE_INDEX_PATH);
+    writeFileSync(file, JSON.stringify({ cli: { "observe query": 0 } }));
+    sh(dir, "add", ".");
+    sh(dir, "commit", "-q", "-m", "base");
+    const base = sh(dir, "rev-parse", "HEAD");
+    writeFileSync(file, JSON.stringify({ cli: { "observe query": 5 } }));
+    sh(dir, "commit", "-q", "-am", "pr marks itself covered");
+
+    const got = baseCoverageIndex(base, dir);
+    expect(got?.ok).toBe(true);
+    if (got?.ok) expect(got.index.cli).toEqual({ "observe query": 0 });
+  });
+
+  test("no file at the base is no index, not an error", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cov-base-"));
+    sh(dir, "init", "-q", "-b", "main");
+    sh(dir, "config", "user.email", "t@example.com");
+    sh(dir, "config", "user.name", "t");
+    writeFileSync(path.join(dir, "README"), "x");
+    sh(dir, "add", ".");
+    sh(dir, "commit", "-q", "-m", "base");
+    expect(baseCoverageIndex("HEAD", dir)).toBeUndefined();
+  });
+});
+
+describe("dump failure", () => {
+  test("only run() dump errors are treated as advisory", () => {
+    expect(
+      isDumpFailure(
+        new Error("cannot load the command tree at HEAD^1: SyntaxError"),
+      ),
+    ).toBe(true);
+    expect(isDumpFailure(new Error("Command failed: git worktree add"))).toBe(
+      false,
+    );
+    expect(isDumpFailure(new TypeError("classify blew up"))).toBe(false);
+  });
+
+  test("the public comment uses MARKER and does not include the dump reason", () => {
+    const md = dumpFailureMarkdown();
+    expect(md.startsWith(MARKER)).toBe(true);
+    expect(md).toContain("Could not dump a command tree; see the run log.");
+    expect(md).not.toContain("cannot load the command tree");
+    expect(md).not.toContain("observeinc.com");
+  });
+
+  test("the job log includes captured child stderr from the cause", () => {
+    const err = new Error(
+      "cannot load the command tree at HEAD^1: unknown error",
+      {
+        cause: {
+          stderr: "error TS2304: Cannot find name 'MonitorV2RuleKind'.\n",
+          status: 1,
+        },
+      },
+    );
+    const log = dumpFailureLog(err);
+    expect(log).toContain("cannot load the command tree at HEAD^1");
+    expect(log).toContain("Cannot find name 'MonitorV2RuleKind'");
+  });
+
+  test("the job log still names an empty-stderr kill", () => {
+    const err = new Error(
+      "cannot load the command tree at HEAD^1: unknown error",
+      {
+        cause: { stderr: "", signal: "SIGKILL", status: null },
+      },
+    );
+    expect(dumpFailureLog(err)).toContain("signal SIGKILL");
+  });
+
+  test("ENOBUFS is named even when stderr was already captured", () => {
+    const err = new Error(
+      "cannot load the command tree at HEAD^1: unknown error",
+      {
+        cause: {
+          stderr: "warning: dropping color\n",
+          signal: "SIGTERM",
+          status: null,
+          code: "ENOBUFS",
+        },
+      },
+    );
+    const log = dumpFailureLog(err);
+    expect(log).toContain("warning: dropping color");
+    expect(log).toContain("signal SIGTERM");
+    expect(log).toContain("code ENOBUFS");
+  });
+
+  test("a kill after stderr still names the signal", () => {
+    const err = new Error(
+      "cannot load the command tree at HEAD^1: unknown error",
+      {
+        cause: {
+          stderr: "warning: dropping color\n",
+          signal: "SIGKILL",
+          status: null,
+        },
+      },
+    );
+    const log = dumpFailureLog(err);
+    expect(log).toContain("warning: dropping color");
+    expect(log).toContain("signal SIGKILL");
   });
 });

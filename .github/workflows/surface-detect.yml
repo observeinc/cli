@@ -58,6 +58,9 @@ jobs:
           OBSERVE_GQL_TOKEN: ${{ secrets.OBSERVE_GQL_TOKEN }}
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+        # Coverage comes from scripts/eval-coverage.json as committed at the
+        # base (HEAD^1), per-command counts the observe Harbor nightly
+        # maintains, so the PR's own copy cannot mark itself covered.
         run: |
           # Checkout is refs/pull/N/merge; HEAD^1 is the base it was built on.
           # pull_request.base.sha can lag after main moves and pull in other PRs.
@@ -73,7 +76,7 @@ jobs:
 
       # Fork PRs get a read-only token, so they keep the summary and artifact only.
       - name: Comment
-        if: steps.codegen.outputs.ran == 'true' && github.event.pull_request.head.repo.fork == false
+        if: github.event_name == 'pull_request' && steps.codegen.outputs.ran == 'true' && github.event.pull_request.head.repo.fork == false
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -96,7 +99,7 @@ jobs:
 
       # The test or detect step failed: say so instead of leaving an old result up.
       - name: Mark comment stale
-        if: failure() && github.event.pull_request.head.repo.fork == false
+        if: failure() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

@@ -20,6 +20,8 @@ export interface DumpedSurface {
   closure: string[];
   /** Everything an agent can see in `--help` or completion. */
   contract: unknown;
+  /** Primary path when the same route object is also mounted under another name. */
+  aliasOf?: string;
 }
 
 export type Dump = Record<string, DumpedSurface>;
@@ -131,6 +133,14 @@ export async function dump(root: string): Promise<Dump> {
     }
   };
   walk(mod.routes, [], 0);
+  for (const names of paths.values()) {
+    if (names.length < 2) continue;
+    const canon = names[0];
+    if (!canon) continue;
+    for (const n of names) {
+      if (n !== canon && out[n]) out[n].aliasOf = canon;
+    }
+  }
 
   // Defining files: walk app.ts's static imports (all already loaded) and
   // match each module's exports to tree objects by identity.
