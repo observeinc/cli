@@ -342,6 +342,7 @@ export function indexKey(name: string): string {
 export function coverageOf(
   s: Surface,
   index: CoverageIndex,
+  aliasNames: readonly string[] = [],
 ): Coverage | undefined {
   if (
     s.name.startsWith("(") ||
@@ -350,7 +351,13 @@ export function coverageOf(
     s.aliasOf
   )
     return undefined;
-  const n = index.cli?.[indexKey(s.name)];
+  let n = index.cli?.[indexKey(s.name)];
+  if (n === undefined) {
+    for (const alias of aliasNames) {
+      n = index.cli?.[indexKey(alias)];
+      if (n !== undefined) break;
+    }
+  }
   if (n === undefined) {
     return {
       status: "unmapped",
@@ -366,7 +373,12 @@ export function attachCoverage(
   surfaces: Surface[],
   index: CoverageIndex,
 ): void {
-  for (const s of surfaces) s.coverage = coverageOf(s, index);
+  for (const s of surfaces) {
+    const aliases = surfaces
+      .filter((x) => x.aliasOf === s.name)
+      .map((x) => x.name);
+    s.coverage = coverageOf(s, index, aliases);
+  }
 }
 
 /** A stem count, or a stem id list counted on load so ids go no further. */

@@ -555,6 +555,31 @@ describe("markdown", () => {
     expect(md).toContain("`observe tag-key list`");
   });
 
+  test("uses an alias index key when the primary name is absent", () => {
+    const surfaces: Surface[] = [
+      {
+        kind: "cli",
+        name: "tag list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+      {
+        kind: "cli",
+        name: "tag-key list",
+        aliasOf: "tag list",
+        change: "modified",
+        tags: ["impl"],
+        files: [],
+      },
+    ];
+    attachCoverage(surfaces, { cli: { "observe tag-key list": 3 } });
+    const md = markdown(surfaces);
+    expect(md).not.toContain("**Missing eval coverage:**");
+    expect(md).toContain("3 eval(s)");
+    expect(md).not.toContain("unmapped");
+  });
+
   test("does not list a removed command as missing coverage", () => {
     const surfaces: Surface[] = [
       {
@@ -676,6 +701,14 @@ describe("coverageOf", () => {
     expect(
       coverageOf(alias, { cli: { "observe tag-key list": 0 } }),
     ).toBeUndefined();
+  });
+
+  test("falls back to an alias key when the primary is missing", () => {
+    expect(
+      coverageOf(row("tag list"), { cli: { "observe tag-key list": 2 } }, [
+        "tag-key list",
+      ]),
+    ).toEqual({ status: "covered", evals: 2 });
   });
 });
 
