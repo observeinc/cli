@@ -1,175 +1,32 @@
-# Merge the daily counts PR once the CI "test" check on the gated SHA is
-# green. Never checks out the PR head. Forks and any other author/path/label
-# stay skipped (exit 2); a skip turns auto-merge off if an earlier run
-# enabled it. Unlabel cancels a waiting run. A later green CI run retries.
+# Approve the daily counts PR and turn on native auto-merge so GitHub
+# waits for every required check. Never checks out the PR head.
 name: Auto-merge eval coverage
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths:
-      - scripts/eval-coverage.json
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+    types: [opened, synchronize, reopened, labeled]
+    paths: [scripts/eval-coverage.json]
 
 permissions:
   contents: write
   pull-requests: write
 
-# Opened plus labeled, unlabel, a push while polling, or a later CI success:
-# only the latest event's run should merge.
-concurrency:
-  # Fork PRs, failed CI, and other skipped workflow_run events get their
-  # own group so they cannot cancel the in-repo bot waiter.
-  group: eval-coverage-automerge-${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_run' && (github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.event != 'pull_request' || github.event.workflow_run.head_repository.full_name != github.repository))) && github.run_id || github.event.pull_request.head.ref || github.event.workflow_run.head_branch }}
-  cancel-in-progress: true
-
 jobs:
   merge:
     if: >
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.head_branch == 'bot/eval-coverage' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+      github.event.pull_request.user.login == 'observe-ai-automation[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'bot/eval-coverage' &&
+      contains(github.event.pull_request.labels.*.name, 'eval-coverage')
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      BASE: ${{ github.event.pull_request.base.sha }}
+      SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "^1.4.4"
-
-      - run: bun install --frozen-lockfile
-
-      - name: Gate and merge
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT: ${{ github.event_name }}
-          PR: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          set -euo pipefail
-          try3() {
-            local i=0
-            until "$@"; do
-              i=$((i + 1))
-              if [ "$i" -ge 3 ]; then return 1; fi
-              sleep 10
-            done
-          }
-          try3_out() {
-            local i=0 out
-            while [ "$i" -lt 3 ]; do
-              if out=$("$@"); then
-                printf '%s' "$out"
-                return 0
-              fi
-              i=$((i + 1))
-              [ "$i" -lt 3 ] && sleep 10
-            done
-            return 1
-          }
-          if [ "$EVENT" = workflow_run ]; then
-            PR=$(try3_out gh api "repos/$REPO/pulls?state=open&head=${REPO%%/*}:bot/eval-coverage" --jq '.[0].number // empty')
-            if [ -z "$PR" ]; then
-              echo "no open bot/eval-coverage PR"
-              exit 0
-            fi
-            meta=$(try3_out gh api "repos/$REPO/pulls/$PR")
-            HEAD_REPO=$(jq -r .head.repo.full_name <<<"$meta")
-            HEAD_REF=$(jq -r .head.ref <<<"$meta")
-            HEAD_SHA=$(jq -r .head.sha <<<"$meta")
-            BASE_SHA=$(jq -r .base.sha <<<"$meta")
-            AUTHOR=$(jq -r .user.login <<<"$meta")
-            if [ "$HEAD_REPO" != "$REPO" ]; then
-              echo "head is $HEAD_REPO, not $REPO"
-              exit 0
-            fi
-          fi
-          files=()
-          labels=()
-          files_out=$(try3_out gh api "repos/$REPO/compare/${BASE_SHA}...${HEAD_SHA}" --jq '.files[].filename')
-          labels_out=$(try3_out gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name')
-          while IFS= read -r f; do
-            [ -n "$f" ] && files+=(--file "$f")
-          done <<< "$files_out"
-          while IFS= read -r l; do
-            [ -n "$l" ] && labels+=(--label "$l")
-          done <<< "$labels_out"
-          set +e
-          bun run scripts/eval-coverage-automerge.ts \
-            --repo "$REPO" --head-repo "$HEAD_REPO" --head-ref "$HEAD_REF" \
-            --author "$AUTHOR" "${labels[@]}" "${files[@]}"
-          rc=$?
-          set -e
-          disable_auto_if_bot() {
-            if [ "$HEAD_REF" = bot/eval-coverage ] && [ "$HEAD_REPO" = "$REPO" ]; then
-              try3 gh pr merge "$PR" --repo "$REPO" --disable-auto 2>/dev/null || true
-            fi
-          }
-          if [ "$rc" -eq 2 ]; then
-            echo "not the eval-coverage bot PR; leaving it"
-            disable_auto_if_bot
-            exit 0
-          fi
-          if [ "$rc" -ne 0 ]; then
-            exit "$rc"
-          fi
-          # Wait for CI "test" on this SHA. Retry a failed poll. Do not
-          # `gh pr checks --watch` the whole PR: this job is itself a check
-          # and would deadlock.
-          deadline=$((SECONDS + 900))
-          while :; do
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "timed out waiting for test check on $HEAD_SHA"
-              exit 1
-            fi
-            if ! conclusion=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" \
-              --jq '[.check_runs[] | select(.name == "test")][0].conclusion // empty'); then
-              sleep 10
-              continue
-            fi
-            case "$conclusion" in
-              success) break ;;
-              failure|cancelled|timed_out|startup_failure|stale|action_required)
-                echo "CI test check is $conclusion"
-                exit 1
-                ;;
-            esac
-            sleep 10
-          done
-          labels_out=$(try3_out gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name')
-          labels=()
-          while IFS= read -r l; do
-            [ -n "$l" ] && labels+=(--label "$l")
-          done <<< "$labels_out"
-          set +e
-          bun run scripts/eval-coverage-automerge.ts \
-            --repo "$REPO" --head-repo "$HEAD_REPO" --head-ref "$HEAD_REF" \
-            --author "$AUTHOR" "${labels[@]}" "${files[@]}"
-          rc=$?
-          set -e
-          if [ "$rc" -ne 0 ]; then
-            echo "gate refused just before merge"
-            disable_auto_if_bot
-            if [ "$rc" -eq 2 ]; then exit 0; fi
-            exit "$rc"
-          fi
-          state=$(try3_out gh api "repos/$REPO/pulls/$PR" --jq .state)
-          if [ "$state" != open ]; then
-            echo "PR #$PR is $state; nothing to merge"
-            exit 0
-          fi
-          try3 gh pr merge "$PR" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
+      - run: |
+          files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$SHA" --jq '[.files[].filename] | join(",")')
+          if [ "$files" != scripts/eval-coverage.json ]; then echo "skip: $files"; exit 0; fi
+          gh pr review "$PR" --repo "$GITHUB_REPOSITORY" --approve
+          gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$SHA"
