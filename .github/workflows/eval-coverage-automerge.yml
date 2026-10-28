@@ -20,9 +20,9 @@ permissions:
 # Opened plus labeled, unlabel, a push while polling, or a later CI success:
 # only the latest event's run should merge.
 concurrency:
-  # Fork PRs named bot/eval-coverage get their own group so they cannot
-  # cancel the in-repo bot run (their job is skipped by the if below).
-  group: eval-coverage-automerge-${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && github.run_id || github.event.pull_request.head.ref || github.event.workflow_run.head_branch }}
+  # Fork PRs, failed CI, and other skipped workflow_run events get their
+  # own group so they cannot cancel the in-repo bot waiter.
+  group: eval-coverage-automerge-${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'workflow_run' && (github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.event != 'pull_request' || github.event.workflow_run.head_repository.full_name != github.repository))) && github.run_id || github.event.pull_request.head.ref || github.event.workflow_run.head_branch }}
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +33,8 @@ jobs:
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.head_branch == 'bot/eval-coverage')
+       github.event.workflow_run.head_branch == 'bot/eval-coverage' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -68,13 +69,25 @@ jobs:
               sleep 10
             done
           }
+          try3_out() {
+            local i=0 out
+            while [ "$i" -lt 3 ]; do
+              if out=$("$@"); then
+                printf '%s' "$out"
+                return 0
+              fi
+              i=$((i + 1))
+              [ "$i" -lt 3 ] && sleep 10
+            done
+            return 1
+          }
           if [ "$EVENT" = workflow_run ]; then
-            PR=$(gh api "repos/$REPO/pulls?state=open&head=${REPO%%/*}:bot/eval-coverage" --jq '.[0].number // empty')
+            PR=$(try3_out gh api "repos/$REPO/pulls?state=open&head=${REPO%%/*}:bot/eval-coverage" --jq '.[0].number // empty')
             if [ -z "$PR" ]; then
               echo "no open bot/eval-coverage PR"
               exit 0
             fi
-            meta=$(gh api "repos/$REPO/pulls/$PR")
+            meta=$(try3_out gh api "repos/$REPO/pulls/$PR")
             HEAD_REPO=$(jq -r .head.repo.full_name <<<"$meta")
             HEAD_REF=$(jq -r .head.ref <<<"$meta")
             HEAD_SHA=$(jq -r .head.sha <<<"$meta")
@@ -87,8 +100,8 @@ jobs:
           fi
           files=()
           labels=()
-          files_out=$(gh api "repos/$REPO/compare/${BASE_SHA}...${HEAD_SHA}" --jq '.files[].filename')
-          labels_out=$(gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name')
+          files_out=$(try3_out gh api "repos/$REPO/compare/${BASE_SHA}...${HEAD_SHA}" --jq '.files[].filename')
+          labels_out=$(try3_out gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name')
           while IFS= read -r f; do
             [ -n "$f" ] && files+=(--file "$f")
           done <<< "$files_out"
@@ -137,7 +150,7 @@ jobs:
             esac
             sleep 10
           done
-          labels_out=$(try3 gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name')
+          labels_out=$(try3_out gh api "repos/$REPO/issues/$PR/labels" --paginate --jq '.[].name')
           labels=()
           while IFS= read -r l; do
             [ -n "$l" ] && labels+=(--label "$l")
@@ -154,7 +167,7 @@ jobs:
             if [ "$rc" -eq 2 ]; then exit 0; fi
             exit "$rc"
           fi
-          state=$(try3 gh api "repos/$REPO/pulls/$PR" --jq .state)
+          state=$(try3_out gh api "repos/$REPO/pulls/$PR" --jq .state)
           if [ "$state" != open ]; then
             echo "PR #$PR is $state; nothing to merge"
             exit 0
