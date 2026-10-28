@@ -41,8 +41,9 @@ export async function list(
       });
       tokens.push(...response.tokens);
       if (
-        response.tokens.length < PAGE_SIZE ||
-        tokens.length >= response.meta.totalCount
+        response.tokens.length === 0 ||
+        (response.meta.totalCount >= 0 &&
+          tokens.length >= response.meta.totalCount)
       ) {
         break;
       }
