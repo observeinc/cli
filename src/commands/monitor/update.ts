@@ -4,16 +4,16 @@ import { resolve } from "node:path";
 import type { LocalContext } from "../../context";
 import { updateMonitor } from "../../rest/monitor/update-monitor";
 import { getMonitor } from "../../rest/monitor/get-monitor";
-import { loadConfig } from "../../lib/config";
-import { formatApiError } from "../../lib/format-error";
-import { muteStatusWriter } from "../../lib/writer";
-import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 import {
   MonitorV2RuleKind,
   type MonitorV2ActionRule,
   type MonitorV2Definition,
   type MonitorV2PatchRequest,
 } from "../../rest/monitor/types";
+import { loadConfig } from "../../lib/config";
+import { formatApiError } from "../../lib/format-error";
+import { muteStatusWriter } from "../../lib/writer";
+import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 
 interface UpdateMonitorFlags {
   file: string;

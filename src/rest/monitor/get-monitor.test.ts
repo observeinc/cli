@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Config } from "../../lib/config";
 import { MonitorHealth } from "../generated";
 import {
-  type Monitor,
   MonitorV2ActionType,
   MonitorV2RuleKind,
+  type Monitor,
   type MonitorV2ActionRule,
   type MonitorV2Scheduling,
 } from "./types";

@@ -10,8 +10,8 @@ import {
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
 import {
-  type Monitor,
   MonitorV2RuleKind,
+  type Monitor,
   type MonitorV2Definition,
 } from "../../rest/monitor/types";
 

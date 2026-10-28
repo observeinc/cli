@@ -4,15 +4,15 @@ import { resolve } from "node:path";
 import type { LocalContext } from "../../context";
 import { createMonitor } from "../../rest/monitor/create-monitor";
 import { getMonitor } from "../../rest/monitor/get-monitor";
-import { loadConfig } from "../../lib/config";
-import { formatApiError } from "../../lib/format-error";
-import { muteStatusWriter } from "../../lib/writer";
-import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 import {
   MonitorV2RuleKind,
   type MonitorV2ActionRule,
   type MonitorV2Definition,
 } from "../../rest/monitor/types";
+import { loadConfig } from "../../lib/config";
+import { formatApiError } from "../../lib/format-error";
+import { muteStatusWriter } from "../../lib/writer";
+import { parseMonitorId, parseJsonFile } from "../../lib/parsers";
 
 interface CreateMonitorFlags {
   file: string;

@@ -1,11 +1,18 @@
 import type { MonitorHealth } from "../generated";
 
 /*
- * The unversioned shape's own types. The spec now describes only the
- * versioned shape, so codegen no longer emits these (it dropped the
- * `MonitorV2*` models); they are kept here as the default request documents
- * them. `definition` and the action's settings are passed through from the
- * user's file untouched, so only the fields the CLI reads are spelled out.
+ * Hand-written copies of the legacy `MonitorV2*` wire schemas.
+ *
+ * The CLI talks to the *unversioned* `/v1/monitors` endpoints, whose bodies the
+ * API documents as stable ("does not change"). Newer specs describe only the
+ * versioned shape (`MonitorCreateRequest` / `MonitorUpdateRequest` /
+ * `MonitorResource`) and no longer define these schemas, so a client generated
+ * from them has no export for any of the names below. Older specs still do,
+ * which is why these keep the legacy names. This is a deliberate exception to
+ * "use generated types directly".
+ *
+ * Remove them once the versioned request is enabled everywhere and the commands
+ * move to the generated types.
  */
 
 export enum MonitorV2RuleKind {
@@ -22,33 +29,35 @@ export enum MonitorV2ActionType {
   Webhook = "Webhook",
 }
 
-/** Input query, rules, grouping and the rest of the rule's configuration. */
+/** Passed through verbatim from `--file`; the CLI never reads inside it. */
 export type MonitorV2Definition = Record<string, unknown>;
 
-export interface MonitorV2ActionDefinition {
-  type?: MonitorV2ActionType;
-  inline?: boolean;
+/** Only the fields the CLI reads are typed; the rest round-trips untouched. */
+export interface MonitorV2ActionRule {
+  actionId?: string;
+  definition?: {
+    type: MonitorV2ActionType;
+    inline?: boolean;
+    name?: string;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
-export interface MonitorV2ActionRule {
-  actionId?: string;
-  levels?: string[];
-  conditions?: Record<string, unknown>;
-  sendEndNotifications?: boolean;
-  sendRemindersInterval?: boolean;
-  definition?: MonitorV2ActionDefinition;
-}
-
 export interface MonitorV2Scheduling {
-  transform?: { freshnessGoal?: string };
-  scheduled?: { cronConfig?: string; timezone: string; alarmMode?: string };
+  transform?: { freshnessGoal?: string | number };
+  scheduled?: {
+    cronConfig?: string;
+    timezone: string;
+    alarmMode?: "PerRun" | "Ongoing";
+  };
 }
 
+/** Body of the unversioned `PATCH /v1/monitors/{id}`. */
 export interface MonitorV2PatchRequest {
   name?: string;
-  disabled?: boolean;
   description?: string;
+  disabled?: boolean;
   ruleKind?: MonitorV2RuleKind;
   definition?: MonitorV2Definition;
   actionRules?: MonitorV2ActionRule[];
