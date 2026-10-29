@@ -75,8 +75,27 @@ describe("source-dataset delete", () => {
   test("--yes skips the prompt and does not force", async () => {
     const { context } = createMockContext();
     await remove.call(context, { yes: true }, "41000001", depsWith(false));
-    expect(getFn).not.toHaveBeenCalled();
+    expect(confirmFn).not.toHaveBeenCalled();
     expect(deleteFn.mock.calls[0]![0].force).toBeUndefined();
+  });
+
+  test("an unknown id is reported as not found without deleting", async () => {
+    getFn.mockImplementationOnce(() =>
+      Promise.reject(apiError(404, "not_found", "not found")),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    await remove.call(context, { yes: true }, "4100009", depsWith(true));
+    expect(deleteFn).not.toHaveBeenCalled();
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("Source dataset not found: 4100009");
+  });
+
+  test("the prompt warns that datasets created with it go too", async () => {
+    const { context, stdout, stderr } = createMockContext();
+    await remove.call(context, {}, "41000001", depsWith(true));
+    expect(stdout.join("") + stderr.join("")).toContain(
+      "the datasets created with it are deleted too",
+    );
   });
 
   test("--force is separate from --yes and warns", async () => {
@@ -91,7 +110,7 @@ describe("source-dataset delete", () => {
     expect(stdout.join("")).toContain("dashboards and worksheets");
   });
 
-  test("passes an ingest token 409 through", async () => {
+  test("on an enabled ingest token, shows the server message and says to disable it", async () => {
     deleteFn.mockImplementationOnce(() =>
       Promise.reject(
         apiError(
@@ -116,5 +135,19 @@ describe("source-dataset delete", () => {
     await remove.call(context, { yes: true }, "41000001", depsWith(true));
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Re-run with --force");
+    expect(stderr.join("")).toContain("dashboards or worksheets");
+  });
+
+  test("says to remove the poller or filedrop when one still ingests", async () => {
+    deleteFn.mockImplementationOnce(() =>
+      Promise.reject(
+        apiError(409, "ingest_config_active", "1 filedrop(s), 0 poller(s)"),
+      ),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    await remove.call(context, { yes: true }, "41000001", depsWith(true));
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("A poller or filedrop still ingests");
+    expect(stderr.join("")).toContain("--force does not skip this");
   });
 });

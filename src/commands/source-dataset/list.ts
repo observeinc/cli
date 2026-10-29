@@ -7,7 +7,11 @@ import { celFuzzyContains, combineFilters } from "../../lib/cel";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
-import { parseNonNegativeInt } from "../../lib/parsers";
+import {
+  makeFieldListParser,
+  makeSortFieldParser,
+  parseNonNegativeInt,
+} from "../../lib/parsers";
 import {
   formatTable,
   createColumnHelper,
@@ -26,26 +30,75 @@ interface ListSourceDatasetsFlags {
   expand?: boolean;
   format?: OutputFormat;
   json?: boolean;
+  fields?: FieldName[];
 }
+
+const SORT_FIELDS = ["label", "id", "createdAt", "updatedAt"] as const;
+
+const AVAILABLE_FIELDS = [
+  "id",
+  "label",
+  "type",
+  "storage",
+  "status",
+  "description",
+  "createdAt",
+  "updatedAt",
+  "observationsLastHour",
+  "bytesLastHour",
+  "lastIngest",
+] as const;
+
+type FieldName = (typeof AVAILABLE_FIELDS)[number];
+
+const DEFAULT_FIELDS: FieldName[] = [
+  "id",
+  "label",
+  "type",
+  "status",
+  "description",
+];
+
+const INGEST_STATS_FIELDS: ReadonlySet<FieldName> = new Set([
+  "observationsLastHour",
+  "bytesLastHour",
+  "lastIngest",
+]);
 
 const col = createColumnHelper<SourceDatasetResource>();
 
-const COLUMNS: ColumnDef<SourceDatasetResource>[] = [
-  col.accessor((row) => row.id, {
+const FIELD_COLUMNS = {
+  id: col.accessor((row) => row.id, {
     header: "ID",
     format: (value) => chalk.cyan(value),
   }),
-  col.accessor((row) => row.label, { header: "NAME" }),
-  col.accessor((row) => row.dataSource.ingest?.schemaType ?? "", {
+  label: col.accessor((row) => row.label, { header: "NAME" }),
+  type: col.accessor((row) => row.dataSource.ingest?.schemaType ?? "", {
     header: "TYPE",
     format: (value) => chalk.dim(value),
   }),
-  col.accessor((row) => row.ingestStatus, { header: "STATUS" }),
-  col.accessor((row) => row.description ?? "", {
+  storage: col.accessor((row) => row.dataSource.ingest?.storage ?? "", {
+    header: "STORAGE",
+  }),
+  status: col.accessor((row) => row.ingestStatus, { header: "STATUS" }),
+  description: col.accessor((row) => row.description ?? "", {
     header: "DESCRIPTION",
     flex: true,
   }),
-];
+  createdAt: col.accessor((row) => row.createdAt, { header: "CREATED" }),
+  updatedAt: col.accessor((row) => row.updatedAt, { header: "UPDATED" }),
+  observationsLastHour: col.accessor(
+    (row) => String(row.ingestStats?.observationsLastHour ?? "-"),
+    { header: "OBSERVATIONS (1H)" },
+  ),
+  bytesLastHour: col.accessor(
+    (row) => String(row.ingestStats?.bytesLastHour ?? "-"),
+    { header: "BYTES (1H)" },
+  ),
+  lastIngest: col.accessor((row) => row.ingestStats?.lastIngest ?? "-", {
+    header: "LAST INGEST",
+  }),
+} satisfies Record<FieldName, ColumnDef<SourceDatasetResource>>;
 
 export interface ListSourceDatasetsDeps {
   loadConfig?: typeof loadConfig;
@@ -77,13 +130,16 @@ export async function list(
       flags.filter,
     ]);
 
+    const fieldNames = flags.fields ?? DEFAULT_FIELDS;
+    const wantsIngestStats = fieldNames.some((f) => INGEST_STATS_FIELDS.has(f));
+
     const response = await listSD({
       config,
       filter,
       orderBy: flags.sort,
       limit: flags.limit,
       offset: flags.offset,
-      expand: flags.expand,
+      expand: flags.expand ?? (wantsIngestStats ? true : undefined),
     });
     const datasets = response.sourceDatasets;
 
@@ -108,7 +164,12 @@ export async function list(
         ? `Found ${datasets.length} source dataset(s) (${totalCount} total):\n`
         : `Found ${datasets.length} source dataset(s):\n`;
     writer.write(chalk.green(summary));
-    writer.write(formatTable(datasets, COLUMNS));
+    writer.write(
+      formatTable(
+        datasets,
+        fieldNames.map((field) => FIELD_COLUMNS[field]),
+      ),
+    );
 
     const nextOffset = (flags.offset ?? 0) + datasets.length;
     const more =
@@ -162,9 +223,8 @@ export const listCommand = defineCommand({
       },
       sort: {
         kind: "parsed",
-        parse: String,
-        brief:
-          "CEL expression to order by (default label; prefix - for descending)",
+        parse: makeSortFieldParser(SORT_FIELDS),
+        brief: `Sort results by field: ${SORT_FIELDS.join(", ")} (default label; prefix with - for descending, e.g. --sort=-updatedAt)`,
         optional: true,
       },
       limit: {
@@ -181,7 +241,8 @@ export const listCommand = defineCommand({
       },
       expand: {
         kind: "boolean",
-        brief: "Include ingest stats for the last hour (JSON/CSV output)",
+        brief:
+          "Include ingest stats for the last hour (set for you when --fields asks for one)",
         optional: true,
       },
       format: {
@@ -193,6 +254,12 @@ export const listCommand = defineCommand({
       json: {
         kind: "boolean",
         brief: "Output as JSON (shorthand for --format=json)",
+        optional: true,
+      },
+      fields: {
+        kind: "parsed",
+        parse: makeFieldListParser(AVAILABLE_FIELDS),
+        brief: `Comma-separated list of fields to display (${AVAILABLE_FIELDS.join(", ")})`,
         optional: true,
       },
     },

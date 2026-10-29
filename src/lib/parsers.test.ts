@@ -1,5 +1,36 @@
 import { describe, expect, test } from "bun:test";
-import { parseNonNegativeInt, parseMonitorId } from "./parsers";
+import {
+  makeFieldListParser,
+  makeSortFieldParser,
+  parseNonNegativeInt,
+  parseMonitorId,
+} from "./parsers";
+
+describe("makeSortFieldParser", () => {
+  const parseSort = makeSortFieldParser(["label", "updatedAt"]);
+
+  test("passes a known field through, with or without -", () => {
+    expect(parseSort("label")).toBe("label");
+    expect(parseSort("-updatedAt")).toBe("-updatedAt");
+  });
+
+  test("rejects an unknown field and lists the options", () => {
+    expect(() => parseSort("lable")).toThrow(/label, updatedAt/);
+    expect(() => parseSort("--label")).toThrow(/Invalid sort field/);
+  });
+});
+
+describe("makeFieldListParser", () => {
+  const parseFields = makeFieldListParser(["id", "name"] as const);
+
+  test("splits on commas and trims", () => {
+    expect(parseFields("id, name")).toEqual(["id", "name"]);
+  });
+
+  test("rejects an unknown field", () => {
+    expect(() => parseFields("id,nmae")).toThrow(/Invalid field: "nmae"/);
+  });
+});
 
 describe("parseNonNegativeInt", () => {
   test("parses zero and positive integers", () => {

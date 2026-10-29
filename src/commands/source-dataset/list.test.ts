@@ -49,7 +49,44 @@ describe("source-dataset list", () => {
     expect(out).toContain("Receiving");
   });
 
-  test("points at the next page when the server returns fewer than asked", async () => {
+  test("--fields picks the columns and expands for ingest stats", async () => {
+    listFn.mockImplementationOnce(() =>
+      Promise.resolve({
+        sourceDatasets: [
+          sourceDatasetStub({
+            ingestStats: {
+              observations: [],
+              volumeBytes: [],
+              observationsLastHour: 1234,
+              bytesLastHour: 98765,
+              firstIngest: null,
+              lastIngest: null,
+            },
+          }),
+        ],
+        meta: { totalCount: 1 },
+      }),
+    );
+    const { context, stdout } = createMockContext();
+    await list.call(
+      context,
+      { limit: 100, fields: ["id", "bytesLastHour"] },
+      deps,
+    );
+    expect(listFn.mock.calls[0]![0].expand).toBe(true);
+    const out = stdout.join("");
+    expect(out).toContain("98765");
+    expect(out).toContain("BYTES (1H)");
+    expect(out).not.toContain("Logs/checkout");
+  });
+
+  test("does not expand for the default columns", async () => {
+    const { context } = createMockContext();
+    await list.call(context, { limit: 100 }, deps);
+    expect(listFn.mock.calls[0]![0].expand).toBeUndefined();
+  });
+
+  test("points at the next page while totalCount says there are more", async () => {
     listFn.mockImplementationOnce(() =>
       Promise.resolve({
         sourceDatasets: [sourceDatasetStub()],

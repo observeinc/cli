@@ -2,26 +2,36 @@ import { describe, expect, test } from "bun:test";
 import {
   buildObjectTags,
   buildUpdateBody,
+  parseObjectTag,
   parseRetentionDays,
-  parseTag,
 } from "./parse";
 
 describe("source-dataset parse", () => {
-  test("parseTag splits on the first =", () => {
-    expect(parseTag("team=core")).toEqual(["team", "core"]);
-    expect(parseTag("q=a=b")).toEqual(["q", "a=b"]);
-    expect(() => parseTag("novalue")).toThrow(/key=value/);
-    expect(() => parseTag("=x")).toThrow(/key=value/);
+  test("parseObjectTag splits key=value on the first =", () => {
+    expect(parseObjectTag("team=core")).toEqual({ team: ["core"] });
+    expect(parseObjectTag("q=a=b")).toEqual({ q: ["a=b"] });
+    expect(() => parseObjectTag("novalue")).toThrow(/key=value/);
+    expect(() => parseObjectTag("=x")).toThrow(/key=value/);
   });
 
-  test("buildObjectTags groups repeated keys", () => {
+  test("parseObjectTag takes a JSON object for keys that contain =", () => {
+    expect(parseObjectTag('{"a=b":["c","d"],"env":"prod"}')).toEqual({
+      "a=b": ["c", "d"],
+      env: ["prod"],
+    });
+    expect(() => parseObjectTag("{not json")).toThrow(/JSON/);
+    expect(() => parseObjectTag('["a"]')).toThrow(/key=value/);
+    expect(() => parseObjectTag('{"a":1}')).toThrow(/list of strings/);
+  });
+
+  test("buildObjectTags merges repeated keys", () => {
     expect(
       buildObjectTags([
-        ["team", "core"],
-        ["team", "infra"],
-        ["env", "prod"],
+        { team: ["core"] },
+        { team: ["infra"] },
+        { env: ["prod"], "a=b": ["c"] },
       ]),
-    ).toEqual({ team: ["core", "infra"], env: ["prod"] });
+    ).toEqual({ team: ["core", "infra"], env: ["prod"], "a=b": ["c"] });
   });
 
   test("parseRetentionDays accepts non-negative integers only", () => {
@@ -43,7 +53,7 @@ describe("source-dataset parse", () => {
       buildUpdateBody({
         clearDescription: true,
         clearIcon: true,
-        clearTags: true,
+        clearObjectTags: true,
         clearRetention: true,
       }),
     ).toEqual({

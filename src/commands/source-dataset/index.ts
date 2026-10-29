@@ -15,7 +15,13 @@ export const sourceDatasetRoutes = defineRoutes({
   },
   docs: {
     brief: "Manage source datasets",
-    fullDescription:
-      "Create, view, update and delete source datasets: the datasets that receive ingested data.",
+    fullDescription: [
+      "Create, view, update and delete source datasets: the datasets that ingested",
+      "data lands in, as opposed to datasets built from other datasets.",
+      "",
+      "Source datasets also show up in 'observe dataset list'. Each one is fed by a",
+      "datastream, which 'observe source-dataset create' creates with it; use",
+      "'observe datastream' to work with datastreams directly.",
+    ].join("\n"),
   },
 });

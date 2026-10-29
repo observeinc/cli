@@ -7,7 +7,11 @@ import { celMatchesInsensitive, combineFilters } from "../../lib/cel";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
-import { parseNonNegativeInt } from "../../lib/parsers";
+import {
+  makeFieldListParser,
+  makeSortFieldParser,
+  parseNonNegativeInt,
+} from "../../lib/parsers";
 import {
   formatTable,
   createColumnHelper,
@@ -26,22 +30,40 @@ interface ListStorageIntegrationsFlags {
   expand?: boolean;
   format?: OutputFormat;
   json?: boolean;
+  fields?: FieldName[];
 }
+
+const SORT_FIELDS = ["id", "name", "createdAt", "updatedAt"] as const;
+
+const AVAILABLE_FIELDS = [
+  "id",
+  "name",
+  "type",
+  "provider",
+  "createdAt",
+  "updatedAt",
+] as const;
+
+type FieldName = (typeof AVAILABLE_FIELDS)[number];
+
+const DEFAULT_FIELDS: FieldName[] = ["id", "name", "type", "provider"];
 
 const col = createColumnHelper<StorageIntegrationResource>();
 
-const COLUMNS: ColumnDef<StorageIntegrationResource>[] = [
-  col.accessor((row) => row.id, {
+const FIELD_COLUMNS = {
+  id: col.accessor((row) => row.id, {
     header: "ID",
     format: (value) => chalk.cyan(value),
   }),
-  col.accessor((row) => row.name, { header: "NAME" }),
-  col.accessor((row) => row.type, {
+  name: col.accessor((row) => row.name, { header: "NAME" }),
+  type: col.accessor((row) => row.type, {
     header: "TYPE",
     format: (value) => chalk.dim(value),
   }),
-  col.accessor((row) => row.storageProvider, { header: "PROVIDER" }),
-];
+  provider: col.accessor((row) => row.storageProvider, { header: "PROVIDER" }),
+  createdAt: col.accessor((row) => row.createdAt, { header: "CREATED" }),
+  updatedAt: col.accessor((row) => row.updatedAt, { header: "UPDATED" }),
+} satisfies Record<FieldName, ColumnDef<StorageIntegrationResource>>;
 
 export interface ListStorageIntegrationsDeps {
   loadConfig?: typeof loadConfig;
@@ -106,7 +128,13 @@ export async function list(
         ? `Found ${integrations.length} storage integration(s) (${totalCount} total):\n`
         : `Found ${integrations.length} storage integration(s):\n`;
     writer.write(chalk.green(summary));
-    writer.write(formatTable(integrations, COLUMNS));
+    const fieldNames = flags.fields ?? DEFAULT_FIELDS;
+    writer.write(
+      formatTable(
+        integrations,
+        fieldNames.map((field) => FIELD_COLUMNS[field]),
+      ),
+    );
 
     const nextOffset = (flags.offset ?? 0) + integrations.length;
     const more =
@@ -160,9 +188,8 @@ export const listCommand = defineCommand({
       },
       sort: {
         kind: "parsed",
-        parse: String,
-        brief:
-          "Field to order by (default id; prefix - for descending: id, name, createdAt, updatedAt)",
+        parse: makeSortFieldParser(SORT_FIELDS),
+        brief: `Sort results by field: ${SORT_FIELDS.join(", ")} (default id; prefix with - for descending, e.g. --sort=-createdAt)`,
         optional: true,
       },
       limit: {
@@ -191,6 +218,12 @@ export const listCommand = defineCommand({
       json: {
         kind: "boolean",
         brief: "Output as JSON (shorthand for --format=json)",
+        optional: true,
+      },
+      fields: {
+        kind: "parsed",
+        parse: makeFieldListParser(AVAILABLE_FIELDS),
+        brief: `Comma-separated list of fields to display (${AVAILABLE_FIELDS.join(", ")})`,
         optional: true,
       },
     },

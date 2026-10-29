@@ -11,13 +11,18 @@ import {
 import { loadConfig } from "../../lib/config";
 import { errorType, formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
-import { buildObjectTags, parseRetentionDays, parseTag } from "./parse";
+import {
+  buildObjectTags,
+  type ObjectTags,
+  parseObjectTag,
+  parseRetentionDays,
+} from "./parse";
 
 interface CreateSourceDatasetFlags {
   label: string;
   description?: string;
   icon?: string;
-  tag?: [string, string][];
+  objectTag?: ObjectTags[];
   retentionDays?: number;
   schemaType?: SourceDatasetSchemaType;
   storage?: SourceDatasetStorage;
@@ -44,7 +49,9 @@ export function buildCreateBody(
   const body: SourceDatasetCreateRequest = { label: flags.label };
   if (flags.description !== undefined) body.description = flags.description;
   if (flags.icon !== undefined) body.icon = flags.icon;
-  if (flags.tag !== undefined) body.objectTags = buildObjectTags(flags.tag);
+  if (flags.objectTag !== undefined) {
+    body.objectTags = buildObjectTags(flags.objectTag);
+  }
   if (flags.retentionDays !== undefined) {
     body.dataRetentionDays = flags.retentionDays;
   }
@@ -144,10 +151,11 @@ export const createCommand = defineCommand({
         brief: "Icon identifier",
         optional: true,
       },
-      tag: {
+      objectTag: {
         kind: "parsed",
-        parse: parseTag,
-        brief: "Tag as key=value (repeat for multiple)",
+        parse: parseObjectTag,
+        brief:
+          'Object tag as key=value or a JSON object like \'{"key":["value"]}\' (repeat for multiple)',
         optional: true,
         variadic: true,
       },

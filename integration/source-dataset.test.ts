@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isFeatureNotEnabled } from "../src/lib/format-error";
-import { ResponseError } from "../src/rest/generated/runtime";
+import { errorType } from "../src/lib/format-error";
 import { listSourceDatasets } from "../src/rest/source-dataset/list-source-datasets";
 import { deleteSourceDataset } from "./cleanup";
 import {
@@ -25,11 +24,7 @@ async function apiEnabled(): Promise<boolean> {
     await listSourceDatasets({ config: tenant, limit: 1 });
     return true;
   } catch (error) {
-    if (
-      error instanceof ResponseError &&
-      error.response.status === 403 &&
-      (await isFeatureNotEnabled(error.response))
-    ) {
+    if ((await errorType(error)) === "feature_not_enabled") {
       return false;
     }
     throw error;

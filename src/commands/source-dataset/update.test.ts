@@ -39,6 +39,16 @@ describe("source-dataset update", () => {
     expect(stderr.join("")).toContain("Nothing to update");
   });
 
+  test("an unknown id is reported as not found", async () => {
+    updateFn.mockImplementationOnce(() =>
+      Promise.reject(apiError(404, "not_found", "not found")),
+    );
+    const { context, stderr, getExitCode } = createMockContext();
+    await update.call(context, { label: "Logs/x" }, "4100009", deps);
+    expect(getExitCode()).toBe(1);
+    expect(stderr.join("")).toContain("Source dataset not found: 4100009");
+  });
+
   test("passes a package change 400 through with the server message", async () => {
     updateFn.mockImplementationOnce(() =>
       Promise.reject(

@@ -26,7 +26,7 @@ describe("source-dataset create", () => {
       buildCreateBody({
         label: "Logs/checkout",
         description: "d",
-        tag: [["team", "core"]],
+        objectTag: [{ team: ["core"] }],
         retentionDays: 14,
         schemaType: SourceDatasetSchemaType.OtelLogs,
       }),
@@ -77,7 +77,7 @@ describe("source-dataset create", () => {
     expect(stdout.join("")).toContain("41000001");
   });
 
-  test("passes a 409 through with the server message", async () => {
+  test("on a taken name, shows the server message and points to update", async () => {
     createFn.mockImplementationOnce(() =>
       Promise.reject(apiError(409, "already_exists", "label already exists")),
     );

@@ -1,22 +1,56 @@
 import type { SourceDatasetUpdateRequest } from "../../rest/generated";
 
-type ObjectTags = NonNullable<SourceDatasetUpdateRequest["objectTags"]>;
+export type ObjectTags = NonNullable<SourceDatasetUpdateRequest["objectTags"]>;
 
-/** Parse one `--tag key=value` occurrence. */
-export function parseTag(value: string): [string, string] {
+const OBJECT_TAG_USAGE =
+  'Use key=value, or a JSON object such as \'{"key":["value"]}\' for keys that contain =.';
+
+/**
+ * Parse one `--object-tag` occurrence: `key=value` (split on the first `=`),
+ * or a JSON object of key to value or list of values.
+ */
+export function parseObjectTag(value: string): ObjectTags {
+  if (value.trim().startsWith("{")) {
+    return parseObjectTagsJson(value);
+  }
   const eq = value.indexOf("=");
   const key = eq > 0 ? value.slice(0, eq).trim() : "";
   if (!key) {
-    throw new Error(`Invalid tag "${value}". Use key=value.`);
+    throw new Error(`Invalid object tag "${value}". ${OBJECT_TAG_USAGE}`);
   }
-  return [key, value.slice(eq + 1).trim()];
+  return { [key]: [value.slice(eq + 1).trim()] };
 }
 
-/** Fold repeated `--tag key=value` flags into the API's tag map. */
-export function buildObjectTags(tags: [string, string][]): ObjectTags {
+function parseObjectTagsJson(value: string): ObjectTags {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error(`Invalid object tag JSON "${value}". ${OBJECT_TAG_USAGE}`);
+  }
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`Invalid object tag JSON "${value}". ${OBJECT_TAG_USAGE}`);
+  }
   const out: ObjectTags = {};
-  for (const [key, value] of tags) {
-    (out[key] ??= []).push(value);
+  for (const [key, tagValue] of Object.entries(parsed)) {
+    const values: unknown[] = Array.isArray(tagValue) ? tagValue : [tagValue];
+    if (!key || !values.every((v) => typeof v === "string")) {
+      throw new Error(
+        `Invalid object tag JSON "${value}": each key needs a string or a list of strings.`,
+      );
+    }
+    out[key] = values;
+  }
+  return out;
+}
+
+/** Merge repeated `--object-tag` flags into the API's tag map. */
+export function buildObjectTags(tags: ObjectTags[]): ObjectTags {
+  const out: ObjectTags = {};
+  for (const tagMap of tags) {
+    for (const [key, values] of Object.entries(tagMap)) {
+      (out[key] ??= []).push(...(values ?? []));
+    }
   }
   return out;
 }
@@ -35,8 +69,8 @@ export interface UpdateFlags {
   clearDescription?: boolean;
   icon?: string;
   clearIcon?: boolean;
-  tag?: [string, string][];
-  clearTags?: boolean;
+  objectTag?: ObjectTags[];
+  clearObjectTags?: boolean;
   retentionDays?: number;
   clearRetention?: boolean;
 }
@@ -60,7 +94,11 @@ export function buildUpdateBody(
     "--description and --clear-description",
   );
   exclusive(flags.icon, flags.clearIcon, "--icon and --clear-icon");
-  exclusive(flags.tag, flags.clearTags, "--tag and --clear-tags");
+  exclusive(
+    flags.objectTag,
+    flags.clearObjectTags,
+    "--object-tag and --clear-object-tags",
+  );
   exclusive(
     flags.retentionDays,
     flags.clearRetention,
@@ -73,8 +111,10 @@ export function buildUpdateBody(
   if (flags.clearDescription) body.description = null;
   if (flags.icon !== undefined) body.icon = flags.icon;
   if (flags.clearIcon) body.icon = null;
-  if (flags.tag !== undefined) body.objectTags = buildObjectTags(flags.tag);
-  if (flags.clearTags) body.objectTags = {};
+  if (flags.objectTag !== undefined) {
+    body.objectTags = buildObjectTags(flags.objectTag);
+  }
+  if (flags.clearObjectTags) body.objectTags = {};
   if (flags.retentionDays !== undefined) {
     body.dataRetentionDays = flags.retentionDays;
   }
@@ -82,7 +122,7 @@ export function buildUpdateBody(
 
   if (Object.keys(body).length === 0) {
     throw new Error(
-      "Nothing to update. Provide at least one of --label, --description, --icon, --tag, --retention-days, or a --clear-* flag.",
+      "Nothing to update. Provide at least one of --label, --description, --icon, --object-tag, --retention-days, or a --clear-* flag.",
     );
   }
   return body;

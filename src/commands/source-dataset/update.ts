@@ -3,13 +3,14 @@ import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { updateSourceDataset } from "../../rest/source-dataset/update-source-dataset";
 import type { SourceDatasetUpdateRequest } from "../../rest/generated";
+import { ResponseError } from "../../rest/generated/runtime";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { muteStatusWriter } from "../../lib/writer";
 import {
   buildUpdateBody,
+  parseObjectTag,
   parseRetentionDays,
-  parseTag,
   type UpdateFlags,
 } from "./parse";
 
@@ -62,7 +63,11 @@ export async function update(
         chalk.green(` — "${dataset.label}"`),
     );
   } catch (error) {
-    writer.error(`Error: ${await formatApiError(error)}`);
+    if (error instanceof ResponseError && error.response.status === 404) {
+      writer.error(`Source dataset not found: ${id}`);
+    } else {
+      writer.error(`Error: ${await formatApiError(error)}`);
+    }
     process.exitCode = 1;
   }
 }
@@ -110,17 +115,17 @@ export const updateCommand = defineCommand({
         brief: "Remove the icon",
         optional: true,
       },
-      tag: {
+      objectTag: {
         kind: "parsed",
-        parse: parseTag,
+        parse: parseObjectTag,
         brief:
-          "Replace all tags with these key=value tags (repeat for multiple)",
+          'Replace all object tags with these (key=value or a JSON object like \'{"key":["value"]}\'; repeat for multiple)',
         optional: true,
         variadic: true,
       },
-      clearTags: {
+      clearObjectTags: {
         kind: "boolean",
-        brief: "Remove all tags",
+        brief: "Remove all object tags",
         optional: true,
       },
       retentionDays: {

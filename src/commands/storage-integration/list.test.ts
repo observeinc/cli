@@ -59,7 +59,15 @@ describe("storage-integration list", () => {
     expect(out).toContain("S3");
   });
 
-  test("points at the next page when the server returns fewer than asked", async () => {
+  test("--fields picks the columns", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 100, fields: ["id", "createdAt"] }, deps);
+    const out = stdout.join("");
+    expect(out).toContain("CREATED");
+    expect(out).not.toContain("prod-lake");
+  });
+
+  test("points at the next page while totalCount says there are more", async () => {
     listFn.mockImplementationOnce(() =>
       Promise.resolve({
         storageIntegrations: [storageIntegrationStub()],
