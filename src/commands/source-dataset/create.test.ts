@@ -4,7 +4,7 @@ import type { createSourceDataset } from "../../rest/source-dataset/create-sourc
 import {
   SourceDatasetKind,
   SourceDatasetSchemaType,
-  SourceDatasetStorage,
+  DatasetStorage,
 } from "../../rest/generated";
 import { buildCreateBody, create } from "./create";
 import { apiError, loadConfigStub, sourceDatasetStub } from "./test-fixtures";
@@ -53,7 +53,7 @@ describe("source-dataset create", () => {
   test("sends the storage integration with Iceberg storage", () => {
     const body = buildCreateBody({
       label: "Logs/a",
-      storage: SourceDatasetStorage.Iceberg,
+      storage: DatasetStorage.Iceberg,
       storageIntegrationId: "77",
     });
     expect(body.dataSource?.ingest?.iceberg).toEqual({
@@ -63,7 +63,7 @@ describe("source-dataset create", () => {
 
   test("rejects Iceberg without a storage integration and vice versa", () => {
     expect(() =>
-      buildCreateBody({ label: "a/b", storage: SourceDatasetStorage.Iceberg }),
+      buildCreateBody({ label: "a/b", storage: DatasetStorage.Iceberg }),
     ).toThrow(/requires --storage-integration-id/);
     expect(() =>
       buildCreateBody({ label: "a/b", storageIntegrationId: "77" }),

@@ -9,7 +9,7 @@ import {
   SourceDatasetIngestStatus,
   SourceDatasetKindRead,
   SourceDatasetSchemaTypeRead,
-  SourceDatasetStorage,
+  DatasetStorage,
 } from "../../rest/generated";
 
 export const loadConfigStub = mock(() => ({
@@ -45,7 +45,7 @@ export function sourceDatasetStub(
     dataSource: {
       kind: SourceDatasetKindRead.Ingest,
       ingest: {
-        storage: SourceDatasetStorage.Native,
+        storage: DatasetStorage.Native,
         schemaType: SourceDatasetSchemaTypeRead.OtelLogs,
         iceberg: null,
         metadataDataset: null,

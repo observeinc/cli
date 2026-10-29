@@ -6,7 +6,7 @@ import {
   type SourceDatasetCreateRequest,
   SourceDatasetKind,
   SourceDatasetSchemaType,
-  SourceDatasetStorage,
+  DatasetStorage,
 } from "../../rest/generated";
 import { loadConfig } from "../../lib/config";
 import { errorType, formatApiError } from "../../lib/format-error";
@@ -25,7 +25,7 @@ interface CreateSourceDatasetFlags {
   objectTag?: ObjectTags[];
   retentionDays?: number;
   schemaType?: SourceDatasetSchemaType;
-  storage?: SourceDatasetStorage;
+  storage?: DatasetStorage;
   storageIntegrationId?: string;
   json?: boolean;
 }
@@ -35,12 +35,12 @@ export function buildCreateBody(
 ): SourceDatasetCreateRequest {
   if (
     flags.storageIntegrationId !== undefined &&
-    flags.storage !== SourceDatasetStorage.Iceberg
+    flags.storage !== DatasetStorage.Iceberg
   ) {
     throw new Error("--storage-integration-id requires --storage Iceberg");
   }
   if (
-    flags.storage === SourceDatasetStorage.Iceberg &&
+    flags.storage === DatasetStorage.Iceberg &&
     flags.storageIntegrationId === undefined
   ) {
     throw new Error("--storage Iceberg requires --storage-integration-id");
@@ -173,7 +173,7 @@ export const createCommand = defineCommand({
       },
       storage: {
         kind: "enum",
-        values: Object.values(SourceDatasetStorage),
+        values: Object.values(DatasetStorage),
         brief: "Where the data is stored (default Native)",
         optional: true,
       },
