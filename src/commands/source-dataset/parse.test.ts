@@ -24,6 +24,22 @@ describe("source-dataset parse", () => {
     expect(() => parseObjectTag('{"a":1}')).toThrow(/list of strings/);
   });
 
+  test("parseObjectTag rejects JSON that would clear tags or send no values", () => {
+    expect(() => parseObjectTag("{}")).toThrow(/key=value/);
+    expect(() => parseObjectTag('{"team":[]}')).toThrow(/non-empty list/);
+  });
+
+  test("__proto__ and constructor are plain tag keys", () => {
+    const tags = buildObjectTags([
+      parseObjectTag('{"__proto__":["x"]}'),
+      parseObjectTag("constructor=y"),
+      parseObjectTag("__proto__=z"),
+    ]);
+    expect(JSON.stringify(tags)).toBe(
+      '{"__proto__":["x","z"],"constructor":["y"]}',
+    );
+  });
+
   test("buildObjectTags merges repeated keys", () => {
     expect(
       buildObjectTags([

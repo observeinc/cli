@@ -18,7 +18,14 @@ export function parseObjectTag(value: string): ObjectTags {
   if (!key) {
     throw new Error(`Invalid object tag "${value}". ${OBJECT_TAG_USAGE}`);
   }
-  return { [key]: [value.slice(eq + 1).trim()] };
+  const out = emptyObjectTags();
+  out[key] = [value.slice(eq + 1).trim()];
+  return out;
+}
+
+// No prototype, so keys such as __proto__ or constructor are plain tag keys.
+function emptyObjectTags(): ObjectTags {
+  return Object.create(null) as ObjectTags;
 }
 
 function parseObjectTagsJson(value: string): ObjectTags {
@@ -28,15 +35,26 @@ function parseObjectTagsJson(value: string): ObjectTags {
   } catch {
     throw new Error(`Invalid object tag JSON "${value}". ${OBJECT_TAG_USAGE}`);
   }
-  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+  // An empty object would send {} and clear every tag; that is what
+  // --clear-object-tags is for.
+  if (
+    parsed == null ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed) ||
+    Object.keys(parsed).length === 0
+  ) {
     throw new Error(`Invalid object tag JSON "${value}". ${OBJECT_TAG_USAGE}`);
   }
-  const out: ObjectTags = {};
+  const out = emptyObjectTags();
   for (const [key, tagValue] of Object.entries(parsed)) {
     const values: unknown[] = Array.isArray(tagValue) ? tagValue : [tagValue];
-    if (!key || !values.every((v) => typeof v === "string")) {
+    if (
+      !key ||
+      values.length === 0 ||
+      !values.every((v) => typeof v === "string")
+    ) {
       throw new Error(
-        `Invalid object tag JSON "${value}": each key needs a string or a list of strings.`,
+        `Invalid object tag JSON "${value}": each key needs a string or a non-empty list of strings.`,
       );
     }
     out[key] = values;
@@ -46,7 +64,7 @@ function parseObjectTagsJson(value: string): ObjectTags {
 
 /** Merge repeated `--object-tag` flags into the API's tag map. */
 export function buildObjectTags(tags: ObjectTags[]): ObjectTags {
-  const out: ObjectTags = {};
+  const out = emptyObjectTags();
   for (const tagMap of tags) {
     for (const [key, values] of Object.entries(tagMap)) {
       (out[key] ??= []).push(...(values ?? []));
