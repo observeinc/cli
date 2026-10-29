@@ -49,6 +49,7 @@ src/
 │   ├── docs/           # Documentation commands (search)
 │   ├── inbound-share/  # Snowflake inbound-share commands: setup, token, offers, register, shares, tables and their datasets (experimental: gated + hidden)
 │   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
+│   ├── instrumentation/ # OpenTelemetry readiness: audit (CI lint, exit codes) (experimental)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
 │   ├── source-dataset/ # Source dataset commands: list, view, create, update, delete (experimental: gated + hidden)
@@ -157,6 +158,198 @@ builds those parameters from user flags such as `--match` and
 layer does not replicate the JS query-util ranked-search scoring engine.
 Backends are injected via each command's `deps` parameter so tests can stub
 them without mutating the global environment.
+
+### OpenTelemetry Support Manifest (`instrumentation`)
+
+`observe instrumentation audit` (non-interactive, CI) assesses each detected application against a bundled
+OpenTelemetry support manifest instead of hand-written rules. The manifest is
+the single source of truth for auto-instrumentation availability, per-signal
+SDK stability, runtime-version support, and per-library version compatibility.
+Severity and guidance live in the CLI (`findings.ts`), not in the manifest.
+
+- **Detection** lives in `src/lib/instrumentation/`:
+  - `detectors/*.ts` — one per ecosystem (Node, Python, Java, .NET, Ruby, PHP,
+    plus marker-only `native.ts` for Go/Rust/Erlang/C++/Perl). Every detector
+    goes through `createCandidate` in `detectors/common.ts`. A candidate needs
+    build evidence that it runs: .NET test projects (`Microsoft.NET.Test.Sdk`,
+    `IsTestProject`) and class libraries are skipped, except ASP.NET (.NET
+    Framework) web applications, which IIS hosts as libraries and are recognized
+    by the web application project type GUID or a `Global.asax`. Legacy .NET
+    projects read `<TargetFrameworkVersion>` and `packages.config` (development
+    dependencies excluded); Gradle build logic
+    (`kotlin-dsl`, `java-gradle-plugin`) is skipped, and library modules
+    (`java-library`, `micronaut.library`) count only with a `main`. Java
+    frameworks are matched on coordinates, never on prose. Ruby gems in
+    development/test groups and Gradle `compileOnly`/annotation processors are
+    not runtime dependencies. A Node workspace root (`workspaces` in
+    `package.json`, or a sibling `pnpm-workspace.yaml`) needs a `start`/`serve`
+    script or `bin` to count as an application; `main` alone (usually
+    `npm init`'s `index.js` default) does not, since its members are the
+    applications. Recursive source
+    inspection uses `findOwnedProjectFiles`: a nested manifest for the same
+    ecosystem starts a new project boundary, while manifests and source files
+    from other ecosystems do not interfere with polyglot projects. File-name
+    conventions are runnable evidence only inside the owning project boundary.
+    Native applications are executable targets, not arbitrary source trees.
+    `discovery/bazel/` parses a bounded offline Starlark subset for C++, Go,
+    Python, Java, and Rust binary rules, including conventional `*_binary`
+    wrappers. It tracks nearest `MODULE.bazel`/`WORKSPACE` ownership, canonical
+    labels, literal attributes, static discovery completeness, and unevaluated
+    macro diagnostics. Proven `testonly = True` targets are excluded; names are
+    not used to guess whether a target is a test. When no ancestor `pom.xml`,
+    `build.gradle*` or `pyproject.toml` gives a version, Java and Python targets
+    take it from their workspace's Bazel config: `--java_runtime_version` on an
+    unconditional `build`/`common` line of `.bazelrc` (`11`, `remotejdk_21`;
+    `local_jdk` stays unknown), and for Python the `.bazelrc` `python_version`
+    flag, then the default `python.toolchain` in `MODULE.bazel`. Config-specific
+    lines and imported rc files are not followed. Bazel dependencies are not
+    read; use `--sbom`. CMake `add_executable`, Cargo
+    bins, and Go `package main` commands use the same discovery provenance model.
+  - `graph/` — normalized rooted dependency graphs. `uv.lock` and pnpm workspace
+    providers preserve transitive, optional, peer, and development edges;
+    traversal excludes development/test/build edges and retains shortest runtime
+    paths plus immediate parents. npm uses Arborist's virtual lockfile tree in the
+    audit command, loaded once from the nearest ancestor `package-lock.json`
+    (npm writes one at the workspace root) and rooted at the member's own node;
+    a directory the lockfile does not install gets no graph and keeps its
+    declared ranges, and an unloadable lockfile raises `LOCKFILE_UNPARSEABLE`.
+    Workspace and `file:` Links are collapsed onto their target package so its
+    dependencies are traversed. Lockfile version fallback (`yarn.lock` and
+    others) reads only the application's own directory. The pnpm provider resolves
+    aliases (`string-width-cjs: string-width@4.2.3`) to the real package, and
+    `file:`/`link:` references that are not workspace importers (vendored
+    tarballs) to their package entries. CycloneDX JSON is accepted
+    through `--sbom`: on its own it is audited standalone (no filesystem scan;
+    the runtime is inferred from the components' purls and the app synthesized
+    from the SBOM), and with `--app` it replaces that one detected candidate's
+    graph. An SBOM is used only when passed; it is never discovered on disk.
+    Its SHA-256 is recorded in the graph provenance. A root component repeated
+    inside `components` (as `cdxgen` writes it) is the root, not a duplicate.
+    A complete graph replaces declared dependencies but keeps framework
+    references (`Microsoft.AspNetCore.App`), which ship with the runtime and
+    never appear in a package SBOM. `--resolve` explicitly enables a locked,
+    offline `go list`, spawned by absolute path (never from inside the
+    project) with an allowlisted environment. Java build tools are never run:
+    Maven and Gradle load repository-controlled code before resolving, so Java
+    graphs come from `--sbom`. Rust is not resolved: it is SDK-only with no
+    cataloged libraries, so a graph changes no verdict, and `cargo metadata`
+    runs repository-configured `rustc` wrappers. `resolveNative()` returns a
+    graph or a `RESOLVE_FAILED` diagnostic for Go, `RESOLVE_UNSUPPORTED` for
+    Java and Rust, and null for runtimes it does not resolve.
+    Partial graphs resolve a declared range to the graph's shallowest node of
+    the same name rather than assessing the library twice.
+    Every graph reports `resolved-graph`, `partial-graph`, or `inventory-only`
+    completeness and records provider/path provenance.
+  - `lockfiles.ts` — inventory fallback for ecosystems without a graph provider.
+    A resolved version sets `resolvedVersion` + `sourceKind: "lockfile"` and wins
+    over the manifest range. An unparseable lockfile raises
+    `LOCKFILE_UNPARSEABLE` and falls back to declared ranges.
+  - `runtime-version.ts` — runtime version from `.nvmrc`, `.ruby-version`,
+    `.python-version`, `.tool-versions`, `runtime.txt`, or a Dockerfile `FROM`
+    tag when the manifest declares none. Manifest wins, then version file, then
+    Dockerfile. A Gemfile `ruby` directive counts only when it pins an exact
+    version; a constraint (`~> 3.2`) defers to the version files. Bazel
+    workspace versions are kept when the ecosystem detector at the same path
+    found none. When the application's own directory has none,
+    `inheritedVersionFile()` walks parent directories up to the scan root for
+    the files whose tools do the same (`.nvmrc`, `.node-version`,
+    `.ruby-version`, `.python-version`, `.java-version`, `.tool-versions`);
+    Dockerfiles, `runtime.txt` and `.sdkmanrc` describe one directory and are
+    never inherited. Recorded as `Evidence { kind: "runtime-version" }`.
+  - `findings.ts` — rule table `OTEL001..OTEL031` and `deriveFindings()`. Rule
+    IDs are stable (never renumber); severities are policy and may change.
+    OTEL011 and OTEL014 are retired; never reuse their IDs.
+  - `formats/sarif.ts`, `formats/github.ts` — SARIF 2.1.0 and GitHub workflow
+    command output for `audit --format`.
+- **Runtime layer** lives in `src/lib/instrumentation/manifest/`:
+  - `schema.ts` — manifest v1/v2 types + strict zod validator (unknown keys fail).
+    V2 supports multiple native/external options with independent ranges,
+    activation metadata, and prerequisites. Do not mix scalar fields and options.
+  - `otel-support-manifest.yaml` — the committed, hand-maintained data file (Bun
+    inlines the YAML import at build; validated by zod at load). Missing
+    `supportedVersions` means unknown, never wildcard support.
+  - `load.ts` — `loadManifest()`, `manifestInfo()` (schemaVersion, generatedAt,
+    sha256, origin) which every result carries, and `setManifestOverride()` for
+    `audit --manifest <file>` and tests. No network I/O.
+  - `version-grammar.ts` — per-ecosystem version matching. The declared spec is
+    expanded to the full range it admits and compared as a set:
+    `in-range` (subset), `overlap` (partial), `out-of-range` (disjoint),
+    `unknown` (unparseable). `normalizeRuntimeVersion()` handles .NET TFMs,
+    legacy Java `1.x`, and version-file prefixes. Maven/NuGet release
+    qualifiers (`-jre`, `.Final`, `-RELEASE`) mean the release, not a
+    pre-release. Composer `~X.Y` admits up to the next major. Spring starter
+    and `-bom` aggregators apply to Maven only.
+  - `check.ts` / `profile.ts` — `checkCompatibility()` → `CompatibilityProfile`
+    with `packages.supported` / `unsupported` (with `reason`) / `unverified`.
+    `unknown` is never filed as supported. Explicit catalog options are evaluated
+    even for SDK-only runtimes and dependencies classified as `other`. Known
+    option ranges form a union, preserving gaps and per-option setup requirements;
+    identical ranges appear once. Separate instrumentation packages for
+    different parts of one library (aiohttp's client and server) are separate
+    options. The profile records `catalogedPackages` for the runtime, which the
+    renderer reads instead of the loaded manifest.
+    A package or option's `runtimeVersions` narrows the runtime versions its
+    instrumentation runs on (.NET-only vs .NET Framework-only); when no option
+    runs on the app's runtime the library is unsupported with reason
+    `runtime-unsupported` (OTEL010), suppressed when OTEL002 already reports the
+    runtime. `normalizeRuntimeVersion()` maps `net48`/`net472` and `v4.8` to
+    semver.
+    Result schema v6 reports normalized options and activation as not assessed.
+    Support is not proof of enablement or telemetry delivery; opt-in is not a failure.
+    `activation: manual` marks instrumentation the app must wire into its own
+    code. Go catalogs contrib and library-native instrumentation this way; the
+    Go detector reads direct `go.mod` requirements (not `// indirect`, not the
+    standard library) and skips modules whose only `main` files carry Go's
+    `// Code generated ... DO NOT EDIT.` marker (build products such as the OTel
+    Collector Builder output). On SDK-only runtimes manual libraries are
+    summarized in OTEL004 instead of per-library OTEL015/OTEL017. Runtime
+    metrics are reported only as available/unavailable; the manual wiring is
+    implied by the SDK-only model. Compile-time Go instrumentation is not
+    cataloged.
+- **`audit` exit codes**: 0 completed analysis below `--fail-on` (default
+  `error`), 1 findings at the threshold, 2 tool error: unreadable path or
+  manifest, project-level error diagnostic (incomplete scan, unreadable
+  metadata), or no candidates. `--fail-on none` cannot suppress tool errors.
+  SARIF and GitHub output carry findings only, so for these exits the reason
+  goes to stderr as `{"error":{"message":...}}`. A candidate's own error
+  diagnostics become OTEL030 findings so one broken application never hides
+  the verdicts for the rest of a monorepo.
+- **Application ids**: the directory relative to the scan root (`.` for the
+  root), plus `:<target>` for Bazel and CMake binaries, since a directory can
+  gain targets. No language prefix and no build-file name. Only applications
+  that would share an id get a qualifier, and only one that tells them apart:
+  language first, then project file basename (`qualifySharedIds` in
+  `detect.ts`). The table, JSON, SARIF and `--app` all use the same id.
+- **`audit --app`** matches an id exactly. With `--app`, project
+  diagnostics are limited to the selected application's directory (pathless
+  ones kept). An unknown id lists every id in projects of up to 10
+  applications, otherwise only the ids containing what was typed.
+- **Scanning** (`snapshot.ts`): hidden directories and `IGNORED_DIRECTORIES`
+  are skipped, as is the Go module cache — directories named `<module>@<version>`
+  (matched by the `@v<digit>` marker) are downloaded dependencies, not the
+  project's applications, wherever the cache (`GOMODCACHE`/`$GOPATH/pkg/mod`)
+  lives. `--exclude` adds root-relative directories. Metadata files are
+  read during the walk; other text files are read lazily on first `content`
+  access. Per-candidate path lookups go through `file-index.ts` (memoized per
+  file array) and shared lockfiles are parsed once via `parseSnapshotFile`;
+  never add a linear `snapshot.files` scan inside a per-candidate loop.
+- **Maintenance**: edit `otel-support-manifest.yaml` by hand to add or update
+  runtimes and packages. There are no offline generation scripts, no evidence
+  file, and no provenance/citation tracking. The schema (zod) validates shape at
+  load; `bun run test:otel-manifest` validates ranges and invariants offline. Do
+  not add hardcoded library lists or language-specific source parsers to the
+  runtime. AI-assisted maintenance uses
+  `.agents/skills/maintain-otel-manifest/SKILL.md` in the current session.
+  Uncataloged libraries are left unassessed (no per-library finding); the
+  catalog is the sole authority on what can be assessed. Name matching is
+  per ecosystem (PyPI per PEP 503) plus each entry's `aliases`; do not add
+  alias tables in code. Unknown upstream ranges
+  for a cataloged library produce `OTEL015`, distinct from unknown application
+  versions. `OTEL014` (catalog miss) is retired; never reuse the ID.
+- **Review**: PR CI runs credential-free deterministic checks (typecheck, lint,
+  format, `bun test src`). Optional Bugbot guidance is in `.cursor/BUGBOT.md`;
+  installation and failing-check behavior require repository configuration. No
+  auto-merge or autofix.
 
 ### Command Pattern
 
