@@ -1,3 +1,4 @@
+import { $ } from "bun";
 import { describe, expect, test } from "bun:test";
 import { errorType } from "../src/lib/format-error";
 import { listShares } from "../src/rest/inbound-share/list-shares";
@@ -44,11 +45,10 @@ async function apiEnabled(): Promise<boolean> {
   }
 }
 
-const shareConfigured =
-  shareName !== undefined &&
-  providerAccount !== undefined &&
-  schemaName !== undefined &&
-  tableName !== undefined;
+// Unset GitHub variables arrive as empty strings, so test for truthiness.
+const shareConfigured = Boolean(
+  shareName && providerAccount && schemaName && tableName,
+);
 
 const testIfShare =
   shareConfigured && (await apiEnabled()) ? test.serial : test.skip;
@@ -93,10 +93,17 @@ describe("inbound-share CLI integration with a registered share", () => {
         expect(viewed.id).toBe(share.id);
 
         const prefix = testPrefix();
+        // A run killed before this cleanup leaves a test label behind; restore
+        // the share name then, rather than keeping that label for good.
+        const restingLabel = share.label.startsWith(`${TEST_RESOURCE_PREFIX}-`)
+          ? share.shareName
+          : share.label;
         fixture.registerCleanup(async () => {
-          await fixture.runCli`
-            observe inbound-share update ${share.id} --label "${share.label}"
-          `;
+          parseJsonOutput(
+            await fixture.runCli`
+              observe inbound-share update ${share.id} --label ${$.escape(restingLabel)} --json
+            `,
+          );
         });
         const relabeled = parseJsonOutput(
           await fixture.runCli`
@@ -157,10 +164,16 @@ describe("inbound-share CLI integration with a registered share", () => {
             observe inbound-share table track --share-id ${share.id} --schema ${schemaName} --table ${tableName} --dataset-label ${datasetLabel} --kind Table --json
           `,
         ) as TrackedTableJson;
+        let tableTracked = true;
         fixture.registerCleanup(async () => {
-          await fixture.runCli`
-            observe inbound-share table untrack ${table.id} --share-id ${share.id} --yes
-          `;
+          if (!tableTracked) {
+            return;
+          }
+          parseJsonOutput(
+            await fixture.runCli`
+              observe inbound-share table untrack ${table.id} --share-id ${share.id} --yes --json
+            `,
+          );
         });
         expect(table.share.id).toBe(share.id);
         expect(table.sourceDataset?.id).toBeTruthy();
@@ -183,6 +196,7 @@ describe("inbound-share CLI integration with a registered share", () => {
             observe inbound-share table untrack ${table.id} --share-id ${share.id} --yes --json
           `,
         ) as { success: boolean; id: string };
+        tableTracked = false;
         expect(removed).toEqual({ success: true, id: table.id });
 
         const after = parseJsonOutput(
