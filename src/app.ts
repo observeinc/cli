@@ -19,6 +19,8 @@ import { monitorRoutes } from "./commands/monitor/index.js";
 import { queryCommand } from "./commands/query.js";
 import { inboundShareRoutes } from "./commands/inbound-share/index.js";
 import { skillRoutes } from "./commands/skill/index.js";
+import { sourceDatasetRoutes } from "./commands/source-dataset/index.js";
+import { storageIntegrationRoutes } from "./commands/storage-integration/index.js";
 import { tagRoutes } from "./commands/tag/index.js";
 import { tagValueRoutes } from "./commands/tag-value/index.js";
 import { CURRENT_CLI_VERSION } from "./lib/constants.js";
@@ -50,6 +52,8 @@ export const routes = defineRoutes({
     "inbound-share": inboundShareRoutes,
     docs: docsRoutes,
     dashboard: dashboardRoutes,
+    "source-dataset": sourceDatasetRoutes,
+    "storage-integration": storageIntegrationRoutes,
     cli: cliRoutes,
   },
   defaultCommand: "help",

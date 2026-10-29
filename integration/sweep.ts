@@ -17,12 +17,15 @@ import { searchIngestToken } from "../src/gql/ingest-token/search-ingest-token";
 import { listDatastreams } from "../src/gql/datastream/list-datastreams";
 import { listDatasets } from "../src/rest/dataset/list-datasets";
 import { listSkills } from "../src/rest/skill/list-skills";
+import { listSourceDatasets } from "../src/rest/source-dataset/list-source-datasets";
+import { errorType } from "../src/lib/format-error";
 import type { Config } from "../src/lib/config";
 import {
   deleteDataset,
   deleteDatastream,
   deleteIngestToken,
   deleteSkill,
+  deleteSourceDataset,
 } from "./cleanup";
 import { TEST_RESOURCE_PREFIX, loadTenantConfig } from "./fixture";
 
@@ -44,10 +47,32 @@ interface Sweeper {
 }
 
 /**
- * Sweepers run in dependency order: datastreams before datasets (a datastream's
- * direct-write targets are datasets), mirroring the terraform-provider ordering.
+ * Sweepers run in dependency order: source datasets first (deleted with their
+ * backing), then datastreams before datasets (a datastream's direct-write
+ * targets are datasets), mirroring the terraform-provider ordering.
  */
 const SWEEPERS: readonly Sweeper[] = [
+  {
+    type: "source-dataset",
+    list: (config) =>
+      paginate(async (offset) => {
+        try {
+          const { sourceDatasets } = await listSourceDatasets({
+            config,
+            limit: PAGE_SIZE,
+            offset,
+          });
+          return sourceDatasets.map((d) => ({ id: d.id, name: d.label }));
+        } catch (error) {
+          // Pre-GA: tenants without the API flag answer 403 feature_not_enabled.
+          if ((await errorType(error)) === "feature_not_enabled") {
+            return [];
+          }
+          throw error;
+        }
+      }),
+    remove: deleteSourceDataset,
+  },
   {
     type: "datastream",
     list: async (config) =>
