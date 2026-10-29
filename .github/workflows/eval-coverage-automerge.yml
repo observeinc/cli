@@ -1,5 +1,6 @@
-# Approve the daily counts PR and turn on native auto-merge so GitHub
-# waits for every required check. Never checks out the PR head.
+# Enable native auto-merge as the coverage App so the squash onto main
+# can start push workflows. Approve with GITHUB_TOKEN; the App opened
+# the PR and cannot approve it. Never checks out the PR head.
 name: Auto-merge eval coverage
 
 on:
@@ -25,8 +26,24 @@ jobs:
       BASE: ${{ github.event.pull_request.base.sha }}
       SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - run: |
+      - id: gate
+        run: |
           files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$SHA" --jq '[.files[].filename] | join(",")')
-          if [ "$files" != scripts/eval-coverage.json ]; then echo "skip: $files"; exit 0; fi
-          gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$SHA"
+          if [ "$files" != scripts/eval-coverage.json ]; then
+            echo "skip: $files"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+      - uses: actions/create-github-app-token@v2
+        if: steps.gate.outputs.skip != 'true'
+        id: app-token
+        with:
+          app-id: ${{ vars.CLI_COVERAGE_APP_ID }}
+          private-key: ${{ secrets.CLI_COVERAGE_APP_PRIVATE_KEY }}
+      - if: steps.gate.outputs.skip != 'true'
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          GH_TOKEN="$APP_TOKEN" gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$SHA"
           gh pr review "$PR" --repo "$GITHUB_REPOSITORY" --approve
