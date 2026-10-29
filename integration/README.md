@@ -54,6 +54,34 @@ You do not need to install content before CI runs unless those packs are removed
 
 The fixture sets `OBSERVE_CLI_EXPERIMENTAL=1` automatically so experimental commands (ingest-token, content, data-connection, etc.) are enabled in every integration test.
 
+## Registered share
+
+`inbound-share-registered.test.ts` registers a real Snowflake share and tracks,
+updates and untracks one of its tables. It skips unless these are set:
+
+| Variable                                     | Description                                     |
+| -------------------------------------------- | ----------------------------------------------- |
+| `OBSERVE_INTEGRATION_SHARE_NAME`             | Share name in the provider account              |
+| `OBSERVE_INTEGRATION_SHARE_PROVIDER_ACCOUNT` | Provider account as `<ORG>.<ACCOUNT>`           |
+| `OBSERVE_INTEGRATION_SHARE_SCHEMA`           | Schema of a table in the share (case-sensitive) |
+| `OBSERVE_INTEGRATION_SHARE_TABLE`            | Table or view in that schema (case-sensitive)   |
+
+One-time setup for the tenant:
+
+1. Turn on `enable_external_shares` for the customer.
+2. In the provider account, create the share, grant it a table, and add the
+   consumer account from `observe inbound-share setup`.
+3. Verify the provider once: set the share comment to the token from
+   `observe inbound-share token create --provider-account <ORG>.<ACCOUNT>`,
+   then run `observe inbound-share register`. The provider account is then
+   verified for the customer, so later registers of its shares need no comment,
+   and the comment can be unset.
+
+The test never deletes the share. Snowflake mounts a share only once per
+account, and a mount left behind by an interrupted delete blocks every later
+mount. Two runs must not use the share at the same time, so CI runs this test
+in its own job, one run at a time, and not on pull requests.
+
 ## Known gaps
 
 | Commands                                     | Reason                                   |
