@@ -63,7 +63,7 @@ observe skill install --all
 | `observe ingest-token view`             | View an ingest token                                    |
 | `observe ingest-token list`             | List ingest tokens                                      |
 | `observe ingest-token update`           | Update an ingest token                                  |
-| `observe ingest-token revoke`           | Revoke an ingest token                                  |
+| `observe ingest-token delete`           | Delete an ingest token                                  |
 | `observe datastream create`             | Create a new datastream                                 |
 | `observe datastream list`               | List datastreams                                        |
 | `observe datastream view`               | View a datastream by ID                                 |

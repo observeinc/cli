@@ -21,9 +21,9 @@ import { listSourceDatasets } from "../src/rest/source-dataset/list-source-datas
 import { errorType } from "../src/lib/format-error";
 import type { Config } from "../src/lib/config";
 import {
+  cleanupIngestToken,
   deleteDataset,
   deleteDatastream,
-  deleteIngestToken,
   deleteSkill,
   deleteSourceDataset,
 } from "./cleanup";
@@ -103,7 +103,7 @@ const SWEEPERS: readonly Sweeper[] = [
         });
         return tokens.map((token) => ({ id: token.id, name: token.name }));
       }),
-    remove: deleteIngestToken,
+    remove: cleanupIngestToken,
   },
   {
     type: "skill",

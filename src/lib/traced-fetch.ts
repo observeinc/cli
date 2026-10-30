@@ -27,7 +27,8 @@ function looksLikeId(segment: string): boolean {
   return (
     /^\d+$/.test(segment) || // numeric id (dataset, monitor, ...)
     segment.includes(":") || // oid form, e.g. o:41007655
-    /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(segment) // uuid
+    /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(segment) || // uuid
+    /^ds1[0-9a-z]+$/i.test(segment) // opaque ingest-token id
   );
 }
 
@@ -37,7 +38,7 @@ function looksLikeId(segment: string): boolean {
  * Id-like path segments are collapsed to `:id` so per-id URLs don't explode the
  * set of span names, while still distinguishing one endpoint from another.
  */
-function defaultSpanName(method: string, url: string): string {
+export function defaultSpanName(method: string, url: string): string {
   try {
     const route = new URL(url).pathname
       .split("/")

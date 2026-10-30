@@ -62,13 +62,6 @@ describe("ingest-token create", () => {
     expect(JSON.parse(stdout.join(""))).toEqual(token);
   });
 
-  test("outputs the one-time token secret", async () => {
-    const { context, stdout } = createMockContext();
-    await create.call(context, { name: "k8s-ingest" }, deps);
-
-    expect(JSON.parse(stdout.join("")).secret).toBe(token.secret);
-  });
-
   test("allows the API to generate a name", async () => {
     const { context } = createMockContext();
     await create.call(context, {}, deps);

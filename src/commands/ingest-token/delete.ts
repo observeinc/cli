@@ -1,29 +1,29 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
-import { revokeIngestToken } from "../../rest/ingest-token/revoke-ingest-token";
+import { deleteIngestToken as deleteIngestTokenApi } from "../../rest/ingest-token/delete-ingest-token";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
 import { confirm } from "../../lib/confirm";
 
-interface RevokeIngestTokenFlags {
+interface DeleteIngestTokenFlags {
   yes?: boolean;
 }
 
-export interface RevokeIngestTokenDeps {
+export interface DeleteIngestTokenDeps {
   loadConfig?: typeof loadConfig;
-  revokeIngestToken?: typeof revokeIngestToken;
+  deleteIngestToken?: typeof deleteIngestTokenApi;
   confirm?: typeof confirm;
 }
 
-export async function revoke(
+export async function deleteIngestTokenCommand(
   this: LocalContext,
-  flags: RevokeIngestTokenFlags,
+  flags: DeleteIngestTokenFlags,
   id: string,
-  deps: RevokeIngestTokenDeps = {},
+  deps: DeleteIngestTokenDeps = {},
 ): Promise<void> {
   const {
     loadConfig: loadConfigImpl = loadConfig,
-    revokeIngestToken: revokeIngestTokenImpl = revokeIngestToken,
+    deleteIngestToken: deleteIngestTokenImpl = deleteIngestTokenApi,
     confirm: confirmImpl = confirm,
   } = deps;
   const { process, writer } = this;
@@ -32,11 +32,11 @@ export async function revoke(
     if (!flags.yes) {
       const confirmed = await confirmImpl.call(
         this,
-        `Revoke ingest token ${id}? This action is irreversible.`,
+        `Delete ingest token ${id}? This action is irreversible.`,
       );
       if (!confirmed) {
         writer.error(
-          "Revocation cancelled. Re-run with --yes to skip the prompt.",
+          "Deletion cancelled. Re-run with --yes to skip the prompt.",
         );
         process.exitCode = 1;
         return;
@@ -44,24 +44,24 @@ export async function revoke(
     }
 
     const config = loadConfigImpl();
-    await revokeIngestTokenImpl({ config, id });
-    writer.success(`Ingest token ${id} revoked.`);
+    await deleteIngestTokenImpl({ config, id });
+    writer.success(`Ingest token ${id} deleted.`);
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;
   }
 }
 
-export const revokeCommand = defineCommand({
+export const deleteCommand = defineCommand({
   experimental: true,
-  loader: async () => revoke,
+  loader: async () => deleteIngestTokenCommand,
   parameters: {
     positional: {
       kind: "tuple",
       parameters: [
         {
           placeholder: "tokenId",
-          brief: "Ingest token ID to revoke",
+          brief: "Ingest token ID to delete",
           parse: String,
         },
       ],
@@ -76,8 +76,8 @@ export const revokeCommand = defineCommand({
     aliases: { y: "yes" },
   },
   docs: {
-    brief: "Revoke an ingest token",
+    brief: "Delete an ingest token",
     fullDescription:
-      "Permanently revoke an ingest token. This action cannot be undone.",
+      "Permanently delete an ingest token. This action cannot be undone.",
   },
 });

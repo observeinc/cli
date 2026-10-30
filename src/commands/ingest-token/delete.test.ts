@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { createMockContext } from "../../test-helpers";
 import type { Config } from "../../lib/config";
-import type { RevokeIngestTokenDeps } from "./revoke";
-import { revoke } from "./revoke";
+import type { DeleteIngestTokenDeps } from "./delete";
+import { deleteIngestTokenCommand } from "./delete";
 
 const config: Config = {
   customerId: "test-customer",
@@ -11,64 +11,74 @@ const config: Config = {
 };
 
 const loadConfigFn = mock(() => config);
-const revokeIngestTokenFn = mock(
+const deleteIngestTokenFn = mock(
   (
     _params: Parameters<
-      NonNullable<RevokeIngestTokenDeps["revokeIngestToken"]>
+      NonNullable<DeleteIngestTokenDeps["deleteIngestToken"]>
     >[0],
   ) => Promise.resolve(),
 );
 const confirmFn = mock((_question: string) => Promise.resolve(true));
 
-const deps: RevokeIngestTokenDeps = {
+const deps: DeleteIngestTokenDeps = {
   loadConfig: loadConfigFn,
-  revokeIngestToken: revokeIngestTokenFn,
+  deleteIngestToken: deleteIngestTokenFn,
   confirm: confirmFn,
 };
 
-describe("ingest-token revoke", () => {
+describe("ingest-token delete", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
-    revokeIngestTokenFn.mockClear();
+    deleteIngestTokenFn.mockClear();
     confirmFn.mockClear();
   });
 
-  test("revokes the token after confirmation", async () => {
+  test("deletes the token after confirmation", async () => {
     const { context, stdout } = createMockContext();
-    await revoke.call(context, {}, "ds1-token-123", deps);
+    await deleteIngestTokenCommand.call(context, {}, "ds1token123", deps);
 
     expect(confirmFn).toHaveBeenCalledTimes(1);
-    expect(revokeIngestTokenFn.mock.calls[0]![0]).toEqual({
+    expect(deleteIngestTokenFn.mock.calls[0]![0]).toEqual({
       config,
-      id: "ds1-token-123",
+      id: "ds1token123",
     });
-    expect(stdout.join("")).toContain("revoked");
+    expect(stdout.join("")).toContain("deleted");
   });
 
   test("--yes skips confirmation", async () => {
     const { context } = createMockContext();
-    await revoke.call(context, { yes: true }, "ds1-token-123", deps);
+    await deleteIngestTokenCommand.call(
+      context,
+      { yes: true },
+      "ds1token123",
+      deps,
+    );
 
     expect(confirmFn).not.toHaveBeenCalled();
-    expect(revokeIngestTokenFn).toHaveBeenCalledTimes(1);
+    expect(deleteIngestTokenFn).toHaveBeenCalledTimes(1);
   });
 
-  test("declining confirmation does not revoke", async () => {
+  test("declining confirmation does not delete", async () => {
     confirmFn.mockImplementationOnce(() => Promise.resolve(false));
     const { context, stderr, getExitCode } = createMockContext();
-    await revoke.call(context, {}, "ds1-token-123", deps);
+    await deleteIngestTokenCommand.call(context, {}, "ds1token123", deps);
 
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("cancelled");
-    expect(revokeIngestTokenFn).not.toHaveBeenCalled();
+    expect(deleteIngestTokenFn).not.toHaveBeenCalled();
   });
 
   test("exits with code 1 on API error", async () => {
-    revokeIngestTokenFn.mockImplementationOnce(() =>
+    deleteIngestTokenFn.mockImplementationOnce(() =>
       Promise.reject(new Error("Forbidden")),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    await revoke.call(context, { yes: true }, "ds1-token-123", deps);
+    await deleteIngestTokenCommand.call(
+      context,
+      { yes: true },
+      "ds1token123",
+      deps,
+    );
 
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Forbidden");

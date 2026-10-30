@@ -6,16 +6,16 @@
 
 import { deleteDatastream as gqlDeleteDatastream } from "../src/gql/datastream/delete-datastream";
 import { deleteDataset as gqlDeleteDataset } from "../src/gql/dataset/delete-dataset";
-import { revokeIngestToken as restRevokeIngestToken } from "../src/rest/ingest-token/revoke-ingest-token";
+import { deleteIngestToken } from "../src/rest/ingest-token/delete-ingest-token";
 import { deleteSkill as restDeleteSkill } from "../src/rest/skill/delete-skill";
 import { deleteSourceDataset as restDeleteSourceDataset } from "../src/rest/source-dataset/delete-source-dataset";
 import type { Config } from "../src/lib/config";
 
-export async function deleteIngestToken(
+export async function cleanupIngestToken(
   config: Config,
   id: string,
 ): Promise<void> {
-  await restRevokeIngestToken({ config, id });
+  await deleteIngestToken({ config, id });
 }
 
 export async function deleteDatastream(
