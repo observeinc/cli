@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { deleteIngestToken } from "./cleanup";
+import { cleanupIngestToken } from "./cleanup";
 import {
   loadTenantConfig,
   parseJsonOutput,
@@ -18,7 +18,7 @@ interface IngestTokenJson {
 const tenant = loadTenantConfig();
 
 describe("ingest-token CLI integration", () => {
-  test("create, list, view, and update", async () => {
+  test("create, list, view, update, and delete", async () => {
     const prefix = testPrefix();
     const name = `${prefix}-ingest-token`;
     const description = "integration test token";
@@ -31,7 +31,10 @@ describe("ingest-token CLI integration", () => {
           --description ${JSON.stringify(description)}
       `;
       const created = parseJsonOutput(createResult) as IngestTokenJson;
-      fixture.registerCleanup(() => deleteIngestToken(tenant, created.id));
+      let deleted = false;
+      fixture.registerCleanup(() =>
+        deleted ? Promise.resolve() : cleanupIngestToken(tenant, created.id),
+      );
 
       expect(typeof created.id).toBe("string");
       expect(created.id.length).toBeGreaterThan(0);
@@ -41,7 +44,8 @@ describe("ingest-token CLI integration", () => {
       // ingest-token list
       const listResult = await fixture.runCli`
         observe ingest-token list \
-          --match ${prefix}
+          --match ${prefix} \
+          --json
       `;
       const listed = parseJsonOutput(listResult) as IngestTokenJson[];
 
@@ -51,7 +55,7 @@ describe("ingest-token CLI integration", () => {
 
       // ingest-token view
       const viewResult = await fixture.runCli`
-        observe ingest-token view ${created.id}
+        observe ingest-token view ${created.id} --json
       `;
       const viewed = parseJsonOutput(viewResult) as IngestTokenJson;
 
@@ -72,7 +76,7 @@ describe("ingest-token CLI integration", () => {
 
       // ingest-token view: update persisted
       const viewAfterUpdateResult = await fixture.runCli`
-        observe ingest-token view ${created.id}
+        observe ingest-token view ${created.id} --json
       `;
       const viewedAfterUpdate = parseJsonOutput(
         viewAfterUpdateResult,
@@ -93,7 +97,7 @@ describe("ingest-token CLI integration", () => {
 
       // ingest-token view: disabled state persisted
       const viewAfterDisableResult = await fixture.runCli`
-        observe ingest-token view ${created.id}
+        observe ingest-token view ${created.id} --json
       `;
       const viewedAfterDisable = parseJsonOutput(
         viewAfterDisableResult,
@@ -113,13 +117,32 @@ describe("ingest-token CLI integration", () => {
 
       // ingest-token view: enabled state persisted
       const viewAfterEnableResult = await fixture.runCli`
-        observe ingest-token view ${created.id}
+        observe ingest-token view ${created.id} --json
       `;
       const viewedAfterEnable = parseJsonOutput(
         viewAfterEnableResult,
       ) as IngestTokenJson;
 
       expect(viewedAfterEnable.disabled).toBe(false);
+
+      // ingest-token delete
+      const deleteResult = await fixture.runCli`
+        observe ingest-token delete ${created.id} --yes
+      `;
+
+      expect(deleteResult.exitCode).toBe(0);
+      expect(deleteResult.stdout).toContain(
+        `Ingest token ${created.id} deleted.`,
+      );
+      deleted = true;
+
+      // ingest-token view: deleted token is gone
+      const viewAfterDeleteResult = await fixture.runCli`
+        observe ingest-token view ${created.id}
+      `;
+
+      expect(viewAfterDeleteResult.exitCode).toBe(1);
+      expect(viewAfterDeleteResult.stderr).toContain("HTTP 404 Not Found");
     });
   });
 });

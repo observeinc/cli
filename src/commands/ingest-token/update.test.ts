@@ -1,136 +1,93 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  test,
-} from "bun:test";
-import { createMockContext, suppressAnsiColor } from "../../test-helpers";
-import { resolve } from "node:path";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { createMockContext } from "../../test-helpers";
+import type { Config } from "../../lib/config";
+import type { IngestTokenResource } from "../../rest/generated";
+import type { UpdateIngestTokenDeps } from "./update";
+import { update } from "./update";
 
-const repoRoot = resolve(import.meta.dir, "../../..");
-const gqlModulePath = resolve(
-  repoRoot,
-  "src/gql/ingest-token/update-ingest-token.ts",
-);
-
-const loadConfigFn = mock(() => ({
+const config: Config = {
   customerId: "test-customer",
   token: "test-token",
   domain: "observeinc.com",
-}));
+};
 
-const updateIngestTokenFn = mock((_config: unknown, _variables: unknown) =>
-  Promise.resolve({
-    id: "token-123",
-    name: "Updated Token",
-    description: "New description",
-    disabled: false,
-  }),
+const updatedToken: IngestTokenResource = {
+  id: "ds1-token-123",
+  name: "Updated Token",
+  description: "New description",
+  disabled: false,
+  createdBy: { id: "user-1" },
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedBy: { id: "user-1" },
+  updatedAt: "2026-01-02T00:00:00Z",
+};
+
+const loadConfigFn = mock(() => config);
+const updateIngestTokenFn = mock(
+  (
+    _params: Parameters<
+      NonNullable<UpdateIngestTokenDeps["updateIngestToken"]>
+    >[0],
+  ) => Promise.resolve(updatedToken),
 );
 
-const viewIngestTokenFn = mock((_config: unknown, _variables: unknown) =>
-  Promise.resolve({
-    id: "token-123",
-    name: "Existing Token",
-    description: "Existing description",
-    disabled: true,
-  }),
-);
-
-let update: (typeof import("./update"))["update"];
-
-const deps = {
+const deps: UpdateIngestTokenDeps = {
   loadConfig: loadConfigFn,
-  viewIngestToken: viewIngestTokenFn,
-} as Parameters<(typeof import("./update"))["update"]>[2];
-
-suppressAnsiColor();
-
-beforeAll(async () => {
-  void mock.module(gqlModulePath, () => ({
-    updateIngestToken: updateIngestTokenFn,
-  }));
-
-  const mod = await import("./update.ts");
-  update = mod.update;
-});
-
-afterAll(() => {
-  mock.restore();
-});
+  updateIngestToken: updateIngestTokenFn,
+};
 
 describe("ingest-token update", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     updateIngestTokenFn.mockClear();
-    viewIngestTokenFn.mockClear();
   });
 
-  test("passes id and name, backfilling current disabled state", async () => {
+  test("sends only the fields provided to the REST merge-patch", async () => {
     const { context, stdout } = createMockContext();
-    await update.call(context, { name: "Updated Token" }, "token-123", deps);
-
-    expect(viewIngestTokenFn).toHaveBeenCalledTimes(1);
-    expect(updateIngestTokenFn).toHaveBeenCalledTimes(1);
-    const [, variables] = updateIngestTokenFn.mock.calls[0]!;
-    expect(variables).toMatchObject({
-      id: "token-123",
-      input: { name: "Updated Token", disabled: true },
-    });
-
-    const output = JSON.parse(stdout.join(""));
-    expect(output.id).toBe("token-123");
-  });
-
-  test("uses provided disabled flag without fetching current token", async () => {
-    const { context } = createMockContext();
-    await update.call(context, { disabled: false }, "token-123", deps);
-
-    expect(viewIngestTokenFn).not.toHaveBeenCalled();
-    const [, variables] = updateIngestTokenFn.mock.calls[0]!;
-    expect((variables as { input: { disabled: boolean } }).input.disabled).toBe(
-      false,
-    );
-  });
-
-  test("only includes provided editable fields in input", async () => {
-    const { context } = createMockContext();
     await update.call(
       context,
-      { description: "Only desc", disabled: false },
-      "token-123",
+      { name: "Updated Token", description: "New description" },
+      "ds1-token-123",
       deps,
     );
 
-    const [, variables] = updateIngestTokenFn.mock.calls[0]!;
-    const input = (variables as { input: Record<string, unknown> }).input;
-    expect(input.description).toBe("Only desc");
-    expect(input.name).toBeUndefined();
+    expect(updateIngestTokenFn.mock.calls[0]![0]).toEqual({
+      config,
+      id: "ds1-token-123",
+      ingestTokenUpdateRequest: {
+        name: "Updated Token",
+        description: "New description",
+      },
+    });
+    expect(JSON.parse(stdout.join(""))).toEqual(updatedToken);
+  });
+
+  test("passes an explicit false disabled value", async () => {
+    const { context } = createMockContext();
+    await update.call(context, { disabled: false }, "ds1-token-123", deps);
+
+    expect(
+      updateIngestTokenFn.mock.calls[0]![0].ingestTokenUpdateRequest.disabled,
+    ).toBe(false);
   });
 
   test("exits with code 1 when no editable field is provided", async () => {
     const { context, stderr, getExitCode } = createMockContext();
-    await update.call(context, {}, "token-123", deps);
+    await update.call(context, {}, "ds1-token-123", deps);
+
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Nothing to update");
-    expect(viewIngestTokenFn).not.toHaveBeenCalled();
     expect(updateIngestTokenFn).not.toHaveBeenCalled();
   });
 
   test("exits with code 1 on API error", async () => {
-    updateIngestTokenFn.mockImplementationOnce(() => {
-      const err = new Error("Forbidden");
-      err.name = "GqlApiError";
-      (err as unknown as { statusCode: number }).statusCode = 403;
-      throw err;
-    });
-
+    updateIngestTokenFn.mockImplementationOnce(() =>
+      Promise.reject(new Error("Forbidden")),
+    );
     const { context, stderr, getExitCode } = createMockContext();
-    await update.call(context, { name: "fail" }, "token-123", deps);
+    await update.call(context, { name: "fail" }, "ds1-token-123", deps);
+
     expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("Error");
+    expect(stderr.join("")).toContain("Forbidden");
   });
 });
