@@ -144,8 +144,10 @@ export async function list(
     const columns = fieldNames.map((field) => FIELD_COLUMNS[field]);
     writer.write(formatTable(tokens, columns));
 
-    if (tokens.length === flags.limit) {
-      const nextOffset = (flags.offset ?? 0) + flags.limit;
+    const nextOffset = (flags.offset ?? 0) + tokens.length;
+    const more =
+      totalCount >= 0 ? nextOffset < totalCount : tokens.length === flags.limit;
+    if (more) {
       writer.info(
         `\nMore results may be available. Use --offset ${nextOffset} to see the next page.`,
       );
