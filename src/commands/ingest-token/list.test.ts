@@ -151,6 +151,26 @@ describe("ingest-token list", () => {
     expect(stdout.join("")).not.toContain("More results may be available");
   });
 
+  test("shows a next-page hint for a full page with an unknown total", async () => {
+    listIngestTokensFn.mockImplementationOnce(() =>
+      Promise.resolve({ tokens, meta: { totalCount: -1 } }),
+    );
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 2, offset: 4 }, deps);
+
+    expect(stdout.join("")).toContain("--offset 6");
+  });
+
+  test("does not show a next-page hint for a short page with an unknown total", async () => {
+    listIngestTokensFn.mockImplementationOnce(() =>
+      Promise.resolve({ tokens, meta: { totalCount: -1 } }),
+    );
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 10, offset: 4 }, deps);
+
+    expect(stdout.join("")).not.toContain("More results may be available");
+  });
+
   test("warns when no tokens are found", async () => {
     listIngestTokensFn.mockImplementationOnce(() =>
       Promise.resolve({ tokens: [], meta: { totalCount: 0 } }),
