@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { createMockContext } from "../../test-helpers";
+import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
 import type { IngestTokenResource } from "../../rest/generated";
 import type { ListIngestTokenDeps } from "./list";
@@ -20,9 +20,25 @@ function token(id: string, name: string): IngestTokenResource {
     createdBy: { id: "user-1" },
     createdAt: "2026-01-01T00:00:00Z",
     updatedBy: { id: "user-1" },
-    updatedAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-02T00:00:00Z",
   };
 }
+
+const tokens = [
+  token("ds1token1", "Token A"),
+  {
+    ...token("ds1token2", "Token B"),
+    stats: {
+      firstUsed: "2026-01-03T00:00:00Z",
+      lastUsed: "2026-01-04T00:00:00Z",
+      firstIngest: "2026-01-03T00:00:00Z",
+      lastIngest: "2026-01-04T00:00:00Z",
+      errors: [],
+      observations: [],
+      volumeBytes: [],
+    },
+  },
+];
 
 const loadConfigFn = mock(() => config);
 const listIngestTokensFn = mock(
@@ -30,14 +46,7 @@ const listIngestTokensFn = mock(
     _params: Parameters<
       NonNullable<ListIngestTokenDeps["listIngestTokens"]>
     >[0],
-  ) =>
-    Promise.resolve({
-      tokens: [
-        token("ds1-token-1", "Token A"),
-        token("ds1-token-2", "Token B"),
-      ],
-      meta: { totalCount: 2 },
-    }),
+  ) => Promise.resolve({ tokens, meta: { totalCount: 12 } }),
 );
 
 const deps: ListIngestTokenDeps = {
@@ -45,73 +54,101 @@ const deps: ListIngestTokenDeps = {
   listIngestTokens: listIngestTokensFn,
 };
 
+suppressAnsiColor();
+
 describe("ingest-token list", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     listIngestTokensFn.mockClear();
   });
 
-  test("returns all tokens", async () => {
-    const { context, stdout } = createMockContext();
-    await list.call(context, {}, deps);
+  test("forwards pagination and expansion parameters", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { limit: 25, offset: 50, expand: true, json: true },
+      deps,
+    );
 
     expect(listIngestTokensFn).toHaveBeenCalledTimes(1);
     expect(listIngestTokensFn.mock.calls[0]![0]).toMatchObject({
       config,
-      offset: 0,
-      limit: 100,
+      offset: 50,
+      limit: 25,
+      expand: true,
     });
-    expect(JSON.parse(stdout.join(""))).toHaveLength(2);
   });
 
   test("sends a safe case-insensitive name filter", async () => {
     const { context } = createMockContext();
-    await list.call(context, { match: 'Token "A"' }, deps);
+    await list.call(
+      context,
+      { limit: 100, match: 'Token "A"', json: true },
+      deps,
+    );
 
     expect(listIngestTokensFn.mock.calls[0]![0].filter).toBe(
       String.raw`name.matches("(?i)Token \"A\"")`,
     );
   });
 
-  test("pages until all tokens are returned", async () => {
-    const firstPage = Array.from({ length: 100 }, (_, i) =>
-      token(`ds1-${i}`, `Token ${i}`),
-    );
-    listIngestTokensFn
-      .mockImplementationOnce(() =>
-        Promise.resolve({ tokens: firstPage, meta: { totalCount: 101 } }),
-      )
-      .mockImplementationOnce(() =>
-        Promise.resolve({
-          tokens: [token("ds1-100", "Token 100")],
-          meta: { totalCount: 101 },
-        }),
-      );
-
+  test("renders a human-readable table by default", async () => {
     const { context, stdout } = createMockContext();
-    await list.call(context, {}, deps);
+    await list.call(context, { limit: 100 }, deps);
 
-    expect(listIngestTokensFn).toHaveBeenCalledTimes(2);
-    expect(listIngestTokensFn.mock.calls[1]![0].offset).toBe(100);
-    expect(JSON.parse(stdout.join(""))).toHaveLength(101);
+    const output = stdout.join("");
+    expect(output).toContain("Found 2 ingest token(s) (12 total)");
+    expect(output).toContain("Token A");
+    expect(output).toContain("STATUS");
   });
 
-  test("continues after a short page when the total count is unknown", async () => {
-    const firstPage = [token("ds1-1", "Token 1"), token("ds1-2", "Token 2")];
-    listIngestTokensFn
-      .mockImplementationOnce(() =>
-        Promise.resolve({ tokens: firstPage, meta: { totalCount: -1 } }),
-      )
-      .mockImplementationOnce(() =>
-        Promise.resolve({ tokens: [], meta: { totalCount: -1 } }),
-      );
-
+  test("--json emits the raw token array without status chatter", async () => {
     const { context, stdout } = createMockContext();
-    await list.call(context, {}, deps);
+    await list.call(context, { limit: 100, json: true }, deps);
 
-    expect(listIngestTokensFn).toHaveBeenCalledTimes(2);
-    expect(listIngestTokensFn.mock.calls[1]![0].offset).toBe(2);
-    expect(JSON.parse(stdout.join(""))).toEqual(firstPage);
+    expect(JSON.parse(stdout.join(""))).toEqual(tokens);
+    expect(stdout.join("")).not.toContain("Fetching ingest tokens");
+  });
+
+  test("--format csv emits the raw token fields", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 100, format: "csv" }, deps);
+
+    const output = stdout.join("");
+    expect(output).toContain("id,name,description,disabled");
+    expect(output).toContain("ds1token1,Token A");
+    expect(output).not.toContain("Fetching ingest tokens");
+  });
+
+  test("--fields can show expanded usage statistics", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(
+      context,
+      { limit: 100, expand: true, fields: ["name", "lastUsed"] },
+      deps,
+    );
+
+    const output = stdout.join("");
+    expect(output).toContain("LAST USED");
+    expect(output).toContain("Token B");
+    expect(output).toContain("2026");
+  });
+
+  test("shows the next offset when a page reaches the limit", async () => {
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 2, offset: 4 }, deps);
+
+    expect(stdout.join("")).toContain("--offset 6");
+  });
+
+  test("warns when no tokens are found", async () => {
+    listIngestTokensFn.mockImplementationOnce(() =>
+      Promise.resolve({ tokens: [], meta: { totalCount: 0 } }),
+    );
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 100 }, deps);
+
+    expect(stdout.join("")).toContain("No ingest tokens found");
   });
 
   test("exits with code 1 on API error", async () => {
@@ -119,7 +156,7 @@ describe("ingest-token list", () => {
       Promise.reject(new Error("Server error")),
     );
     const { context, stderr, getExitCode } = createMockContext();
-    await list.call(context, {}, deps);
+    await list.call(context, { limit: 100 }, deps);
 
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("Server error");

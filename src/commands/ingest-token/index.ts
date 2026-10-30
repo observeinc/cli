@@ -3,7 +3,7 @@ import { createCommand } from "./create";
 import { viewCommand } from "./view";
 import { listCommand } from "./list";
 import { updateCommand } from "./update";
-import { revokeCommand } from "./revoke";
+import { deleteCommand } from "./delete";
 
 export const ingestTokenRoutes = defineRoutes({
   routes: {
@@ -11,11 +11,11 @@ export const ingestTokenRoutes = defineRoutes({
     view: viewCommand,
     list: listCommand,
     update: updateCommand,
-    revoke: revokeCommand,
+    delete: deleteCommand,
   },
   docs: {
     brief: "Manage ingest tokens",
     fullDescription:
-      "Create, read, update, list, and revoke ingest tokens in Observe.",
+      "Create, read, update, list, and delete ingest tokens in Observe.",
   },
 });

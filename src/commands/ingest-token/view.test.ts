@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { createMockContext } from "../../test-helpers";
+import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
 import type { IngestTokenResource } from "../../rest/generated";
 import type { ViewIngestTokenDeps } from "./view";
@@ -12,7 +12,7 @@ const config: Config = {
 };
 
 const token: IngestTokenResource = {
-  id: "ds1-token-123",
+  id: "ds1token123",
   name: "K8s Explorer - minikube",
   description: "Ingest token for K8s",
   disabled: false,
@@ -34,21 +34,42 @@ const deps: ViewIngestTokenDeps = {
   getIngestToken: getIngestTokenFn,
 };
 
+suppressAnsiColor();
+
 describe("ingest-token view", () => {
   beforeEach(() => {
     loadConfigFn.mockClear();
     getIngestTokenFn.mockClear();
   });
 
-  test("gets the REST token by ID and outputs it", async () => {
+  test("gets the REST token by ID and renders a human-readable view", async () => {
     const { context, stdout } = createMockContext();
-    await view.call(context, {}, "ds1-token-123", deps);
+    await view.call(context, {}, "ds1token123", deps);
 
     expect(getIngestTokenFn.mock.calls[0]![0]).toEqual({
       config,
-      id: "ds1-token-123",
+      id: "ds1token123",
     });
+    expect(stdout.join("")).toContain("K8s Explorer - minikube");
+    expect(stdout.join("")).toContain("Ingest Token");
+  });
+
+  test("--json emits the raw token without status chatter", async () => {
+    const { context, stdout } = createMockContext();
+    await view.call(context, { json: true }, "ds1token123", deps);
+
     expect(JSON.parse(stdout.join(""))).toEqual(token);
+    expect(stdout.join("")).not.toContain("Fetching ingest token");
+  });
+
+  test("--format csv emits property/value rows", async () => {
+    const { context, stdout } = createMockContext();
+    await view.call(context, { format: "csv" }, "ds1token123", deps);
+
+    const output = stdout.join("");
+    expect(output).toContain("property,value");
+    expect(output).toContain("id,ds1token123");
+    expect(output).not.toContain("Fetching ingest token");
   });
 
   test("exits with code 1 on API error", async () => {

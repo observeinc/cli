@@ -72,7 +72,7 @@ Mutating tests must follow the create → assert → delete lifecycle:
 
 1. Generate a unique prefix with `testPrefix()` (e.g. `cli-a1b2c3d4`).
 2. Create resources using that prefix in the name (via CLI under test, or via `setup.ts` when seeding fixtures).
-3. **Register teardown immediately** after creation succeeds — before assertions — so resources are cleaned up even when a test fails mid-way. For resources created via CLI: `fixture.registerCleanup(() => deleteIngestToken(tenant, created.id))`. Setup helpers in `setup.ts` register their own cleanup.
+3. **Register teardown immediately** after creation succeeds — before assertions — so resources are cleaned up even when a test fails mid-way. For resources created via CLI: `fixture.registerCleanup(() => cleanupIngestToken(tenant, created.id))`. Setup helpers in `setup.ts` register their own cleanup.
 4. Assert only on resources this test created (by name or ID in list/view output).
 
 **Do not:**
@@ -104,7 +104,7 @@ const prefix = testPrefix();
 const result =
   await fixture.runCli`observe ingest-token create --name ${prefix}-token`;
 const created = parseJsonOutput(result) as Token;
-fixture.registerCleanup(() => deleteIngestToken(tenant, created.id));
+fixture.registerCleanup(() => cleanupIngestToken(tenant, created.id));
 expect(created.name).toBe(`${prefix}-token`);
 
 // Good — validate response shape; datasets are guaranteed on any functional tenant

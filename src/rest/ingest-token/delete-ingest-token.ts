@@ -1,7 +1,7 @@
 import type { Config } from "../../lib/config";
 import { ObserveRestSDK } from "../client";
 
-export async function revokeIngestToken({
+export async function deleteIngestToken({
   config,
   id,
 }: {

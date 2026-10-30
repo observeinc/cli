@@ -102,8 +102,8 @@ export const updateCommand = defineCommand({
       "Only the fields you pass are changed; omitted fields keep their current\n" +
       "values.\n\n" +
       "Examples:\n" +
-      '  observe ingest-token update 123 --description "New description"\n' +
-      "  observe ingest-token update 123 --disabled\n" +
-      "  observe ingest-token update 123 --no-disabled",
+      '  observe ingest-token update <tokenId> --description "New description"\n' +
+      "  observe ingest-token update ds1abc123 --disabled\n" +
+      "  observe ingest-token update ds1abc123 --no-disabled",
   },
 });
