@@ -134,11 +134,21 @@ describe("ingest-token list", () => {
     expect(output).toContain("2026");
   });
 
-  test("shows the next offset when a page reaches the limit", async () => {
+  test("uses the returned page length in the next offset hint", async () => {
     const { context, stdout } = createMockContext();
-    await list.call(context, { limit: 2, offset: 4 }, deps);
+    await list.call(context, { limit: 10, offset: 4 }, deps);
 
     expect(stdout.join("")).toContain("--offset 6");
+  });
+
+  test("does not show a next-page hint on an exact fit", async () => {
+    listIngestTokensFn.mockImplementationOnce(() =>
+      Promise.resolve({ tokens, meta: { totalCount: 6 } }),
+    );
+    const { context, stdout } = createMockContext();
+    await list.call(context, { limit: 10, offset: 4 }, deps);
+
+    expect(stdout.join("")).not.toContain("More results may be available");
   });
 
   test("warns when no tokens are found", async () => {
