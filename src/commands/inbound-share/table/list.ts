@@ -3,10 +3,10 @@ import chalk from "chalk";
 import type { LocalContext } from "../../../context";
 import { listAllTrackedTables } from "../../../rest/inbound-share/list-all-tracked-tables";
 import { listShareTables } from "../../../rest/inbound-share/list-share-tables";
-import { listUntrackedShareTables } from "../../../rest/inbound-share/list-untracked-share-tables";
+import { listShareTableGrants } from "../../../rest/inbound-share/list-share-table-grants";
 import type {
+  ExternalSharesTableGrant,
   ExternalSharesTableResource,
-  ExternalSharesUntrackedTable,
 } from "../../../rest/generated";
 import { celFuzzyContains, combineFilters } from "../../../lib/cel";
 import { loadConfig } from "../../../lib/config";
@@ -73,9 +73,9 @@ const ALL_SHARES_COLUMNS: ColumnDef<ExternalSharesTableResource>[] = [
   ...DETAIL_COLUMNS,
 ];
 
-const untrackedCol = createColumnHelper<ExternalSharesUntrackedTable>();
+const untrackedCol = createColumnHelper<ExternalSharesTableGrant>();
 
-const UNTRACKED_COLUMNS: ColumnDef<ExternalSharesUntrackedTable>[] = [
+const UNTRACKED_COLUMNS: ColumnDef<ExternalSharesTableGrant>[] = [
   untrackedCol.accessor((row) => `${row.schemaName}.${row.tableName}`, {
     header: "TABLE",
   }),
@@ -89,7 +89,7 @@ export interface ListTablesDeps {
   loadConfig?: typeof loadConfig;
   listShareTables?: typeof listShareTables;
   listAllTrackedTables?: typeof listAllTrackedTables;
-  listUntrackedShareTables?: typeof listUntrackedShareTables;
+  listShareTableGrants?: typeof listShareTableGrants;
 }
 
 export async function list(
@@ -102,7 +102,7 @@ export async function list(
     loadConfig: loadConfigImpl = loadConfig,
     listShareTables: listImpl = listShareTables,
     listAllTrackedTables: listAllImpl = listAllTrackedTables,
-    listUntrackedShareTables: listUntrackedImpl = listUntrackedShareTables,
+    listShareTableGrants: listGrantsImpl = listShareTableGrants,
   } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;
@@ -126,15 +126,15 @@ export async function list(
 
     if (flags.untracked && shareId !== undefined) {
       writer.info("Fetching untracked tables...");
-      const response = await listUntrackedImpl({
+      const response = await listGrantsImpl({
         config,
         shareId,
-        filter,
+        filter: combineFilters(["!tracked", filter]),
         orderBy: flags.sort,
         limit: flags.limit,
         offset: flags.offset,
       });
-      const tables = response.tables;
+      const tables = response.tableGrants;
       if (format === "json") {
         writer.write(JSON.stringify(tables, null, 2));
         return;

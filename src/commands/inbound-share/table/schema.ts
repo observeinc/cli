@@ -1,7 +1,7 @@
 import { defineCommand } from "../../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../../context";
-import { getUntrackedTableSchema } from "../../../rest/inbound-share/get-untracked-table-schema";
+import { getShareTableGrantSchema } from "../../../rest/inbound-share/get-share-table-grant-schema";
 import type { ExternalSharesTableSchema } from "../../../rest/generated";
 import { loadConfig } from "../../../lib/config";
 import { formatApiError } from "../../../lib/format-error";
@@ -38,7 +38,7 @@ const COLUMNS: ColumnDef<Column>[] = [
 
 export interface SchemaDeps {
   loadConfig?: typeof loadConfig;
-  getUntrackedTableSchema?: typeof getUntrackedTableSchema;
+  getShareTableGrantSchema?: typeof getShareTableGrantSchema;
 }
 
 export async function schema(
@@ -49,7 +49,7 @@ export async function schema(
   const { shareId, table: tableName } = flags;
   const {
     loadConfig: loadConfigImpl = loadConfig,
-    getUntrackedTableSchema: getImpl = getUntrackedTableSchema,
+    getShareTableGrantSchema: getImpl = getShareTableGrantSchema,
   } = deps;
   const format = flags.json ? ("json" as const) : flags.format;
   const { process, writer: _writer } = this;

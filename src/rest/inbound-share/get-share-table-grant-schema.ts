@@ -2,7 +2,7 @@ import type { Config } from "../../lib/config";
 import type { ExternalSharesTableSchema } from "../generated";
 import { ObserveRestSDK } from "../client";
 
-export async function getUntrackedTableSchema({
+export async function getShareTableGrantSchema({
   config,
   shareId,
   schemaName,
@@ -14,8 +14,7 @@ export async function getUntrackedTableSchema({
   tableName: string;
 }): Promise<ExternalSharesTableSchema> {
   const sdk = new ObserveRestSDK(config);
-  // eslint-disable-next-line @typescript-eslint/no-deprecated -- The OpenAPI spec has not exposed a replacement for this operation.
-  return sdk.externalSharesApi.getUntrackedTableSchema({
+  return sdk.externalSharesApi.getShareTableGrantSchema({
     shareId,
     schemaName,
     tableName,

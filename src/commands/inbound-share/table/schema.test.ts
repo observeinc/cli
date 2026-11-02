@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../../test-helpers";
-import type { getUntrackedTableSchema } from "../../../rest/inbound-share/get-untracked-table-schema";
+import type { getShareTableGrantSchema } from "../../../rest/inbound-share/get-share-table-grant-schema";
 import { schema } from "./schema";
 import { apiError, loadConfigStub } from "../test-fixtures";
 
@@ -10,10 +10,10 @@ const columns = [
   { name: "ID", type: "NUMBER", nullable: false },
   { name: "CREATED_AT", type: "TIMESTAMP_NTZ", nullable: true },
 ];
-const getFn = mock<typeof getUntrackedTableSchema>(() =>
+const getFn = mock<typeof getShareTableGrantSchema>(() =>
   Promise.resolve({ columns }),
 );
-const deps = { loadConfig: loadConfigStub, getUntrackedTableSchema: getFn };
+const deps = { loadConfig: loadConfigStub, getShareTableGrantSchema: getFn };
 
 describe("inbound-share table schema", () => {
   beforeEach(() => {

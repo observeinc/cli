@@ -1,8 +1,8 @@
 import type { Config } from "../../lib/config";
-import type { ExternalSharesUntrackedTableListResponse } from "../generated";
+import type { ExternalSharesTableGrantListResponse } from "../generated";
 import { ObserveRestSDK } from "../client";
 
-export async function listUntrackedShareTables({
+export async function listShareTableGrants({
   config,
   shareId,
   filter,
@@ -16,10 +16,9 @@ export async function listUntrackedShareTables({
   orderBy?: string;
   limit?: number;
   offset?: number;
-}): Promise<ExternalSharesUntrackedTableListResponse> {
+}): Promise<ExternalSharesTableGrantListResponse> {
   const sdk = new ObserveRestSDK(config);
-  // eslint-disable-next-line @typescript-eslint/no-deprecated -- The OpenAPI spec has not exposed a replacement for this operation.
-  return sdk.externalSharesApi.listUntrackedShareTables({
+  return sdk.externalSharesApi.listShareTableGrants({
     shareId,
     filter,
     orderBy,
