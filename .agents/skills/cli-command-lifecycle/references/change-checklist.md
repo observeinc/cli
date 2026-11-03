@@ -14,6 +14,19 @@ output. Before changing code, classify the change and complete its touch set.
 | `rename`               | Command, group, or flag renamed.                              | Update the new implementation and complete the rename/delete sweep, preserving a hidden alias until usage dies off.                  |
 | `delete`               | Command or group removed.                                     | Remove its implementation and complete the rename/delete sweep.                                                                      |
 
+## Experimental replacement of GA behavior
+
+Route-level `experimental: true` does not cover a behavior change inside a GA
+command. Instead:
+
+- Branch on `isExperimentalEnabled()` (from `src/lib/experimental.ts`),
+  injected through `deps` so tests can force either path.
+- Keep the GA path as the default.
+- Test both paths.
+- On promotion, delete the branch and the old path (see #49).
+
+See #44 for the pattern.
+
 ## Deprecated flag aliases
 
 When a new flag supersedes an existing one, preserve the old flag as optional
@@ -52,8 +65,3 @@ old name:
    table.
 6. Unit tests under `src/commands/<resource>/`.
 7. Integration tests under `integration/`.
-
-## Finish
-
-Run `bunx prettier --write` on the files you changed, then `bunx prettier
---check` before committing.

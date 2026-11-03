@@ -38,8 +38,3 @@ Record these keys before making code changes:
   register a new command through local verification.
 - [references/change-checklist.md](references/change-checklist.md) — classify
   a change and complete its touch set, including rename/delete sweeps.
-
-## Formatting
-
-Run Prettier on the files you changed (`bunx prettier --write`), then
-`bunx prettier --check` before committing.
