@@ -51,9 +51,30 @@ export async function view(
       return;
     }
 
+    const viewData = {
+      id: token.id,
+      name: token.name,
+      description: token.description || "-",
+      status: token.disabled ? "disabled" : "enabled",
+      createdBy: token.createdBy.label ?? token.createdBy.id,
+      createdAt: token.createdAt,
+      updatedBy: token.updatedBy.label ?? token.updatedBy.id,
+      updatedAt: token.updatedAt,
+      usage: token.stats
+        ? {
+            firstUsed: token.stats.firstUsed,
+            lastUsed: token.stats.lastUsed,
+            firstIngest: token.stats.firstIngest,
+            lastIngest: token.stats.lastIngest,
+            lastError: token.stats.lastError,
+            errors: token.stats.errors,
+          }
+        : undefined,
+    };
+
     writer.write(chalk.bold.white(token.name));
     if (token.description) writer.write(chalk.dim(token.description));
-    renderObject(token, (text) => writer.write(text), {
+    renderObject(viewData, (text) => writer.write(text), {
       title: "Ingest Token",
     });
   } catch (error) {
@@ -93,7 +114,10 @@ export const viewCommand = defineCommand({
   },
   docs: {
     brief: "View an ingest token by ID",
-    fullDescription:
-      "View an ingest token and its usage stats. A token without stats has never been used.",
+    fullDescription: [
+      "View an ingest token and a summary of its usage stats.",
+      "A token without stats has never been used. Use --json or --format csv",
+      "to include the full observations and volume time series.",
+    ].join("\n"),
   },
 });

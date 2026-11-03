@@ -20,6 +20,22 @@ const token: IngestTokenResource = {
   createdAt: "2026-01-01T00:00:00Z",
   updatedBy: { id: "user-1" },
   updatedAt: "2026-01-01T00:00:00Z",
+  stats: {
+    firstUsed: "2026-01-02T00:00:00Z",
+    lastUsed: "2026-01-03T00:00:00Z",
+    firstIngest: "2026-01-02T00:00:10Z",
+    lastIngest: "2026-01-03T00:00:10Z",
+    lastError: "most recent error",
+    errors: [
+      {
+        time: "2026-01-03T00:00:05Z",
+        message: "invalid payload",
+        code: 400,
+      },
+    ],
+    observations: [{ time: "2026-01-03T00:00:20Z", value: 12345 }],
+    volumeBytes: [{ time: "2026-01-03T00:00:30Z", value: 67890 }],
+  },
 };
 
 const loadConfigFn = mock(() => config);
@@ -52,6 +68,11 @@ describe("ingest-token view", () => {
     });
     expect(stdout.join("")).toContain("K8s Explorer - minikube");
     expect(stdout.join("")).toContain("Ingest Token");
+    expect(stdout.join("")).toContain("2026-01-03T00:00:10Z");
+    expect(stdout.join("")).toContain("most recent error");
+    expect(stdout.join("")).toContain("invalid payload");
+    expect(stdout.join("")).not.toContain("2026-01-03T00:00:20Z");
+    expect(stdout.join("")).not.toContain("2026-01-03T00:00:30Z");
   });
 
   test("--json emits the raw token without status chatter", async () => {
@@ -69,6 +90,8 @@ describe("ingest-token view", () => {
     const output = stdout.join("");
     expect(output).toContain("property,value");
     expect(output).toContain("id,ds1token123");
+    expect(output).toContain("2026-01-03T00:00:20Z");
+    expect(output).toContain("2026-01-03T00:00:30Z");
     expect(output).not.toContain("Fetching ingest token");
   });
 
