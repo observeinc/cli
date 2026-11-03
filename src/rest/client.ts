@@ -9,6 +9,7 @@ import {
   DocumentationApi,
   ExportApi,
   ExternalSharesApi,
+  IngestTokensApi,
   MetricsApi,
   MonitorMuteApi,
   MonitorApi,
@@ -34,6 +35,7 @@ export class ObserveRestSDK {
   public sourceDatasetApi: SourceDatasetApi;
   public storageIntegrationsApi: StorageIntegrationsApi;
   public externalSharesApi: ExternalSharesApi;
+  public ingestTokensApi: IngestTokensApi;
 
   constructor(_config: Config) {
     const config = createApiConfiguration(_config);
@@ -53,5 +55,6 @@ export class ObserveRestSDK {
     this.sourceDatasetApi = new SourceDatasetApi(config);
     this.storageIntegrationsApi = new StorageIntegrationsApi(config);
     this.externalSharesApi = new ExternalSharesApi(config);
+    this.ingestTokensApi = new IngestTokensApi(config);
   }
 }

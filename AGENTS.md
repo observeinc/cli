@@ -48,7 +48,7 @@ src/
 │   ├── datastream/     # Datastream commands (create, list, view, update)
 │   ├── docs/           # Documentation commands (search)
 │   ├── inbound-share/  # Snowflake inbound-share commands: setup, token, offers, register, shares, tables and their datasets (experimental: gated + hidden)
-│   ├── ingest-token/   # Ingest token commands (experimental: gated + hidden)
+│   ├── ingest-token/   # Ingest token commands: create, view, list, update, delete (experimental: gated + hidden)
 │   ├── instrumentation/ # OpenTelemetry readiness: audit (CI lint, exit codes) (experimental)
 │   ├── metric/         # Metric commands (list, view)
 │   ├── skill/          # AI agent skill commands (list, view, install, update)
@@ -64,7 +64,6 @@ src/
 │   ├── content/        # Content pack queries/mutations
 │   ├── dataset/        # Dataset queries
 │   ├── datastream/     # Datastream queries/mutations
-│   ├── ingest-token/   # Ingest token queries/mutations
 │   ├── metric/         # Metric queries
 │   ├── workspace/      # Workspace queries
 │   ├── gql-request.ts  # GraphQL client/executor

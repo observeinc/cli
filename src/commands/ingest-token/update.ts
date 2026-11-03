@@ -1,9 +1,8 @@
 import { defineCommand } from "../../lib/stricli-wrappers";
 import type { LocalContext } from "../../context";
-import { updateIngestToken } from "../../gql/ingest-token/update-ingest-token";
-import { viewIngestToken } from "../../gql/ingest-token/view-ingest-token";
-import { GqlApiError } from "../../gql/gql-request";
+import { updateIngestToken } from "../../rest/ingest-token/update-ingest-token";
 import { loadConfig } from "../../lib/config";
+import { formatApiError } from "../../lib/format-error";
 
 interface UpdateIngestTokenFlags {
   name?: string;
@@ -13,7 +12,7 @@ interface UpdateIngestTokenFlags {
 
 export interface UpdateIngestTokenDeps {
   loadConfig?: typeof loadConfig;
-  viewIngestToken?: typeof viewIngestToken;
+  updateIngestToken?: typeof updateIngestToken;
 }
 
 export async function update(
@@ -24,7 +23,7 @@ export async function update(
 ): Promise<void> {
   const {
     loadConfig: loadConfigImpl = loadConfig,
-    viewIngestToken: viewIngestTokenImpl = viewIngestToken,
+    updateIngestToken: updateIngestTokenImpl = updateIngestToken,
   } = deps;
   const { process, writer } = this;
 
@@ -43,33 +42,19 @@ export async function update(
 
     const config = loadConfigImpl();
 
-    // `disabled` is a non-nullable bool on the resolver: a request that omits
-    // it resets the token to enabled. To keep updates partial we backfill the
-    // current value when the caller doesn't pass --disabled, so editing only
-    // the name or description can't silently re-enable a disabled token.
-    let disabled = flags.disabled;
-    if (disabled == null) {
-      const current = await viewIngestTokenImpl(config, { id });
-      disabled = current.disabled ?? false;
-    }
-
-    const result = await updateIngestToken(config, {
+    const result = await updateIngestTokenImpl({
+      config,
       id,
-      input: {
+      ingestTokenUpdateRequest: {
         ...(flags.name != null && { name: flags.name }),
         ...(flags.description != null && { description: flags.description }),
-        disabled,
+        ...(flags.disabled != null && { disabled: flags.disabled }),
       },
     });
 
     writer.write(JSON.stringify(result, null, 2));
   } catch (error) {
-    if (error instanceof GqlApiError) {
-      writer.error(`API Error (${error.statusCode}): ${error.message}`);
-    } else {
-      const message = error instanceof Error ? error.message : String(error);
-      writer.error(`Error: ${message}`);
-    }
+    writer.error(`Error: ${await formatApiError(error)}`);
     process.exitCode = 1;
   }
 }
@@ -117,8 +102,8 @@ export const updateCommand = defineCommand({
       "Only the fields you pass are changed; omitted fields keep their current\n" +
       "values.\n\n" +
       "Examples:\n" +
-      '  observe ingest-token update 123 --description "New description"\n' +
-      "  observe ingest-token update 123 --disabled\n" +
-      "  observe ingest-token update 123 --no-disabled",
+      '  observe ingest-token update <tokenId> --description "New description"\n' +
+      "  observe ingest-token update ds1abc123 --disabled\n" +
+      "  observe ingest-token update ds1abc123 --no-disabled",
   },
 });
