@@ -1,9 +1,0 @@
-mutation UpdateIngestTokenAssociation(
-  $id: ObjectId!
-  $datastreamIDs: [ObjectId!]
-) {
-  updateIngestTokenAssociation(id: $id, datastreamIDs: $datastreamIDs) {
-    success
-    errorMessage
-  }
-}

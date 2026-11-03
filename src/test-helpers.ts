@@ -13,6 +13,7 @@ import { createWriter } from "./lib/writer";
 interface MockProcess {
   env: Record<string, string | undefined>;
   execPath?: string;
+  cwd: () => string;
   /** Set by `process.exit(code)` or by handlers that assign `process.exitCode`. */
   exitCode: number | undefined;
   stdout: { write: (msg: string) => boolean };
@@ -42,6 +43,7 @@ export function createMockContext(
   options: {
     env?: Record<string, string | undefined>;
     execPath?: string;
+    cwd?: string;
   } = {},
 ): MockCliContext {
   const stdout: string[] = [];
@@ -50,6 +52,7 @@ export function createMockContext(
   const processMock: MockProcess = {
     env: options.env ?? {},
     execPath: options.execPath,
+    cwd: () => options.cwd ?? process.cwd(),
     exitCode: undefined,
     stdout: {
       write: (msg: string) => {

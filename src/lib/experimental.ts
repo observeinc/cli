@@ -78,6 +78,7 @@ export function processExperimentalCommandArgs<
   CONTEXT extends LocalContext,
 >(
   args: CommandBuilderArguments<FLAGS, ARGS, CONTEXT>,
+  exitCode = 1,
 ): CommandBuilderArguments<FLAGS, ARGS, CONTEXT> {
   const loadAction: CommandFunctionLoader<FLAGS, ARGS, CONTEXT> =
     "loader" in args ? args.loader : () => Promise.resolve(args.func);
@@ -92,7 +93,7 @@ export function processExperimentalCommandArgs<
       return function (this: CONTEXT, flags: FLAGS, ...rest: ARGS) {
         if (!isExperimentalEnabled()) {
           this.writer.error(disabledMessage());
-          this.process.exitCode = 1;
+          this.process.exitCode = exitCode;
           return;
         }
         return fn.call(this, flags, ...rest);

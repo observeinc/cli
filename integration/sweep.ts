@@ -13,16 +13,19 @@
  * See integration/README.md.
  */
 import { parseArgs } from "node:util";
-import { searchIngestToken } from "../src/gql/ingest-token/search-ingest-token";
+import { listIngestTokens } from "../src/rest/ingest-token/list-ingest-tokens";
 import { listDatastreams } from "../src/gql/datastream/list-datastreams";
 import { listDatasets } from "../src/rest/dataset/list-datasets";
 import { listSkills } from "../src/rest/skill/list-skills";
+import { listSourceDatasets } from "../src/rest/source-dataset/list-source-datasets";
+import { errorType } from "../src/lib/format-error";
 import type { Config } from "../src/lib/config";
 import {
+  cleanupIngestToken,
   deleteDataset,
   deleteDatastream,
-  deleteIngestToken,
   deleteSkill,
+  deleteSourceDataset,
 } from "./cleanup";
 import { TEST_RESOURCE_PREFIX, loadTenantConfig } from "./fixture";
 
@@ -44,10 +47,32 @@ interface Sweeper {
 }
 
 /**
- * Sweepers run in dependency order: datastreams before datasets (a datastream's
- * direct-write targets are datasets), mirroring the terraform-provider ordering.
+ * Sweepers run in dependency order: source datasets first (deleted with their
+ * backing), then datastreams before datasets (a datastream's direct-write
+ * targets are datasets), mirroring the terraform-provider ordering.
  */
 const SWEEPERS: readonly Sweeper[] = [
+  {
+    type: "source-dataset",
+    list: (config) =>
+      paginate(async (offset) => {
+        try {
+          const { sourceDatasets } = await listSourceDatasets({
+            config,
+            limit: PAGE_SIZE,
+            offset,
+          });
+          return sourceDatasets.map((d) => ({ id: d.id, name: d.label }));
+        } catch (error) {
+          // Pre-GA: tenants without the API flag answer 403 feature_not_enabled.
+          if ((await errorType(error)) === "feature_not_enabled") {
+            return [];
+          }
+          throw error;
+        }
+      }),
+    remove: deleteSourceDataset,
+  },
   {
     type: "datastream",
     list: async (config) =>
@@ -69,12 +94,16 @@ const SWEEPERS: readonly Sweeper[] = [
   },
   {
     type: "ingest-token",
-    list: async (config) =>
-      (await searchIngestToken(config)).map((t) => ({
-        id: t.id,
-        name: t.name,
-      })),
-    remove: deleteIngestToken,
+    list: (config) =>
+      paginate(async (offset) => {
+        const { tokens } = await listIngestTokens({
+          config,
+          limit: PAGE_SIZE,
+          offset,
+        });
+        return tokens.map((token) => ({ id: token.id, name: token.name }));
+      }),
+    remove: cleanupIngestToken,
   },
   {
     type: "skill",

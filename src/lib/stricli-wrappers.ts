@@ -29,6 +29,7 @@ import {
 interface CustomCommandFields {
   /** Hide + gate behind OBSERVE_CLI_EXPERIMENTAL=1 and badge as `[experimental]`. */
   readonly experimental?: boolean;
+  readonly experimentalExitCode?: number;
 }
 
 /** Drop-in replacement for `buildCommand` that understands custom fields. */
@@ -47,7 +48,10 @@ export function defineCommand<
 
   if (args.experimental) {
     // hide + gate + badge the command
-    builderArgs = processExperimentalCommandArgs(builderArgs);
+    builderArgs = processExperimentalCommandArgs(
+      builderArgs,
+      args.experimentalExitCode,
+    );
   }
 
   const command = buildCommand<FLAGS, ARGS, CONTEXT>(builderArgs);

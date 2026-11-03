@@ -18,6 +18,7 @@ export async function listUntrackedShareTables({
   offset?: number;
 }): Promise<ExternalSharesUntrackedTableListResponse> {
   const sdk = new ObserveRestSDK(config);
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- The OpenAPI spec has not exposed a replacement for this operation.
   return sdk.externalSharesApi.listUntrackedShareTables({
     shareId,
     filter,
