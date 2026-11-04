@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../../test-helpers";
 import type { listAllTrackedTables } from "../../../rest/inbound-share/list-all-tracked-tables";
 import type { listShareTables } from "../../../rest/inbound-share/list-share-tables";
-import type { listUntrackedShareTables } from "../../../rest/inbound-share/list-untracked-share-tables";
+import type { listShareTableGrants } from "../../../rest/inbound-share/list-share-table-grants";
 import { list } from "./list";
 import { loadConfigStub, tableStub } from "../test-fixtures";
 import { ExternalSharesTableKind } from "../../../rest/generated";
@@ -12,13 +12,14 @@ suppressAnsiColor();
 const listFn = mock<typeof listShareTables>(() =>
   Promise.resolve({ tables: [tableStub()], meta: { totalCount: 1 } }),
 );
-const listUntrackedFn = mock<typeof listUntrackedShareTables>(() =>
+const listGrantsFn = mock<typeof listShareTableGrants>(() =>
   Promise.resolve({
-    tables: [
+    tableGrants: [
       {
         schemaName: "PUBLIC",
         tableName: "REFUNDS",
         tableType: ExternalSharesTableKind.View,
+        trackedTable: null,
       },
     ],
     meta: { totalCount: 1 },
@@ -34,14 +35,14 @@ const deps = {
   loadConfig: loadConfigStub,
   listShareTables: listFn,
   listAllTrackedTables: listAllFn,
-  listUntrackedShareTables: listUntrackedFn,
+  listShareTableGrants: listGrantsFn,
 };
 
 describe("inbound-share table list", () => {
   beforeEach(() => {
     listFn.mockClear();
     listAllFn.mockClear();
-    listUntrackedFn.mockClear();
+    listGrantsFn.mockClear();
   });
 
   test("without --share-id lists tracked tables of all shares", async () => {
@@ -58,7 +59,7 @@ describe("inbound-share table list", () => {
   test("--untracked without --share-id fails before calling the API", async () => {
     const { context, stderr, getExitCode } = createMockContext();
     await list.call(context, { limit: 20, untracked: true }, deps);
-    expect(listUntrackedFn).not.toHaveBeenCalled();
+    expect(listGrantsFn).not.toHaveBeenCalled();
     expect(listAllFn).not.toHaveBeenCalled();
     expect(getExitCode()).toBe(1);
     expect(stderr.join("")).toContain("--untracked needs --share-id");
@@ -68,7 +69,7 @@ describe("inbound-share table list", () => {
     const { context, stdout } = createMockContext();
     await list.call(context, { shareId: "41000100", limit: 20 }, deps);
     expect(listFn.mock.calls[0]![0]).toMatchObject({ shareId: "41000100" });
-    expect(listUntrackedFn).not.toHaveBeenCalled();
+    expect(listGrantsFn).not.toHaveBeenCalled();
     expect(stdout.join("")).toContain("PUBLIC.ORDERS");
   });
 
@@ -80,11 +81,13 @@ describe("inbound-share table list", () => {
       deps,
     );
     expect(listFn).not.toHaveBeenCalled();
-    expect(listUntrackedFn.mock.calls[0]![0]).toMatchObject({
+    expect(listGrantsFn.mock.calls[0]![0]).toMatchObject({
       shareId: "41000100",
       limit: 20,
     });
-    expect(listUntrackedFn.mock.calls[0]![0].filter).toContain("ref");
+    const filter = listGrantsFn.mock.calls[0]![0].filter!;
+    expect(filter.startsWith("(!tracked) && (")).toBe(true);
+    expect(filter).toContain("ref");
     const out = stdout.join("");
     expect(out).toContain("PUBLIC.REFUNDS");
     expect(out).toContain("1 untracked table(s)");
@@ -102,7 +105,35 @@ describe("inbound-share table list", () => {
         schemaName: "PUBLIC",
         tableName: "REFUNDS",
         tableType: ExternalSharesTableKind.View,
+        trackedTable: null,
       },
     ]);
+  });
+
+  test("--untracked with no filter asks only for untracked grants", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      { shareId: "41000100", limit: 20, untracked: true },
+      deps,
+    );
+    expect(listGrantsFn.mock.calls[0]![0].filter).toBe("!tracked");
+  });
+
+  test("--untracked keeps the user's --filter next to !tracked", async () => {
+    const { context } = createMockContext();
+    await list.call(
+      context,
+      {
+        shareId: "41000100",
+        limit: 20,
+        untracked: true,
+        filter: 'tableType == "View" || tableName == "A"',
+      },
+      deps,
+    );
+    expect(listGrantsFn.mock.calls[0]![0].filter).toBe(
+      '(!tracked) && (tableType == "View" || tableName == "A")',
+    );
   });
 });
