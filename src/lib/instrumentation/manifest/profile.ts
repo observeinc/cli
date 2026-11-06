@@ -52,6 +52,12 @@ export interface PackageAssessment {
    */
   activation?: "automatic" | "opt-in" | "manual";
   /**
+   * Set when `activation` is `manual` and some option runs on the
+   * application's runtime: the instrumentation to wire into the application,
+   * taken from the same options that decided `activation`.
+   */
+  manualInstrumentation?: string;
+  /**
    * Set when the dependency is a dependency aggregator (a Spring Boot starter,
    * a BOM, etc.) rather than an instrumented library. Coverage comes from the
    * concrete libraries it pulls in, so it is not counted as a gap.

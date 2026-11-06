@@ -218,11 +218,17 @@ function assessOptions({
     : (["automatic", "opt-in", "manual"] as const).find((level) =>
         relevant.some((option) => option.activation === level),
       );
+  const manualInstrumentation =
+    activation === "manual" && runnable.length > 0
+      ? relevant.find((option) => option.activation === "manual")
+          ?.instrumentation
+      : undefined;
   return {
     assessments,
     supportedVersions,
     versionMatch,
     activation,
+    manualInstrumentation,
     missingRange: considered.some((option) => option.supportedVersions == null),
     runtimeUnsupported: runnable.length === 0,
     runtimeVersions:
@@ -366,6 +372,7 @@ export function checkCompatibility({
         : {}),
       instrumentationOptions: options.assessments,
       activation: options.activation,
+      manualInstrumentation: options.manualInstrumentation,
       depth: dependency.depth,
       via: dependency.via,
       paths: dependency.paths,

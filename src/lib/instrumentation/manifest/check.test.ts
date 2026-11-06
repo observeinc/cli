@@ -414,6 +414,135 @@ describe("checkCompatibility — SDK-only and absent runtimes", () => {
   });
 });
 
+describe("checkCompatibility — Observe GenAI instrumentation (bundled catalog)", () => {
+  const assess = ({
+    language,
+    runtimeVersion,
+    name,
+    version,
+  }: {
+    language: "python" | "nodejs";
+    runtimeVersion: string;
+    name: string;
+    version: string;
+  }) =>
+    checkCompatibility({
+      candidate: candidate({
+        language,
+        version: runtimeVersion,
+        dependencies: [{ name, version, scope: "runtime" }],
+      }),
+      manifest: loadManifest(),
+    }).packages;
+  const observeOption = (pkg: { instrumentationOptions?: { id: string }[] }) =>
+    pkg.instrumentationOptions?.find((option) => option.id === "observe");
+
+  test("Python openai lists the Observe package first, next to upstream", () => {
+    const pkg = assess({
+      language: "python",
+      runtimeVersion: "3.12",
+      name: "openai",
+      version: "2.8.0",
+    }).supported[0];
+    expect(pkg?.activation).toBe("automatic");
+    expect(
+      pkg?.instrumentationOptions?.map((option) => [
+        option.instrumentation,
+        option.versionMatch,
+      ]),
+    ).toEqual([
+      ["observe-instrumentation-genai-openai", "in-range"],
+      ["opentelemetry-instrumentation-openai-v2", "in-range"],
+    ]);
+  });
+
+  test("Python openai 4 is past the Observe package's range", () => {
+    const pkg = assess({
+      language: "python",
+      runtimeVersion: "3.12",
+      name: "openai",
+      version: "4.0.0",
+    }).supported[0];
+    expect(observeOption(pkg ?? {})).toMatchObject({
+      versionMatch: "out-of-range",
+    });
+  });
+
+  test("Python langchain is cataloged only through the Observe package, on 3.11+", () => {
+    expect(
+      assess({
+        language: "python",
+        runtimeVersion: "3.12",
+        name: "langchain",
+        version: "1.0.3",
+      }).supported[0],
+    ).toMatchObject({
+      versionMatch: "in-range",
+      instrumentationOptions: [
+        { instrumentation: "observe-instrumentation-genai-langchain" },
+      ],
+    });
+    expect(
+      assess({
+        language: "python",
+        runtimeVersion: "3.10",
+        name: "langchain",
+        version: "1.0.3",
+      }).unsupported[0],
+    ).toMatchObject({ reason: "runtime-unsupported" });
+  });
+
+  test("Node openai 7 is covered only by the Observe package, which is wired in code", () => {
+    const pkg = assess({
+      language: "nodejs",
+      runtimeVersion: "22.12.0",
+      name: "openai",
+      version: "7.1.0",
+    }).supported[0];
+    expect(pkg?.activation).toBe("manual");
+    expect(observeOption(pkg ?? {})).toMatchObject({
+      instrumentation: "@snowflake/observe-otel-genai",
+      versionMatch: "in-range",
+    });
+  });
+
+  test("Node @langchain/core 0.3 is covered only by the Observe package", () => {
+    const pkg = assess({
+      language: "nodejs",
+      runtimeVersion: "22.12.0",
+      name: "@langchain/core",
+      version: "0.3.80",
+    }).supported[0];
+    expect(pkg?.activation).toBe("manual");
+    expect(
+      pkg?.instrumentationOptions?.map((option) => option.versionMatch),
+    ).toEqual(["in-range", "out-of-range"]);
+  });
+
+  test("the Vercel AI SDK needs Node.js 22 for the Observe package", () => {
+    expect(
+      assess({
+        language: "nodejs",
+        runtimeVersion: "22.12.0",
+        name: "ai",
+        version: "7.0.4",
+      }).supported[0],
+    ).toMatchObject({
+      activation: "manual",
+      versionMatch: "in-range",
+      manualInstrumentation: "@snowflake/observe-otel-genai",
+    });
+    const unsupported = assess({
+      language: "nodejs",
+      runtimeVersion: "20.18.0",
+      name: "ai",
+      version: "7.0.4",
+    }).unsupported[0];
+    expect(unsupported).toMatchObject({ reason: "runtime-unsupported" });
+    expect(unsupported?.manualInstrumentation).toBeUndefined();
+  });
+});
+
 describe("bundled manifest artifact", () => {
   test("php auto-instrumentation runtime floor is SDK ^8.1", () => {
     const bundled = loadManifest();
