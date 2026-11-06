@@ -37,7 +37,6 @@ const COLUMNS: ColumnDef<ExternalSharesInboundOffer>[] = [
     header: "PROVIDER",
     format: (value) => chalk.dim(value),
   }),
-  col.accessor((row) => row.description ?? "", { header: "DESCRIPTION" }),
   col.accessor((row) => row.createdAt ?? "", { header: "CREATED" }),
 ];
 

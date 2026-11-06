@@ -7,14 +7,13 @@ import { loadConfigStub } from "./test-fixtures";
 
 suppressAnsiColor();
 
-const offer: ExternalSharesInboundOffer = {
+const offer = {
   providerAccount: "ACME.PROD",
   shareName: "BILLING_SHARE",
-  description: "Billing data",
   owner: "ACCOUNTADMIN",
   createdAt: "2026-10-01T00:00:00Z",
   suggestedLocalName: null,
-};
+} as ExternalSharesInboundOffer;
 const listFn = mock<typeof listInboundOffers>(() =>
   Promise.resolve({ offers: [offer], meta: { totalCount: 1 } }),
 );
@@ -33,6 +32,7 @@ describe("inbound-share offers", () => {
     expect(out).toContain("BILLING_SHARE");
     expect(out).toContain("ACME.PROD");
     expect(out).toContain("observe inbound-share register");
+    expect(out).not.toContain("DESCRIPTION");
   });
 
   test("--json prints the rows", async () => {
