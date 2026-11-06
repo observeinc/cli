@@ -527,15 +527,19 @@ describe("checkCompatibility — Observe GenAI instrumentation (bundled catalog)
         name: "ai",
         version: "7.0.4",
       }).supported[0],
-    ).toMatchObject({ activation: "manual", versionMatch: "in-range" });
-    expect(
-      assess({
-        language: "nodejs",
-        runtimeVersion: "20.18.0",
-        name: "ai",
-        version: "7.0.4",
-      }).unsupported[0],
-    ).toMatchObject({ reason: "runtime-unsupported" });
+    ).toMatchObject({
+      activation: "manual",
+      versionMatch: "in-range",
+      manualInstrumentation: "@snowflake/observe-otel-genai",
+    });
+    const unsupported = assess({
+      language: "nodejs",
+      runtimeVersion: "20.18.0",
+      name: "ai",
+      version: "7.0.4",
+    }).unsupported[0];
+    expect(unsupported).toMatchObject({ reason: "runtime-unsupported" });
+    expect(unsupported?.manualInstrumentation).toBeUndefined();
   });
 });
 

@@ -323,7 +323,7 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
       ...compat.packages.supported,
       ...compat.packages.unverified,
     ]) {
-      const instrumentation = manualInstrumentation(pkg);
+      const instrumentation = pkg.manualInstrumentation;
       if (instrumentation != null)
         out.push(
           finding({
@@ -406,14 +406,6 @@ function candidateFindings(candidate: CandidateApplication): Finding[] {
     );
 
   return out;
-}
-
-/** The instrumentation to wire in when a library's only path is manual. */
-function manualInstrumentation(pkg: PackageAssessment) {
-  if (pkg.activation !== "manual") return undefined;
-  return (pkg.instrumentationOptions ?? []).find(
-    (option) => option.activation === "manual",
-  )?.instrumentation;
 }
 
 /** Whether any finding is at or above the threshold. */

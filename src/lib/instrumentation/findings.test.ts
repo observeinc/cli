@@ -129,6 +129,73 @@ describe("deriveFindings", () => {
     expect(otel017?.message).toContain("hand-wired-otel must be wired into");
   });
 
+  test("OTEL017 names the manual option that covers the library version", () => {
+    const manifest = fixtureManifest();
+    manifest.runtimes.ruby!.packages = [
+      {
+        name: "hand-wired",
+        instrumentationOptions: [
+          {
+            id: "observe",
+            instrumentation: "hand-wired-observe",
+            kind: "external",
+            supportedVersions: "<2.0.0",
+            activation: "manual",
+          },
+          {
+            id: "contrib",
+            instrumentation: "hand-wired-otel",
+            kind: "external",
+            supportedVersions: ">=1.0.0",
+            activation: "manual",
+          },
+        ],
+      },
+    ];
+    const candidate = createCandidate({
+      directory: ".",
+      name: "app",
+      language: "ruby",
+      runtime: "ruby",
+      version: "3.3.0",
+      dependencies: [
+        { name: "hand-wired", version: "2.1.0", scope: "runtime" },
+      ],
+    });
+    candidate.compatibility = checkCompatibility({ candidate, manifest });
+    const otel017 = deriveFindings({ candidates: [candidate] }).find(
+      (finding) => finding.ruleId === "OTEL017",
+    );
+    expect(otel017?.message).toContain("hand-wired-otel must be wired into");
+  });
+
+  test.each([
+    ["20.18.0", "@opentelemetry/instrumentation-langchain"],
+    ["22.12.0", "@snowflake/observe-otel-genai"],
+  ])(
+    "OTEL017 on Node.js %s names only a manual option that runs there",
+    (nodeVersion, expected) => {
+      const candidate = createCandidate({
+        directory: ".",
+        name: "app",
+        language: "nodejs",
+        runtime: "node",
+        version: nodeVersion,
+        dependencies: [
+          { name: "@langchain/core", version: "1.2.17", scope: "runtime" },
+        ],
+      });
+      candidate.compatibility = checkCompatibility({
+        candidate,
+        manifest: loadManifest(),
+      });
+      const otel017 = deriveFindings({ candidates: [candidate] }).find(
+        (finding) => finding.ruleId === "OTEL017",
+      );
+      expect(otel017?.message).toContain(`${expected} must be wired into`);
+    },
+  );
+
   test("OTEL004 is not raised for an auto-instrumentable runtime", () => {
     const rules = rulesFor({
       Gemfile: "gem 'rails', '~> 8.0'\n",
