@@ -214,6 +214,7 @@ describe("query command", () => {
       { inputName: "20", datasetId: "20" },
     ]);
     expect(stage.pagination?.initialRows).toBe("25");
+    expect(args.variables.opalVersion).toBe("v2026_09_30");
   });
 
   test("derives start/end times from interval when not explicit", async () => {
