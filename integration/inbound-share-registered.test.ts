@@ -114,7 +114,9 @@ describe("inbound-share CLI integration with a registered share", () => {
 
         // A run that died after tracking leaves the table tracked; untrack it
         // so this run starts from an untracked table. Only touch datasets an
-        // earlier run created, never one someone tracked by hand.
+        // earlier run created, never one someone tracked by hand. A tracked
+        // table's dataset cannot be deleted, so a missing label means the
+        // dataset lookup failed, not that the dataset is gone.
         const tracked = parseJsonOutput(
           await fixture.runCli`
             observe inbound-share table list --share-id ${share.id} --expand --json
@@ -127,7 +129,12 @@ describe("inbound-share CLI integration with a registered share", () => {
           ) {
             continue;
           }
-          const leftoverLabel = leftover.sourceDataset?.record?.label ?? "";
+          const leftoverLabel = leftover.sourceDataset?.record?.label;
+          if (leftoverLabel === undefined) {
+            throw new Error(
+              `${schemaName}.${tableName} is already tracked, but the label of its dataset ${leftover.sourceDataset?.id ?? "(none)"} could not be read. Rerun the test.`,
+            );
+          }
           if (!leftoverLabel.startsWith(`${TEST_RESOURCE_PREFIX}-`)) {
             throw new Error(
               `${schemaName}.${tableName} is already tracked as dataset "${leftoverLabel}", which this test did not create. Point ${SHARE_ENV.TABLE} at a table only this test uses.`,
@@ -186,10 +193,11 @@ describe("inbound-share CLI integration with a registered share", () => {
         );
         const viewedTable = parseJsonOutput(
           await fixture.runCli`
-            observe inbound-share table view ${table.id} --share-id ${share.id} --json
+            observe inbound-share table view ${table.id} --share-id ${share.id} --expand --json
           `,
         ) as TrackedTableJson;
         expect(viewedTable.id).toBe(table.id);
+        expect(viewedTable.sourceDataset?.record?.label).toBe(renamed);
 
         const removed = parseJsonOutput(
           await fixture.runCli`
