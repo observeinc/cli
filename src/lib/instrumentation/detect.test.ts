@@ -677,12 +677,12 @@ describe("instrumentation detection", () => {
         name: "api",
         scripts: { start: "node index.js" },
       }),
-      ".nvmrc": "v22.1.0\n",
+      ".nvmrc": "v24.1.0\n",
     });
     const candidate = detectApplications(
       createProjectSnapshot({ targetPath: root }),
     ).candidates[0]!;
-    expect(candidate.language.version).toBe("22.1.0");
+    expect(candidate.language.version).toBe("24.1.0");
     expect(candidate.compatibility?.runtimeVersionSupported).toBe("yes");
     expect(
       candidate.evidence.find((e) => e.kind === "runtime-version")?.path,

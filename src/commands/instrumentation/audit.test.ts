@@ -55,7 +55,7 @@ function snapshot(
 const cleanProject = {
   "package.json": JSON.stringify({
     name: "clean",
-    engines: { node: "22" },
+    engines: { node: "24" },
     scripts: { start: "node index.js" },
     dependencies: { express: "4.18.2" },
   }),

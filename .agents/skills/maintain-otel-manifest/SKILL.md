@@ -25,6 +25,11 @@ agent or call a model API from a script.
    - catalog entries whose range differs from upstream;
    - catalog entries with no upstream counterpart (candidates for removal).
 
+   For python and nodejs, entries for Observe's own GenAI packages are never
+   in upstream lists. Do not report them for removal, and do not report the
+   upstream instrumentation for the same library as missing. Check them
+   against Observe's releases instead (see "Observe GenAI instrumentation").
+
    **Targeted** (named libraries only): research just those, but still say
    whether each is covered under another catalog name.
 
@@ -225,6 +230,10 @@ semver. Verify a specific range before trusting it:
     and `@koa/router`): add one catalog entry per module.
   - `inAutoInstrumentation: true` only if the package is a dependency of
     `packages/auto-instrumentations-node/package.json`.
+  - The runtime entry's `supportedRuntimeVersions` is `engines.node` of
+    `packages/auto-instrumentations-node/package.json`.
+  - Skip packages whose `package.json` sets `"private": true`. They are not
+    published, so users cannot install them.
   - Packages hosted in js-contrib are first-party even when the registry entry
     still links a former community repository (sequelize, typeorm). Do not
     exclude them as community packages.
@@ -263,6 +272,48 @@ semver. Verify a specific range before trusting it:
   package (each SDK adopted tracing at its own version) and are rarely in the
   registry — research each from its SDK docs, and omit `supportedVersions` when
   no floor is stated.
+
+## Observe GenAI instrumentation
+
+The python and nodejs runtimes also list Observe's own GenAI packages, so the
+audit can recommend them. Update these entries whenever Observe releases a new
+version, and check them in every python or nodejs sync.
+
+How they are written:
+
+- When Observe has a package for a library, it is the only instrumentation
+  listed for that library. Do not also list the upstream package: two packages
+  for the same versions leave the user to guess which one to install.
+  `check.test.ts` fails if a library lists both.
+- `inAutoInstrumentation: false`. Neither `opentelemetry-bootstrap` nor
+  `auto-instrumentations-node` installs them.
+- Python: scalar fields. `opentelemetry-instrument` turns them on once they
+  are installed.
+- Node.js: one option with `id: observe`, `kind: external` and
+  `activation: manual`. Every integration is set up in the app's code, and
+  the scalar form cannot say so.
+- Set `runtimeVersions` only when the package needs a newer runtime than the
+  runtime entry's `supportedRuntimeVersions`.
+
+Where to find the version ranges:
+
+- **Python**, one package per library (`observe-instrumentation-genai-*`). The
+  package list is the `instrumentation/` directory of
+  `https://github.com/snowflakedb/observe-otel-genai-python`. For each package,
+  read its PyPI data, for example
+  `curl -fsS https://pypi.org/pypi/observe-instrumentation-genai-openai/json`.
+  The library range is the `requires_dist` line that ends in
+  `extra == "instruments"`. The Python range is `requires_python`.
+- **Node.js**, one package for every library (`@snowflake/observe-otel-genai`).
+  The ranges are in the table at the top of `docs/integrations.md` in
+  `https://github.com/snowflakedb/observe-otel-genai-js`. Use the table, not
+  `peerDependencies`: some libraries, such as `@anthropic-ai/claude-agent-sdk`,
+  are only in the table. The Node.js range is `engines.node` in
+  `package.json`. Give `langchain` the same range as `@langchain/core`, since
+  that is the module the instrumentation patches.
+
+`check.test.ts` has tests for some of these ranges ("Observe GenAI
+instrumentation"). Update them when the ranges change.
 
 ## Validation and correctness
 

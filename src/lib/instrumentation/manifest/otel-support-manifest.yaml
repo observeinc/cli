@@ -1,5 +1,5 @@
 schemaVersion: 1
-generatedAt: 2026-10-27T00:00:00.000Z
+generatedAt: 2026-11-10T00:00:00.000Z
 runtimes:
   cpp:
     ecosystem: cargo
@@ -1243,8 +1243,9 @@ runtimes:
     packages: []
   nodejs:
     ecosystem: npm
-    # auto-instrumentations-node 0.81.x; 0.82.0 raised the floor to >=22.15.0.
-    supportedRuntimeVersions: "^18.19.0 || >=20.6.0"
+    # Library ranges are from auto-instrumentations-node 0.81.x. The floor is
+    # the one 0.82.0 and later require.
+    supportedRuntimeVersions: ">=22.15.0"
     autoInstrumentationSupported: true
     runtimeMetricsSupported: true
     sdkStability:
@@ -1257,22 +1258,49 @@ runtimes:
         supportedVersions: ">=1.0.0 <2.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-grpc"
+      # The `observe` options below are Observe's GenAI instrumentation
+      # (snowflakedb/observe-otel-genai-js). Every integration is registered in
+      # application code (a preload file or a client wrapper), so they are manual.
+      - name: "@anthropic-ai/claude-agent-sdk"
+        instrumentationOptions:
+          - id: observe
+            instrumentation: "@snowflake/observe-otel-genai"
+            kind: external
+            supportedVersions: ">=0.3.142 <0.4.0"
+            inAutoInstrumentation: false
+            activation: manual
+      - name: "@anthropic-ai/sdk"
+        instrumentationOptions:
+          - id: observe
+            instrumentation: "@snowflake/observe-otel-genai"
+            kind: external
+            supportedVersions: ">=0.30.0 <1.0.0"
+            inAutoInstrumentation: false
+            activation: manual
       - name: "@hapi/hapi"
         supportedVersions: ">=17.0.0 <22.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-hapi"
       - name: "@langchain/core"
-        supportedVersions: ">=1.0.0 <2.0.0"
-        inAutoInstrumentation: false
-        instrumentation: "@opentelemetry/instrumentation-langchain"
+        instrumentationOptions:
+          - id: observe
+            instrumentation: "@snowflake/observe-otel-genai"
+            kind: external
+            supportedVersions: ">=0.3.0 <0.4.0 || >=1.0.0 <2.0.0"
+            inAutoInstrumentation: false
+            activation: manual
       - name: "@nestjs/core"
         supportedVersions: ">=4.0.0 <12.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-nestjs-core"
       - name: "@openai/agents"
-        supportedVersions: ">=0.14.0 <1.0.0"
-        inAutoInstrumentation: false
-        instrumentation: "@opentelemetry/instrumentation-openai-agents"
+        instrumentationOptions:
+          - id: observe
+            instrumentation: "@snowflake/observe-otel-genai"
+            kind: external
+            supportedVersions: ">=0.14.0 <1.0.0"
+            inAutoInstrumentation: false
+            activation: manual
       - name: "@prisma/client"
         supportedVersions: ">=4.0.0"
         inAutoInstrumentation: false
@@ -1285,6 +1313,14 @@ runtimes:
         supportedVersions: ">=1.0.0 <2.0.0 || >=5.0.0 <7.0.0"
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-redis"
+      - name: ai
+        instrumentationOptions:
+          - id: observe
+            instrumentation: "@snowflake/observe-otel-genai"
+            kind: external
+            supportedVersions: ">=7.0.0 <8.0.0"
+            inAutoInstrumentation: false
+            activation: manual
       - name: amqplib
         supportedVersions: ">=0.5.5 <3.0.0"
         inAutoInstrumentation: true
@@ -1338,9 +1374,13 @@ runtimes:
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-koa"
       - name: langchain
-        supportedVersions: ">=1.0.0 <2.0.0"
-        inAutoInstrumentation: false
-        instrumentation: "@opentelemetry/instrumentation-langchain"
+        instrumentationOptions:
+          - id: observe
+            instrumentation: "@snowflake/observe-otel-genai"
+            kind: external
+            supportedVersions: ">=0.3.0 <0.4.0 || >=1.0.0 <2.0.0"
+            inAutoInstrumentation: false
+            activation: manual
       - name: lru-memoizer
         supportedVersions: ">=1.3.0 <4.0.0"
         inAutoInstrumentation: true
@@ -1366,9 +1406,13 @@ runtimes:
         inAutoInstrumentation: true
         instrumentation: "@opentelemetry/instrumentation-mysql2"
       - name: openai
-        supportedVersions: ">=4.19.0 <7.0.0"
-        inAutoInstrumentation: true
-        instrumentation: "@opentelemetry/instrumentation-openai"
+        instrumentationOptions:
+          - id: observe
+            instrumentation: "@snowflake/observe-otel-genai"
+            kind: external
+            supportedVersions: ">=4.0.0 <8.0.0"
+            inAutoInstrumentation: false
+            activation: manual
       - name: oracledb
         supportedVersions: ">=6.7.0 <27.0.0"
         inAutoInstrumentation: true
@@ -1583,6 +1627,15 @@ runtimes:
         supportedVersions: ">=4.0.0 <6.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-celery
+      # observe-instrumentation-genai-* are Observe's GenAI instrumentation
+      # (snowflakedb/observe-otel-genai-python). They are not in the
+      # opentelemetry-bootstrap set, but opentelemetry-instrument picks them up
+      # once installed.
+      - name: claude-agent-sdk
+        supportedVersions: ">=0.2.140 <0.3.0"
+        inAutoInstrumentation: false
+        instrumentation: observe-instrumentation-genai-claude-agent-sdk
+        runtimeVersions: ">=3.11.0"
       - name: click
         supportedVersions: ">=8.1.3 <9.0.0"
         inAutoInstrumentation: true
@@ -1631,6 +1684,11 @@ runtimes:
         supportedVersions: ">=2.0.0 <4.0.0"
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-kafka-python
+      - name: langchain
+        supportedVersions: ">=0.3.22 <2.0.0"
+        inAutoInstrumentation: false
+        instrumentation: observe-instrumentation-genai-langchain
+        runtimeVersions: ">=3.11.0"
       - name: mysql-connector-python
         supportedVersions: ">=8.0.0"
         inAutoInstrumentation: true
@@ -1640,13 +1698,15 @@ runtimes:
         inAutoInstrumentation: true
         instrumentation: opentelemetry-instrumentation-mysqlclient
       - name: openai
-        supportedVersions: ">=1.26.0"
-        inAutoInstrumentation: true
-        instrumentation: opentelemetry-instrumentation-openai-v2
-      - name: openai-agents
-        supportedVersions: ">=0.3.3"
+        supportedVersions: ">=1.26.0 <4.0.0"
         inAutoInstrumentation: false
-        instrumentation: opentelemetry-instrumentation-openai-agents-v2
+        instrumentation: observe-instrumentation-genai-openai
+        runtimeVersions: ">=3.11.0"
+      - name: openai-agents
+        supportedVersions: ">=0.3.3 <1.0.0"
+        inAutoInstrumentation: false
+        instrumentation: observe-instrumentation-genai-openai-agents
+        runtimeVersions: ">=3.11.0"
       - name: pika
         supportedVersions: ">=0.12.0"
         inAutoInstrumentation: true
