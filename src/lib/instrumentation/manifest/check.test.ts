@@ -414,6 +414,117 @@ describe("checkCompatibility — SDK-only and absent runtimes", () => {
   });
 });
 
+describe("checkCompatibility — Observe GenAI instrumentation (bundled catalog)", () => {
+  const assess = ({
+    language,
+    runtimeVersion,
+    name,
+    version,
+  }: {
+    language: "python" | "nodejs";
+    runtimeVersion: string;
+    name: string;
+    version: string;
+  }) =>
+    checkCompatibility({
+      candidate: candidate({
+        language,
+        version: runtimeVersion,
+        dependencies: [{ name, version, scope: "runtime" }],
+      }),
+      manifest: loadManifest(),
+    }).packages;
+
+  test("a library with an Observe package lists no other instrumentation", () => {
+    const isObserve = (instrumentation: string | undefined) =>
+      instrumentation === "@snowflake/observe-otel-genai" ||
+      instrumentation?.startsWith("observe-instrumentation-genai-") === true;
+    const mixed = Object.values(loadManifest().runtimes).flatMap((runtime) =>
+      runtime.packages.flatMap((pkg) => {
+        const instrumentations = pkg.instrumentationOptions?.map(
+          (option) => option.instrumentation,
+        ) ?? [pkg.instrumentation];
+        return instrumentations.some(isObserve) && instrumentations.length > 1
+          ? [pkg.name]
+          : [];
+      }),
+    );
+    expect(mixed).toEqual([]);
+  });
+
+  test("Python openai is covered by the Observe package up to 3.x", () => {
+    expect(
+      assess({
+        language: "python",
+        runtimeVersion: "3.12",
+        name: "openai",
+        version: "2.8.0",
+      }).supported[0],
+    ).toMatchObject({
+      versionMatch: "in-range",
+      instrumentationOptions: [
+        { instrumentation: "observe-instrumentation-genai-openai" },
+      ],
+    });
+    expect(
+      assess({
+        language: "python",
+        runtimeVersion: "3.12",
+        name: "openai",
+        version: "4.0.0",
+      }).unsupported[0],
+    ).toMatchObject({ reason: "out-of-range" });
+  });
+
+  test("Python langchain is cataloged only through the Observe package, on 3.11+", () => {
+    expect(
+      assess({
+        language: "python",
+        runtimeVersion: "3.12",
+        name: "langchain",
+        version: "1.0.3",
+      }).supported[0],
+    ).toMatchObject({
+      versionMatch: "in-range",
+      instrumentationOptions: [
+        { instrumentation: "observe-instrumentation-genai-langchain" },
+      ],
+    });
+    expect(
+      assess({
+        language: "python",
+        runtimeVersion: "3.10",
+        name: "langchain",
+        version: "1.0.3",
+      }).unsupported[0],
+    ).toMatchObject({ reason: "runtime-unsupported" });
+  });
+
+  test.each([
+    ["@anthropic-ai/claude-agent-sdk", "0.3.142"],
+    ["@anthropic-ai/sdk", "0.30.0"],
+    ["@langchain/core", "0.3.80"],
+    ["@openai/agents", "0.14.0"],
+    ["ai", "7.0.4"],
+    ["langchain", "1.0.3"],
+    ["openai", "7.1.0"],
+  ])(
+    "Node %s %s is wired in code through the Observe package",
+    (name, version) => {
+      expect(
+        assess({ language: "nodejs", runtimeVersion: "24.1.0", name, version })
+          .supported[0],
+      ).toMatchObject({
+        activation: "manual",
+        versionMatch: "in-range",
+        instrumentationOptions: [
+          { instrumentation: "@snowflake/observe-otel-genai" },
+        ],
+      });
+    },
+  );
+});
+
 describe("bundled manifest artifact", () => {
   test("php auto-instrumentation runtime floor is SDK ^8.1", () => {
     const bundled = loadManifest();
@@ -620,12 +731,11 @@ describe("bundled manifest artifact", () => {
   });
 
   test.each([
-    ["14.21.3", "no"],
-    ["18.0.0", "no"],
-    ["18.19.0", "yes"],
-    ["20.5.0", "no"],
-    ["20.6.0", "yes"],
-    ["22.11.0", "yes"],
+    ["18.19.0", "no"],
+    ["20.6.0", "no"],
+    ["22.14.0", "no"],
+    ["22.15.0", "yes"],
+    ["24.1.0", "yes"],
   ] as const)("nodejs runtime %s is supported: %s", (version, verdict) => {
     expect(
       checkCompatibility({
