@@ -227,7 +227,8 @@ matching the `cli-` name/label prefix, covering every resource type the tests
 create (ingest tokens, datastreams, datasets, skills). Tracked share tables are
 matched by their dataset's label and untracked before the dataset pass, since
 a tracked table's dataset cannot be deleted directly. Tables tracked in the
-last hour are skipped, so a running test keeps its table.
+last hour are skipped, so a running test keeps its table, and the dataset pass
+skips any dataset that still backs a tracked table.
 
 ```bash
 bun run test:integration:sweep              # delete everything matching ^cli-

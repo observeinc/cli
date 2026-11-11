@@ -21,6 +21,7 @@ import { listSkills } from "../src/rest/skill/list-skills";
 import { listSourceDatasets } from "../src/rest/source-dataset/list-source-datasets";
 import { errorType } from "../src/lib/format-error";
 import type { Config } from "../src/lib/config";
+import type { ExternalSharesTableResource } from "../src/rest/generated";
 import {
   cleanupIngestToken,
   deleteDataset,
@@ -65,30 +66,16 @@ const SWEEPERS: readonly Sweeper[] = [
   {
     // Matched by the label of the dataset the table is tracked as.
     type: "tracked-share-table",
-    list: (config) =>
-      paginate(async (offset) => {
-        try {
-          const { tables } = await listAllTrackedTables({
-            config,
-            limit: PAGE_SIZE,
-            offset,
-            expand: true,
-          });
-          const trackedBefore = Date.now() - TRACKED_TABLE_MIN_AGE_MS;
-          return tables
-            .filter((table) => Date.parse(table.createdAt) < trackedBefore)
-            .map((table) => ({
-              id: table.id,
-              name: table.sourceDataset?.record?.label ?? "",
-              shareId: table.share.id,
-            }));
-        } catch (error) {
-          if ((await errorType(error)) === "feature_not_enabled") {
-            return [];
-          }
-          throw error;
-        }
-      }),
+    list: async (config) => {
+      const trackedBefore = Date.now() - TRACKED_TABLE_MIN_AGE_MS;
+      return (await listTrackedShareTables(config))
+        .filter((table) => Date.parse(table.createdAt) < trackedBefore)
+        .map((table) => ({
+          id: table.id,
+          name: table.sourceDataset?.record?.label ?? "",
+          shareId: table.share.id,
+        }));
+    },
     remove: (config, table) => {
       if (table.shareId === undefined) {
         throw new Error(`tracked table ${table.id} has no share id`);
@@ -126,15 +113,25 @@ const SWEEPERS: readonly Sweeper[] = [
   },
   {
     type: "dataset",
-    list: (config) =>
-      paginate(async (offset) => {
+    list: async (config) => {
+      const datasets = await paginate(async (offset) => {
         const { datasets } = await listDatasets({
           config,
           limit: PAGE_SIZE,
           offset,
         });
         return datasets.map((d) => ({ id: d.id, name: d.label }));
-      }),
+      });
+      // Listed after the datasets, so a table tracked in between is still
+      // seen. Its dataset can only go by untracking, which the tracked-table
+      // pass did unless the table is too new.
+      const trackedDatasetIds = new Set(
+        (await listTrackedShareTables(config)).flatMap((table) =>
+          table.sourceDataset ? [table.sourceDataset.id] : [],
+        ),
+      );
+      return datasets.filter((d) => !trackedDatasetIds.has(d.id));
+    },
     remove: (config, dataset) => deleteDataset(config, dataset.id),
   },
   {
@@ -247,16 +244,37 @@ function parseOptions(): SweepOptions {
   return { pattern, dryRun: values["dry-run"] };
 }
 
+async function listTrackedShareTables(
+  config: Config,
+): Promise<ExternalSharesTableResource[]> {
+  try {
+    return await paginate(async (offset) => {
+      const { tables } = await listAllTrackedTables({
+        config,
+        limit: PAGE_SIZE,
+        offset,
+        expand: true,
+      });
+      return tables;
+    });
+  } catch (error) {
+    if ((await errorType(error)) === "feature_not_enabled") {
+      return [];
+    }
+    throw error;
+  }
+}
+
 /**
  * Collect all pages by advancing offset until an empty page is returned.
  * Advances by the actual page length (not the requested size) so a server that
  * caps the page below `PAGE_SIZE` still paginates correctly instead of stopping
  * early or skipping records.
  */
-async function paginate(
-  fetchPage: (offset: number) => Promise<ResourceRef[]>,
-): Promise<ResourceRef[]> {
-  const all: ResourceRef[] = [];
+async function paginate<Item>(
+  fetchPage: (offset: number) => Promise<Item[]>,
+): Promise<Item[]> {
+  const all: Item[] = [];
   let offset = 0;
   for (;;) {
     const page = await fetchPage(offset);
