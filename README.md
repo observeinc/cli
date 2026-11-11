@@ -59,6 +59,9 @@ observe skill install --all
 | `observe monitor mute create`           | Create a monitor mute rule                              |
 | `observe monitor mute update`           | Update a monitor mute rule                              |
 | `observe monitor mute delete`           | Delete a monitor mute rule                              |
+| `observe apm services`                  | List APM services with RED metrics                      |
+| `observe apm environments`              | List APM deployment environments                        |
+| `observe apm invocation-graph`          | Get the APM service-to-service invocation graph         |
 | `observe ingest-token create`           | Create an ingest token                                  |
 | `observe ingest-token view`             | View an ingest token                                    |
 | `observe ingest-token list`             | List ingest tokens                                      |
