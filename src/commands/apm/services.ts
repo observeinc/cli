@@ -15,7 +15,6 @@ import {
   createColumnHelper,
   type ColumnDef,
 } from "../../lib/formatters/table";
-import { renderAsCSV } from "../../lib/formatters/csv";
 import { resolveWindow, timeWindowFlags } from "../../lib/time-window";
 import {
   type OutputFormat,
@@ -112,7 +111,7 @@ export async function services(
 
   const format = flags.json ? ("json" as const) : flags.format;
   const writer = muteStatusWriter(_writer, {
-    muted: format === "json" || format === "csv",
+    muted: format === "json",
   });
 
   try {
@@ -139,11 +138,6 @@ export async function services(
 
     if (format === "json") {
       writer.write(JSON.stringify(response, null, 2));
-      return;
-    }
-
-    if (format === "csv") {
-      writer.write(renderAsCSV(rows));
       return;
     }
 
@@ -185,7 +179,6 @@ function parseFields(value: string): FieldName[] {
 const SORT_VALUES = Object.values(ListApmServicesOrderByParameter);
 
 export const servicesCommand = defineCommand({
-  experimental: true,
   loader: async () => services,
   parameters: {
     positional: { kind: "tuple", parameters: [] },
@@ -199,7 +192,8 @@ export const servicesCommand = defineCommand({
       environment: {
         kind: "parsed",
         parse: String,
-        brief: "Filter to an exact deployment.environment.name",
+        brief:
+          "Filter to an exact deployment.environment.name (no prefix matching)",
         optional: true,
       },
       serviceNamespace: {
@@ -242,8 +236,8 @@ export const servicesCommand = defineCommand({
       },
       format: {
         kind: "enum",
-        values: ["json", "csv"],
-        brief: "Output format (json, csv)",
+        values: ["json"],
+        brief: "Output format (json)",
         optional: true,
       },
       json: {
@@ -260,9 +254,10 @@ export const servicesCommand = defineCommand({
   docs: {
     brief: "List APM services with RED metrics",
     fullDescription: [
-      "List services (one row per service) with a RED-metrics snapshot: request",
-      "rate, error rate, and p95 latency. Filters are exact-match on --service-name,",
-      "--environment, and --service-namespace; an omitted filter matches all.",
+      "List services (one row per service) with a RED-metrics snapshot: invocation",
+      "rate per second, errors per second, and p95 latency. Filters are",
+      "exact-match on --service-name, --environment, and --service-namespace;",
+      "an omitted filter matches all.",
       "",
       "The query window defaults to the last hour (filled server-side). Use",
       "--interval <duration> (e.g. 4h, 7d) for a relative window, or --start/--end",

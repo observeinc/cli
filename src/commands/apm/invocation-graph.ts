@@ -11,7 +11,6 @@ import {
   createColumnHelper,
   type ColumnDef,
 } from "../../lib/formatters/table";
-import { renderAsCSV } from "../../lib/formatters/csv";
 import { resolveWindow, timeWindowFlags } from "../../lib/time-window";
 import {
   type OutputFormat,
@@ -39,7 +38,7 @@ const DEFAULT_FIELDS: FieldName[] = [...AVAILABLE_FIELDS];
 
 interface GetApmInvocationGraphFlags {
   serviceName?: string;
-  environment?: string;
+  environment: string;
   serviceNamespace?: string;
   endpointName?: string;
   directNeighborsOnly?: boolean;
@@ -94,22 +93,13 @@ export async function invocationGraph(
 
   const format = flags.json ? ("json" as const) : flags.format;
   const writer = muteStatusWriter(_writer, {
-    muted: format === "json" || format === "csv",
+    muted: format === "json",
   });
 
-  // Mode guards mirror the server's cross-field rules in apm/handler.go, in the
-  // same order: the graph is always scoped to a single environment
-  // (--environment is required in every mode; there is no cross-environment
-  // graph), and --endpoint-name / --direct-neighbors-only each need a focal
-  // --service-name. Validated up front so we never reach the catch block for
-  // pure input errors.
-  if (!flags.environment) {
-    writer.error(
-      "--environment is required: the invocation graph is always scoped to a single environment.",
-    );
-    process.exitCode = 1;
-    return;
-  }
+  // Mode guards mirror the server's cross-field rules: --endpoint-name and
+  // --direct-neighbors-only each need a focal --service-name. --environment is
+  // required by the flag definition (the graph is always single-environment).
+  // Validated up front so we never reach the catch block for pure input errors.
   if (flags.endpointName && !flags.serviceName) {
     writer.error("--endpoint-name requires --service-name.");
     process.exitCode = 1;
@@ -144,11 +134,6 @@ export async function invocationGraph(
     // consumers need both per-edge metrics and per-service redMetrics.
     if (format === "json") {
       writer.write(JSON.stringify(response, null, 2));
-      return;
-    }
-
-    if (format === "csv") {
-      writer.write(renderAsCSV(response.invocations));
       return;
     }
 
@@ -188,7 +173,6 @@ function parseFields(value: string): FieldName[] {
 }
 
 export const invocationGraphCommand = defineCommand({
-  experimental: true,
   loader: async () => invocationGraph,
   parameters: {
     positional: { kind: "tuple", parameters: [] },
@@ -202,9 +186,8 @@ export const invocationGraphCommand = defineCommand({
       environment: {
         kind: "parsed",
         parse: String,
-        brief:
-          "deployment.environment.name (required); the graph is always scoped to one environment",
-        optional: true,
+        brief: "Exact deployment.environment.name (no prefix matching)",
+        optional: false,
       },
       serviceNamespace: {
         kind: "parsed",
@@ -234,8 +217,8 @@ export const invocationGraphCommand = defineCommand({
       },
       format: {
         kind: "enum",
-        values: ["json", "csv"],
-        brief: "Output format (json, csv)",
+        values: ["json"],
+        brief: "Output format (json)",
         optional: true,
       },
       json: {
@@ -249,9 +232,10 @@ export const invocationGraphCommand = defineCommand({
     brief: "Get the APM service-to-service invocation graph",
     fullDescription: [
       "Return the service dependency graph for a window: services and the calls",
-      "between them, each edge carrying request/error/latency metrics. The graph",
-      "is always scoped to a single environment — --environment is required in",
-      "every mode; there is no cross-environment graph. Three modes:",
+      "between them, each edge carrying request/error/latency metrics (rates are",
+      "per second). The graph is always scoped to a single environment —",
+      "--environment is required in every mode; there is no cross-environment",
+      "graph. Three modes:",
       "",
       "  environment-wide  --environment only (optionally --service-namespace)",
       "  focal-service     --environment + --service-name (+ --direct-neighbors-only)",

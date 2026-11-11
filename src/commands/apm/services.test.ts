@@ -104,7 +104,7 @@ function createMockContext() {
   return { context, stdout, stderr, getExitCode: () => processMock.exitCode };
 }
 
-describe("apm services — request mapping", () => {
+describe("apm service list — request mapping", () => {
   beforeEach(() => {
     listApmServicesFn.mockClear();
     loadConfigFn.mockClear();
@@ -196,7 +196,7 @@ describe("apm services — request mapping", () => {
   });
 });
 
-describe("apm services — output", () => {
+describe("apm service list — output", () => {
   beforeEach(() => {
     listApmServicesFn.mockClear();
   });
@@ -209,14 +209,6 @@ describe("apm services — output", () => {
     expect(parsed).toHaveProperty("meta");
     expect(Array.isArray(parsed.services)).toBe(true);
     expect(parsed.services[0].serviceName).toBe("checkout");
-  });
-
-  test("--format csv renders the service rows", async () => {
-    const { context, stdout } = createMockContext();
-    await services.call(context, { format: "csv" }, deps);
-    const out = stdout.join("");
-    expect(out).toContain("serviceName");
-    expect(out).toContain("checkout");
   });
 
   test("--fields selects columns, including a non-default field", async () => {

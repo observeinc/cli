@@ -103,7 +103,7 @@ export class IntegrationFixture {
       NO_COLOR: "1",
       // A global test-mode flag, alongside NO_COLOR / OBSERVE_NO_UPDATE_NOTIFIER
       // above. It only unhides commands marked `experimental` (see
-      // lib/experimental.ts, e.g. apm/content/ingest-token) — enabling it
+      // lib/experimental.ts, e.g. content/ingest-token) — enabling it
       // here lets those tests run without adding per-call env plumbing.
       OBSERVE_CLI_EXPERIMENTAL: "1",
     };

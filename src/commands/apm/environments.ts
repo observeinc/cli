@@ -15,7 +15,6 @@ import {
   createColumnHelper,
   type ColumnDef,
 } from "../../lib/formatters/table";
-import { renderAsCSV } from "../../lib/formatters/csv";
 import { resolveWindow, timeWindowFlags } from "../../lib/time-window";
 import {
   type OutputFormat,
@@ -84,7 +83,7 @@ export async function environments(
 
   const format = flags.json ? ("json" as const) : flags.format;
   const writer = muteStatusWriter(_writer, {
-    muted: format === "json" || format === "csv",
+    muted: format === "json",
   });
 
   try {
@@ -108,11 +107,6 @@ export async function environments(
 
     if (format === "json") {
       writer.write(JSON.stringify(response, null, 2));
-      return;
-    }
-
-    if (format === "csv") {
-      writer.write(renderAsCSV(rows));
       return;
     }
 
@@ -154,7 +148,6 @@ function parseFields(value: string): FieldName[] {
 const SORT_VALUES = Object.values(ListApmEnvironmentsOrderByParameter);
 
 export const environmentsCommand = defineCommand({
-  experimental: true,
   loader: async () => environments,
   parameters: {
     positional: { kind: "tuple", parameters: [] },
@@ -162,7 +155,8 @@ export const environmentsCommand = defineCommand({
       environment: {
         kind: "parsed",
         parse: String,
-        brief: "Filter to an exact deployment.environment.name",
+        brief:
+          "Filter to an exact deployment.environment.name (no prefix matching)",
         optional: true,
       },
       ...timeWindowFlags,
@@ -193,8 +187,8 @@ export const environmentsCommand = defineCommand({
       },
       format: {
         kind: "enum",
-        values: ["json", "csv"],
-        brief: "Output format (json, csv)",
+        values: ["json"],
+        brief: "Output format (json)",
         optional: true,
       },
       json: {
@@ -213,7 +207,7 @@ export const environmentsCommand = defineCommand({
     fullDescription: [
       "List deployment environments with active telemetry in the window, each with",
       "the set of service namespaces observed in it. Use this to discover valid",
-      "--environment values for the other apm commands.",
+      "--environment values for `apm invocation-graph` and `apm service list`.",
       "",
       "The query window defaults to the last hour (filled server-side). Use",
       "--interval <duration> (e.g. 4h, 7d) for a relative window, or --start/--end",
