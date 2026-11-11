@@ -114,11 +114,9 @@ describe("inbound-share CLI integration with a registered share", () => {
 
         // A run that died after tracking leaves the table tracked; untrack it
         // so this run starts from an untracked table. Only touch datasets an
-        // earlier run created, never one someone tracked by hand. Deleting a
-        // tracked table's dataset fails while the tracked-table record still
-        // points at it, and the sweeper untracks leftovers rather than deleting
-        // their dataset, so a missing label means the dataset lookup failed, not
-        // that the dataset is gone.
+        // earlier run created, never one someone tracked by hand. A table with
+        // no dataset (after table detach) can't be told apart from one tracked
+        // by hand, so it is left for a person to resolve.
         const tracked = parseJsonOutput(
           await fixture.runCli`
             observe inbound-share table list --share-id ${share.id} --expand --json
@@ -131,10 +129,15 @@ describe("inbound-share CLI integration with a registered share", () => {
           ) {
             continue;
           }
-          const leftoverLabel = leftover.sourceDataset?.record?.label;
+          if (leftover.sourceDataset == null) {
+            throw new Error(
+              `${schemaName}.${tableName} is already tracked with no dataset, for example after table detach. Untrack it or attach a dataset by hand.`,
+            );
+          }
+          const leftoverLabel = leftover.sourceDataset.record?.label;
           if (leftoverLabel === undefined) {
             throw new Error(
-              `${schemaName}.${tableName} is already tracked, but the label of its dataset ${leftover.sourceDataset?.id ?? "(none)"} could not be read. Rerun the test.`,
+              `${schemaName}.${tableName} is already tracked, but the label of its dataset ${leftover.sourceDataset.id} could not be read. Rerun the test.`,
             );
           }
           if (!leftoverLabel.startsWith(`${TEST_RESOURCE_PREFIX}-`)) {

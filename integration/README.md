@@ -80,7 +80,8 @@ One-time setup for the tenant:
 The test never deletes the share. Snowflake mounts a share only once per
 account, and a mount left behind by an interrupted delete blocks every later
 mount. Two runs must not use the share at the same time, so CI runs this test
-in its own job, one run at a time, and not on pull requests.
+in its own job, one run at a time. On pull requests it runs only when the
+change touches inbound-share code.
 
 ## Known gaps
 
@@ -225,7 +226,8 @@ leak resources. The sweeper (`integration/sweep.ts`) deletes leftovers by
 matching the `cli-` name/label prefix, covering every resource type the tests
 create (ingest tokens, datastreams, datasets, skills). Tracked share tables are
 matched by their dataset's label and untracked before the dataset pass, since
-a tracked table's dataset cannot be deleted directly.
+a tracked table's dataset cannot be deleted directly. Tables tracked in the
+last hour are skipped, so a running test keeps its table.
 
 ```bash
 bun run test:integration:sweep              # delete everything matching ^cli-

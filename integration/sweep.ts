@@ -36,6 +36,10 @@ import { TEST_RESOURCE_PREFIX, loadTenantConfig } from "./fixture";
 // smaller server-honored cap only costs extra round trips, never correctness.
 const PAGE_SIZE = 100;
 
+// Longer than the inbound-share CI job's 15-minute timeout, so the sweep leaves
+// the table of a test that is still running alone.
+const TRACKED_TABLE_MIN_AGE_MS = 60 * 60 * 1000;
+
 interface ResourceRef {
   id: string;
   name: string;
@@ -70,11 +74,14 @@ const SWEEPERS: readonly Sweeper[] = [
             offset,
             expand: true,
           });
-          return tables.map((table) => ({
-            id: table.id,
-            name: table.sourceDataset?.record?.label ?? "",
-            shareId: table.share.id,
-          }));
+          const trackedBefore = Date.now() - TRACKED_TABLE_MIN_AGE_MS;
+          return tables
+            .filter((table) => Date.parse(table.createdAt) < trackedBefore)
+            .map((table) => ({
+              id: table.id,
+              name: table.sourceDataset?.record?.label ?? "",
+              shareId: table.share.id,
+            }));
         } catch (error) {
           if ((await errorType(error)) === "feature_not_enabled") {
             return [];
