@@ -223,7 +223,9 @@ test(
 Per-test cleanup covers the happy path, but a crashed or killed run can still
 leak resources. The sweeper (`integration/sweep.ts`) deletes leftovers by
 matching the `cli-` name/label prefix, covering every resource type the tests
-create (ingest tokens, datastreams, datasets, skills).
+create (ingest tokens, datastreams, datasets, skills). Tracked share tables are
+matched by their dataset's label and untracked before the dataset pass, since
+a tracked table's dataset cannot be deleted directly.
 
 ```bash
 bun run test:integration:sweep              # delete everything matching ^cli-

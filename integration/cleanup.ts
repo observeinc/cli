@@ -6,6 +6,7 @@
 
 import { deleteDatastream as gqlDeleteDatastream } from "../src/gql/datastream/delete-datastream";
 import { deleteDataset as gqlDeleteDataset } from "../src/gql/dataset/delete-dataset";
+import { untrackShareTable } from "../src/rest/inbound-share/untrack-share-table";
 import { deleteIngestToken } from "../src/rest/ingest-token/delete-ingest-token";
 import { deleteSkill as restDeleteSkill } from "../src/rest/skill/delete-skill";
 import { deleteSourceDataset as restDeleteSourceDataset } from "../src/rest/source-dataset/delete-source-dataset";
@@ -40,6 +41,15 @@ export async function deleteSourceDataset(
   id: string,
 ): Promise<void> {
   await restDeleteSourceDataset({ config, id, force: true });
+}
+
+/** Untracks a share table, which also deletes the dataset it was tracked as. */
+export async function untrackTrackedShareTable(
+  config: Config,
+  shareId: string,
+  tableId: string,
+): Promise<void> {
+  await untrackShareTable({ config, shareId, tableId });
 }
 
 export async function deleteSkill(config: Config, id: string): Promise<void> {

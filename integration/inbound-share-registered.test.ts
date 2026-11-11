@@ -114,9 +114,11 @@ describe("inbound-share CLI integration with a registered share", () => {
 
         // A run that died after tracking leaves the table tracked; untrack it
         // so this run starts from an untracked table. Only touch datasets an
-        // earlier run created, never one someone tracked by hand. A tracked
-        // table's dataset cannot be deleted, so a missing label means the
-        // dataset lookup failed, not that the dataset is gone.
+        // earlier run created, never one someone tracked by hand. Deleting a
+        // tracked table's dataset fails while the tracked-table record still
+        // points at it, and the sweeper untracks leftovers rather than deleting
+        // their dataset, so a missing label means the dataset lookup failed, not
+        // that the dataset is gone.
         const tracked = parseJsonOutput(
           await fixture.runCli`
             observe inbound-share table list --share-id ${share.id} --expand --json

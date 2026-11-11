@@ -77,10 +77,10 @@ jobs:
 
   # Uses one long-lived Snowflake share on the integration tenant. Runs one at a
   # time across all refs, since two runs tracking the same table would share
-  # one tracked-table record. Not run on pull requests to keep that queue short.
+  # one tracked-table record. On pull requests it runs only when the change
+  # touches inbound-share code, to keep that queue short.
   inbound-share:
     name: inbound-share with a registered share
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency:
       group: integration-tests-inbound-share
@@ -88,14 +88,38 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether this change needs the test
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [ "$PR_FROM_FORK" = "true" ]; then
+            echo "Fork PRs do not receive the integration secrets; skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE_SHA" HEAD | grep -qE '^(src/commands/inbound-share/|src/rest/inbound-share/|integration/inbound-share-registered\.test\.ts$|\.github/workflows/integration-test\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No inbound-share changes; skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: oven-sh/setup-bun@v2
+        if: steps.scope.outputs.run == 'true'
         with:
           bun-version: "^1.4.4"
 
       - run: bun install --frozen-lockfile
+        if: steps.scope.outputs.run == 'true'
 
       - name: Codegen
+        if: steps.scope.outputs.run == 'true'
         run: bun run ifneeded:codegen
         env:
           OBSERVE_OPENAPI_SPEC: ${{ secrets.OBSERVE_OPENAPI_SPEC }}
@@ -103,6 +127,7 @@ jobs:
           OBSERVE_GQL_SPEC: ${{ secrets.OBSERVE_GQL_SPEC }}
 
       - name: Integration test
+        if: steps.scope.outputs.run == 'true'
         run: bun test integration/inbound-share-registered.test.ts
         env:
           CI: "true"

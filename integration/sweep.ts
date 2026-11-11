@@ -13,6 +13,7 @@
  * See integration/README.md.
  */
 import { parseArgs } from "node:util";
+import { listAllTrackedTables } from "../src/rest/inbound-share/list-all-tracked-tables";
 import { listIngestTokens } from "../src/rest/ingest-token/list-ingest-tokens";
 import { listDatastreams } from "../src/gql/datastream/list-datastreams";
 import { listDatasets } from "../src/rest/dataset/list-datasets";
@@ -26,6 +27,7 @@ import {
   deleteDatastream,
   deleteSkill,
   deleteSourceDataset,
+  untrackTrackedShareTable,
 } from "./cleanup";
 import { TEST_RESOURCE_PREFIX, loadTenantConfig } from "./fixture";
 
@@ -37,21 +39,56 @@ const PAGE_SIZE = 100;
 interface ResourceRef {
   id: string;
   name: string;
+  /** Set for tracked share tables, which are addressed by share and table id. */
+  shareId?: string;
 }
 
 interface Sweeper {
   /** Resource type, for logging. */
   type: string;
   list: (config: Config) => Promise<ResourceRef[]>;
-  remove: (config: Config, id: string) => Promise<void>;
+  remove: (config: Config, resource: ResourceRef) => Promise<void>;
 }
 
 /**
- * Sweepers run in dependency order: source datasets first (deleted with their
- * backing), then datastreams before datasets (a datastream's direct-write
- * targets are datasets), mirroring the terraform-provider ordering.
+ * Sweepers run in dependency order: tracked share tables first (untracking
+ * deletes their dataset, and the dataset itself cannot be deleted while the
+ * table is tracked), then source datasets (deleted with their backing), then
+ * datastreams before datasets (a datastream's direct-write targets are
+ * datasets), mirroring the terraform-provider ordering.
  */
 const SWEEPERS: readonly Sweeper[] = [
+  {
+    // Matched by the label of the dataset the table is tracked as.
+    type: "tracked-share-table",
+    list: (config) =>
+      paginate(async (offset) => {
+        try {
+          const { tables } = await listAllTrackedTables({
+            config,
+            limit: PAGE_SIZE,
+            offset,
+            expand: true,
+          });
+          return tables.map((table) => ({
+            id: table.id,
+            name: table.sourceDataset?.record?.label ?? "",
+            shareId: table.share.id,
+          }));
+        } catch (error) {
+          if ((await errorType(error)) === "feature_not_enabled") {
+            return [];
+          }
+          throw error;
+        }
+      }),
+    remove: (config, table) => {
+      if (table.shareId === undefined) {
+        throw new Error(`tracked table ${table.id} has no share id`);
+      }
+      return untrackTrackedShareTable(config, table.shareId, table.id);
+    },
+  },
   {
     type: "source-dataset",
     list: (config) =>
@@ -71,13 +108,14 @@ const SWEEPERS: readonly Sweeper[] = [
           throw error;
         }
       }),
-    remove: deleteSourceDataset,
+    remove: (config, sourceDataset) =>
+      deleteSourceDataset(config, sourceDataset.id),
   },
   {
     type: "datastream",
     list: async (config) =>
       (await listDatastreams(config)).map((d) => ({ id: d.id, name: d.name })),
-    remove: deleteDatastream,
+    remove: (config, datastream) => deleteDatastream(config, datastream.id),
   },
   {
     type: "dataset",
@@ -90,7 +128,7 @@ const SWEEPERS: readonly Sweeper[] = [
         });
         return datasets.map((d) => ({ id: d.id, name: d.label }));
       }),
-    remove: deleteDataset,
+    remove: (config, dataset) => deleteDataset(config, dataset.id),
   },
   {
     type: "ingest-token",
@@ -103,7 +141,7 @@ const SWEEPERS: readonly Sweeper[] = [
         });
         return tokens.map((token) => ({ id: token.id, name: token.name }));
       }),
-    remove: cleanupIngestToken,
+    remove: (config, token) => cleanupIngestToken(config, token.id),
   },
   {
     type: "skill",
@@ -116,7 +154,7 @@ const SWEEPERS: readonly Sweeper[] = [
         });
         return skills.map((s) => ({ id: s.id, name: s.label }));
       }),
-    remove: (config, id) => deleteSkill(config, id),
+    remove: (config, skill) => deleteSkill(config, skill.id),
   },
 ];
 
@@ -156,7 +194,7 @@ async function main(): Promise<void> {
         continue;
       }
       try {
-        await sweeper.remove(config, resource.id);
+        await sweeper.remove(config, resource);
         console.log(`[sweep] deleted ${label}`);
         deleted += 1;
       } catch (error) {
