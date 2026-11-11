@@ -1,5 +1,13 @@
-query DatasetQueryOutput($query: [StageInput!]!, $params: QueryParams!) {
-  datasetQueryOutput(query: $query, params: $params) {
+query DatasetQueryOutput(
+  $query: [StageInput!]!
+  $params: QueryParams!
+  $opalVersion: OpalVersion!
+) {
+  datasetQueryOutput(
+    query: $query
+    params: $params
+    opalVersion: $opalVersion
+  ) {
     queryId
     stageId
     paginatedResults
