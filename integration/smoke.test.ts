@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { FEATURE_NOT_ENABLED_MESSAGE } from "../src/lib/format-error";
 import {
   loadTenantConfig,
   parseJsonOutput,
@@ -80,24 +81,21 @@ describe("CLI integration smoke", () => {
   });
 
   // APM CLI is GA, but not every integration tenant has the server endpoint
-  // enabled yet. Until it is, a tenant without the API exits non-zero with a
-  // clean error. When available, --json emits { interval, environments, meta }.
-  test("apm environments returns the response envelope when available", async () => {
+  // enabled yet. Until it is, a tenant without the API prints
+  // FEATURE_NOT_ENABLED_MESSAGE via formatApiError and exits non-zero.
+  // When available, --json emits { interval, environments, meta }.
+  test("apm environment list returns the response envelope when available", async () => {
     await withIntegrationFixture(tenant, async (fixture) => {
       const result = await fixture.runCli`
-        observe apm environments \
+        observe apm environment list \
           --json \
           --interval 1h
       `;
       if (result.exitCode === 0) {
-        expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
-          exitCode: 0,
-          stderr: expect.any(String),
-        });
         const response = parseJsonOutput(result) as { environments: unknown[] };
         expect(Array.isArray(response.environments)).toBe(true);
       } else {
-        expect(result.stderr.length).toBeGreaterThan(0);
+        expect(result.stderr).toContain(FEATURE_NOT_ENABLED_MESSAGE);
       }
     });
   });
