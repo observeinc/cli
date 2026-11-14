@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { FEATURE_NOT_ENABLED_MESSAGE } from "../src/lib/format-error";
 import {
   loadTenantConfig,
   parseJsonOutput,
@@ -79,9 +80,10 @@ describe("CLI integration smoke", () => {
     });
   });
 
-  // APM CLI is GA, but the server rollout (Gerrit 106623) is still held. On a
-  // tenant without the endpoint the command exits non-zero with a clean error
-  // (typically 403 feature_not_enabled). Tolerate that until 106623 is everywhere.
+  // APM CLI is GA, but the server rollout (Gerrit 106623) is still held.
+  // TODO(Gerrit 106623): require exit 0 once the endpoint is enabled on every
+  // integration tenant. Until then, a tenant without the API prints
+  // FEATURE_NOT_ENABLED_MESSAGE via formatApiError and exits non-zero.
   // When available, --json emits { interval, environments, meta }.
   test("apm environments returns the response envelope when available", async () => {
     await withIntegrationFixture(tenant, async (fixture) => {
@@ -91,14 +93,10 @@ describe("CLI integration smoke", () => {
           --interval 1h
       `;
       if (result.exitCode === 0) {
-        expect({ exitCode: result.exitCode, stderr: result.stderr }).toEqual({
-          exitCode: 0,
-          stderr: expect.any(String),
-        });
         const response = parseJsonOutput(result) as { environments: unknown[] };
         expect(Array.isArray(response.environments)).toBe(true);
       } else {
-        expect(result.stderr.length).toBeGreaterThan(0);
+        expect(result.stderr).toContain(FEATURE_NOT_ENABLED_MESSAGE);
       }
     });
   });
