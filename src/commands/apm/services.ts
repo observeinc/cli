@@ -185,7 +185,6 @@ function parseFields(value: string): FieldName[] {
 const SORT_VALUES = Object.values(ListApmServicesOrderByParameter);
 
 export const servicesCommand = defineCommand({
-  experimental: true,
   loader: async () => services,
   parameters: {
     positional: { kind: "tuple", parameters: [] },
@@ -199,7 +198,8 @@ export const servicesCommand = defineCommand({
       environment: {
         kind: "parsed",
         parse: String,
-        brief: "Filter to an exact deployment.environment.name",
+        brief:
+          "Filter to an exact deployment.environment.name (no prefix matching)",
         optional: true,
       },
       serviceNamespace: {
@@ -260,9 +260,10 @@ export const servicesCommand = defineCommand({
   docs: {
     brief: "List APM services with RED metrics",
     fullDescription: [
-      "List services (one row per service) with a RED-metrics snapshot: request",
-      "rate, error rate, and p95 latency. Filters are exact-match on --service-name,",
-      "--environment, and --service-namespace; an omitted filter matches all.",
+      "List services (one row per service) with a RED-metrics snapshot: invocation",
+      "rate per second, errors per second, and p95 latency. Filters are",
+      "exact-match on --service-name, --environment, and --service-namespace;",
+      "an omitted filter matches all.",
       "",
       "The query window defaults to the last hour (filled server-side). Use",
       "--interval <duration> (e.g. 4h, 7d) for a relative window, or --start/--end",

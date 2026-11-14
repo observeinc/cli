@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { FEATURE_NOT_ENABLED_MESSAGE } from "../src/lib/format-error";
 import {
   loadTenantConfig,
   parseJsonOutput,
@@ -79,10 +80,11 @@ describe("CLI integration smoke", () => {
     });
   });
 
-  // apm is experimental (the fixture sets OBSERVE_CLI_EXPERIMENTAL=1) and
-  // private-preview: on a tenant without the endpoint enabled the command
-  // exits non-zero with a clean error rather than crashing, which we tolerate.
-  // When available, --json emits the response envelope { interval, environments, meta }.
+  // APM CLI is GA, but the server rollout (Gerrit 106623) is still held.
+  // TODO(Gerrit 106623): require exit 0 once the endpoint is enabled on every
+  // integration tenant. Until then, a tenant without the API prints
+  // FEATURE_NOT_ENABLED_MESSAGE via formatApiError and exits non-zero.
+  // When available, --json emits { interval, environments, meta }.
   test("apm environments returns the response envelope when available", async () => {
     await withIntegrationFixture(tenant, async (fixture) => {
       const result = await fixture.runCli`
@@ -94,7 +96,7 @@ describe("CLI integration smoke", () => {
         const response = parseJsonOutput(result) as { environments: unknown[] };
         expect(Array.isArray(response.environments)).toBe(true);
       } else {
-        expect(result.stderr.length).toBeGreaterThan(0);
+        expect(result.stderr).toContain(FEATURE_NOT_ENABLED_MESSAGE);
       }
     });
   });

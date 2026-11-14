@@ -154,7 +154,6 @@ function parseFields(value: string): FieldName[] {
 const SORT_VALUES = Object.values(ListApmEnvironmentsOrderByParameter);
 
 export const environmentsCommand = defineCommand({
-  experimental: true,
   loader: async () => environments,
   parameters: {
     positional: { kind: "tuple", parameters: [] },
@@ -162,7 +161,8 @@ export const environmentsCommand = defineCommand({
       environment: {
         kind: "parsed",
         parse: String,
-        brief: "Filter to an exact deployment.environment.name",
+        brief:
+          "Filter to an exact deployment.environment.name (no prefix matching)",
         optional: true,
       },
       ...timeWindowFlags,

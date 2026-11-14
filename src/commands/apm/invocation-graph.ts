@@ -188,7 +188,6 @@ function parseFields(value: string): FieldName[] {
 }
 
 export const invocationGraphCommand = defineCommand({
-  experimental: true,
   loader: async () => invocationGraph,
   parameters: {
     positional: { kind: "tuple", parameters: [] },
@@ -203,7 +202,7 @@ export const invocationGraphCommand = defineCommand({
         kind: "parsed",
         parse: String,
         brief:
-          "deployment.environment.name (required); the graph is always scoped to one environment",
+          "Exact deployment.environment.name (no prefix matching); required",
         optional: true,
       },
       serviceNamespace: {
@@ -249,9 +248,10 @@ export const invocationGraphCommand = defineCommand({
     brief: "Get the APM service-to-service invocation graph",
     fullDescription: [
       "Return the service dependency graph for a window: services and the calls",
-      "between them, each edge carrying request/error/latency metrics. The graph",
-      "is always scoped to a single environment — --environment is required in",
-      "every mode; there is no cross-environment graph. Three modes:",
+      "between them, each edge carrying request/error/latency metrics (rates are",
+      "per second). The graph is always scoped to a single environment —",
+      "--environment is required in every mode; there is no cross-environment",
+      "graph. Three modes:",
       "",
       "  environment-wide  --environment only (optionally --service-namespace)",
       "  focal-service     --environment + --service-name (+ --direct-neighbors-only)",
