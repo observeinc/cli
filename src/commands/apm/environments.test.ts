@@ -93,7 +93,7 @@ function createMockContext() {
   return { context, stdout, stderr, getExitCode: () => processMock.exitCode };
 }
 
-describe("apm environments", () => {
+describe("apm environment list", () => {
   beforeEach(() => {
     listApmEnvironmentsFn.mockClear();
     loadConfigFn.mockClear();
@@ -125,14 +125,6 @@ describe("apm environments", () => {
     expect(parsed).toHaveProperty("meta");
     expect(Array.isArray(parsed.environments)).toBe(true);
     expect(parsed.environments[0].environment).toBe("prod");
-  });
-
-  test("--format csv renders the environment rows", async () => {
-    const { context, stdout } = createMockContext();
-    await environments.call(context, { format: "csv" }, deps);
-    const out = stdout.join("");
-    expect(out).toContain("environment");
-    expect(out).toContain("prod");
   });
 
   test("--fields selects columns, including a non-default field", async () => {

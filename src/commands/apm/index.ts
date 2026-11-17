@@ -3,10 +3,28 @@ import { servicesCommand } from "./services";
 import { environmentsCommand } from "./environments";
 import { invocationGraphCommand } from "./invocation-graph";
 
+const serviceRoutes = defineRoutes({
+  routes: {
+    list: servicesCommand,
+  },
+  docs: {
+    brief: "Explore APM services",
+  },
+});
+
+const environmentRoutes = defineRoutes({
+  routes: {
+    list: environmentsCommand,
+  },
+  docs: {
+    brief: "Explore APM environments",
+  },
+});
+
 export const apmRoutes = defineRoutes({
   routes: {
-    services: servicesCommand,
-    environments: environmentsCommand,
+    service: serviceRoutes,
+    environment: environmentRoutes,
     "invocation-graph": invocationGraphCommand,
   },
   docs: {
@@ -15,9 +33,9 @@ export const apmRoutes = defineRoutes({
       "Read-only access to Application Performance Monitoring data.",
       "",
       "Commands:",
-      "  services          List services with RED metrics (rate, errors, p95)",
-      "  environments      List deployment environments and their service namespaces",
-      "  invocation-graph  Get the service-to-service dependency graph",
+      "  service list          List services with RED metrics (rate, errors/s, p95)",
+      "  environment list      List deployment environments and their service namespaces",
+      "  invocation-graph      Get the service-to-service dependency graph",
     ].join("\n"),
   },
 });

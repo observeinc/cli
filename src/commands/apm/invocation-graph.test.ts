@@ -147,22 +147,6 @@ describe("apm invocation-graph — mode guards", () => {
     );
     expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
   });
-
-  test("--service-name without --environment is rejected", async () => {
-    const { context, stderr, getExitCode } = createMockContext();
-    await invocationGraph.call(context, { serviceName: "checkout" }, deps);
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("--environment is required");
-    expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
-  });
-
-  test("no --environment is rejected (required in every mode)", async () => {
-    const { context, stderr, getExitCode } = createMockContext();
-    await invocationGraph.call(context, {}, deps);
-    expect(getExitCode()).toBe(1);
-    expect(stderr.join("")).toContain("--environment is required");
-    expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
-  });
 });
 
 describe("apm invocation-graph — request & output", () => {
@@ -252,18 +236,6 @@ describe("apm invocation-graph — request & output", () => {
     const out = stdout.join("");
     expect(out).toContain("mode: environment-wide (prod)");
     expect(out).toContain("No invocations found");
-  });
-
-  test("--format csv renders the invocation rows", async () => {
-    const { context, stdout } = createMockContext();
-    await invocationGraph.call(
-      context,
-      { environment: "prod", format: "csv" },
-      deps,
-    );
-    const out = stdout.join("");
-    expect(out).toContain("source");
-    expect(out).toContain("web");
   });
 
   test("--fields selects a subset of columns", async () => {

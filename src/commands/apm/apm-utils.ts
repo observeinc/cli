@@ -4,8 +4,8 @@ import type {
   ApmMeta,
 } from "../../rest/generated";
 
-/** Output formats shared by the read-only apm commands. */
-export type OutputFormat = "json" | "csv";
+/** Machine-readable output format for the read-only apm commands. */
+export type OutputFormat = "json";
 
 const MAX_APM_LIMIT = 100000;
 const MIN_APM_LIMIT = 1;
