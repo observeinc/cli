@@ -21,6 +21,7 @@ import { renderAsCSV } from "../lib/formatters/csv";
 import { cyan, green, muted, red, yellow } from "../lib/formatters/colors";
 import {
   type StageInput,
+  OpalVersion,
   ResultKind,
   VariantEncodingMode,
   RollupMode,
@@ -115,6 +116,7 @@ export async function query(
       variables: {
         query: [stage],
         params: concretizeWindow(resolveWindow(flags), DEFAULT_INTERVAL),
+        opalVersion: OpalVersion.V2026_09_30,
       },
     });
 
