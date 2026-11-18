@@ -38,6 +38,7 @@ const DEFAULT_FIELDS: FieldName[] = [...AVAILABLE_FIELDS];
 
 interface GetApmInvocationGraphFlags {
   serviceName?: string;
+  serviceType?: string;
   environment: string;
   serviceNamespace?: string;
   endpointName?: string;
@@ -96,10 +97,11 @@ export async function invocationGraph(
     muted: format === "json",
   });
 
-  // Mode guards mirror the server's cross-field rules: --endpoint-name and
-  // --direct-neighbors-only each need a focal --service-name. --environment is
-  // required by the flag definition (the graph is always single-environment).
-  // Validated up front so we never reach the catch block for pure input errors.
+  // Mode guards mirror the server's cross-field rules: --endpoint-name,
+  // --direct-neighbors-only, and --service-type each need a focal
+  // --service-name. --environment is required by the flag definition (the
+  // graph is always single-environment). Validated up front so we never reach
+  // the catch block for pure input errors.
   if (flags.endpointName && !flags.serviceName) {
     writer.error("--endpoint-name requires --service-name.");
     process.exitCode = 1;
@@ -107,6 +109,11 @@ export async function invocationGraph(
   }
   if (flags.directNeighborsOnly && !flags.serviceName) {
     writer.error("--direct-neighbors-only requires --service-name.");
+    process.exitCode = 1;
+    return;
+  }
+  if (flags.serviceType && !flags.serviceName) {
+    writer.error("--service-type requires --service-name.");
     process.exitCode = 1;
     return;
   }
@@ -121,6 +128,7 @@ export async function invocationGraph(
     const response = await getApmInvocationGraphImpl({
       config,
       serviceName: flags.serviceName,
+      serviceType: flags.serviceType,
       environment: flags.environment,
       serviceNamespace: flags.serviceNamespace,
       endpointName: flags.endpointName,
@@ -180,7 +188,15 @@ export const invocationGraphCommand = defineCommand({
       serviceName: {
         kind: "parsed",
         parse: String,
-        brief: "Center the graph on one service (focal mode)",
+        brief:
+          "Center the graph on a named node (Service by default; use --service-type for Messaging)",
+        optional: true,
+      },
+      serviceType: {
+        kind: "parsed",
+        parse: String,
+        brief:
+          "Type of the named node (requires --service-name). Omit for Service; pass Messaging to center on a broker of the same name",
         optional: true,
       },
       environment: {
@@ -238,8 +254,12 @@ export const invocationGraphCommand = defineCommand({
       "graph. Three modes:",
       "",
       "  environment-wide  --environment only (optionally --service-namespace)",
-      "  focal-service     --environment + --service-name (+ --direct-neighbors-only)",
+      "  focal-service     --environment + --service-name (+ --direct-neighbors-only, optional --service-type)",
       "  focal-endpoint    --environment + --service-name + --endpoint-name",
+      "",
+      "--service-type requires --service-name; omit it to center on a Service.",
+      "Database and ExternalCall cannot be focals (the API returns 400). A name",
+      "that exists only as another type returns empty arrays.",
       "",
       "The graph is returned in a single response (not paginated). The query window",
       "defaults to the last hour (filled server-side); use --interval <duration>",

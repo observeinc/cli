@@ -147,6 +147,23 @@ describe("apm invocation-graph — mode guards", () => {
     );
     expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
   });
+
+  test.each(["Messaging", "Service"] as const)(
+    "--service-type %s without --service-name is rejected",
+    async (serviceType) => {
+      const { context, stderr, getExitCode } = createMockContext();
+      await invocationGraph.call(
+        context,
+        { serviceType, environment: "prod" },
+        deps,
+      );
+      expect(getExitCode()).toBe(1);
+      expect(stderr.join("")).toContain(
+        "--service-type requires --service-name",
+      );
+      expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("apm invocation-graph — request & output", () => {
@@ -180,7 +197,47 @@ describe("apm invocation-graph — request & output", () => {
     });
     expect(arg.limit).toBeUndefined();
     expect(arg.offset).toBeUndefined();
+    expect(arg.serviceType).toBeUndefined();
     expect(typeof arg.startTime).toBe("string");
+  });
+
+  test("forwards serviceType when --service-name and --service-type are set", async () => {
+    const { context } = createMockContext();
+    await invocationGraph.call(
+      context,
+      {
+        serviceName: "kafka",
+        serviceType: "Messaging",
+        environment: "prod",
+        json: true,
+      },
+      deps,
+    );
+    const arg = getApmInvocationGraphFn.mock.calls[0]![0] as Record<
+      string,
+      unknown
+    >;
+    expect(arg.serviceName).toBe("kafka");
+    expect(arg.serviceType).toBe("Messaging");
+  });
+
+  test("omits serviceType when --service-name is set without --service-type", async () => {
+    const { context } = createMockContext();
+    await invocationGraph.call(
+      context,
+      {
+        serviceName: "checkout",
+        environment: "prod",
+        json: true,
+      },
+      deps,
+    );
+    const arg = getApmInvocationGraphFn.mock.calls[0]![0] as Record<
+      string,
+      unknown
+    >;
+    expect(arg.serviceName).toBe("checkout");
+    expect(arg.serviceType).toBeUndefined();
   });
 
   test("--json prints the full envelope (interval + services + invocations)", async () => {

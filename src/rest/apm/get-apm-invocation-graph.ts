@@ -12,7 +12,13 @@ export async function getApmInvocationGraph({
   ...params
 }: {
   config: Config;
-} & APMApiGetApmInvocationGraphRequest): Promise<ApmInvocationGraphResponse> {
+} & APMApiGetApmInvocationGraphRequest & {
+    serviceType?: string;
+  }): Promise<ApmInvocationGraphResponse> {
   const sdk = new ObserveRestSDK(config);
-  return sdk.apmApi.getApmInvocationGraph(params);
+  // Intersection until generated OpenAPI types include serviceType; pass as a
+  // variable so extra fields are excess-property-safe.
+  const request: APMApiGetApmInvocationGraphRequest & { serviceType?: string } =
+    params;
+  return sdk.apmApi.getApmInvocationGraph(request);
 }
