@@ -148,7 +148,7 @@ describe("apm invocation-graph — mode guards", () => {
     expect(getApmInvocationGraphFn).not.toHaveBeenCalled();
   });
 
-  test.each(["Messaging", "Service"] as const)(
+  test.each(["Messaging", "Service", "Database", "ExternalCall"] as const)(
     "--service-type %s without --service-name is rejected",
     async (serviceType) => {
       const { context, stderr, getExitCode } = createMockContext();
@@ -201,25 +201,28 @@ describe("apm invocation-graph — request & output", () => {
     expect(typeof arg.startTime).toBe("string");
   });
 
-  test("forwards serviceType when --service-name and --service-type are set", async () => {
-    const { context } = createMockContext();
-    await invocationGraph.call(
-      context,
-      {
-        serviceName: "kafka",
-        serviceType: "Messaging",
-        environment: "prod",
-        json: true,
-      },
-      deps,
-    );
-    const arg = getApmInvocationGraphFn.mock.calls[0]![0] as Record<
-      string,
-      unknown
-    >;
-    expect(arg.serviceName).toBe("kafka");
-    expect(arg.serviceType).toBe("Messaging");
-  });
+  test.each(["Messaging", "Database", "ExternalCall"] as const)(
+    "forwards serviceType %s when --service-name and --service-type are set",
+    async (serviceType) => {
+      const { context } = createMockContext();
+      await invocationGraph.call(
+        context,
+        {
+          serviceName: "kafka",
+          serviceType,
+          environment: "prod",
+          json: true,
+        },
+        deps,
+      );
+      const arg = getApmInvocationGraphFn.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(arg.serviceName).toBe("kafka");
+      expect(arg.serviceType).toBe(serviceType);
+    },
+  );
 
   test("omits serviceType when --service-name is set without --service-type", async () => {
     const { context } = createMockContext();

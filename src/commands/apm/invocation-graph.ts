@@ -189,14 +189,14 @@ export const invocationGraphCommand = defineCommand({
         kind: "parsed",
         parse: String,
         brief:
-          "Center the graph on a named node (Service by default; use --service-type for Messaging)",
+          "Center the graph on a named node (Service by default; use --service-type for Messaging, Database, or ExternalCall)",
         optional: true,
       },
       serviceType: {
         kind: "parsed",
         parse: String,
         brief:
-          "Type of the named node (requires --service-name). Omit for Service; pass Messaging to center on a broker of the same name",
+          "Type of the named node (requires --service-name). Omit for Service; pass Messaging, Database, or ExternalCall",
         optional: true,
       },
       environment: {
@@ -258,8 +258,9 @@ export const invocationGraphCommand = defineCommand({
       "  focal-endpoint    --environment + --service-name + --endpoint-name",
       "",
       "--service-type requires --service-name; omit it to center on a Service.",
-      "Database and ExternalCall cannot be focals (the API returns 400). A name",
-      "that exists only as another type returns empty arrays.",
+      "Pass Messaging, Database, or ExternalCall to center on that type of the",
+      "same name. All, External, and unknown values are 400. A name that exists",
+      "only as another type returns empty arrays.",
       "",
       "The graph is returned in a single response (not paginated). The query window",
       "defaults to the last hour (filled server-side); use --interval <duration>",
