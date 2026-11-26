@@ -108,8 +108,8 @@ function readPagingMeta(meta: DatasetListResponse["meta"]) {
 
 /**
  * Offset of the page after this one, or undefined when no more datasets match.
- * A filter can make a page shorter than `pageLimit` while more remain, so the
- * page-fullness check is only a fallback for servers without `meta.hasMore`.
+ * Follows the server's `nextOffset` rather than assuming `pageOffset + pageLimit`;
+ * page fullness is only a fallback for servers without `meta.hasMore`.
  */
 function offsetAfterPage({
   meta,

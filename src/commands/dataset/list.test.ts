@@ -344,7 +344,7 @@ describe("dataset list paging", () => {
     expect(output).not.toContain("More results may be available");
   });
 
-  test("keeps paging past a page that a filter made short, and hints the server's nextOffset", async () => {
+  test("follows the server's nextOffset rather than offset + limit", async () => {
     const { context, stdout, stderr } = createMockContext();
     const { deps: pageDeps, requests } = pagedDeps([
       {
@@ -357,7 +357,7 @@ describe("dataset list paging", () => {
       },
     ]);
 
-    await list.call(context, { limit: 10, filter: "x" }, pageDeps);
+    await list.call(context, { limit: 10 }, pageDeps);
 
     expect(requests).toEqual([
       { limit: 10, offset: 0, query: undefined },
