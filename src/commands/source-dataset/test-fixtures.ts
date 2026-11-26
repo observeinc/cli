@@ -58,6 +58,7 @@ export function sourceDatasetStub(
     accelerationState: DatasetAccelerationState.Accelerated,
     correlationTags: [],
     ingestStatus: SourceDatasetIngestStatus.Receiving,
+    sharedSourceDatasets: [],
     createdBy: { id: "1" },
     updatedBy: { id: "1" },
     createdAt: "2026-10-01T00:00:00Z",

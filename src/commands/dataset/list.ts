@@ -2,7 +2,10 @@ import { defineCommand } from "../../lib/stricli-wrappers";
 import chalk from "chalk";
 import type { LocalContext } from "../../context";
 import { listDatasets } from "../../rest/dataset/list-datasets";
-import type { DatasetResource } from "../../rest/generated";
+import type {
+  DatasetListResponse,
+  DatasetResource,
+} from "../../rest/generated";
 import {
   celFuzzyContains,
   celHasCorrelationTag,
@@ -79,6 +82,53 @@ export function validateDatasetFlags(flags: ListDatasetsFlags): void {
   }
 }
 
+// The server returns at most this many datasets per request and silently
+// reduces larger limits to it, so larger --limit values are fetched page by page.
+const SERVER_PAGE_SIZE = 100;
+
+// Semantic search (`query`) rejects offsets above this with a 400.
+const MAX_SEMANTIC_OFFSET = 999;
+
+/**
+ * Reads `meta.hasMore` / `meta.nextOffset`. Servers that predate them return
+ * neither, so `hasMore` comes back undefined and callers fall back to page
+ * fullness.
+ */
+function readPagingMeta(meta: DatasetListResponse["meta"]) {
+  const hasMore =
+    "hasMore" in meta && typeof meta.hasMore === "boolean"
+      ? meta.hasMore
+      : undefined;
+  const nextOffset =
+    "nextOffset" in meta && typeof meta.nextOffset === "number"
+      ? meta.nextOffset
+      : null;
+  return { hasMore, nextOffset };
+}
+
+/**
+ * Offset of the page after this one, or undefined when no more datasets match.
+ * Follows the server's `nextOffset` rather than assuming `pageOffset + pageLimit`;
+ * page fullness is only a fallback for servers without `meta.hasMore`.
+ */
+function offsetAfterPage({
+  meta,
+  pageOffset,
+  pageLimit,
+  rowsReturned,
+}: {
+  meta: DatasetListResponse["meta"];
+  pageOffset: number;
+  pageLimit: number;
+  rowsReturned: number;
+}) {
+  const { hasMore, nextOffset } = readPagingMeta(meta);
+  if (hasMore === undefined) {
+    return rowsReturned === pageLimit ? pageOffset + pageLimit : undefined;
+  }
+  return hasMore && nextOffset != null ? nextOffset : undefined;
+}
+
 // Backends are injected via the optional `deps` parameter so tests can swap
 // in stubs without using `mock.module`, which is process-global in bun and
 // leaks across test files.
@@ -128,16 +178,40 @@ export async function list(
     // params and are combinable — `filter` narrows the ranked results. Note
     // the API ignores `orderBy` when `query` is set and returns
     // `meta.totalCount = -1`, which the summary below already handles.
-    const response = await listD({
-      config,
-      filter,
-      query: flags.query,
-      limit: flags.limit,
-      offset: flags.offset,
-      orderBy: flags.sort,
-    });
-    const datasets: DatasetResource[] = response.datasets;
-    const totalCount = response.meta.totalCount;
+    const datasets: DatasetResource[] = [];
+    let totalCount = -1;
+    let pageOffset = flags.offset ?? 0;
+    let nextPageOffset: number | undefined;
+    for (let pageIndex = 0; datasets.length < flags.limit; pageIndex++) {
+      const pageLimit = Math.min(
+        flags.limit - datasets.length,
+        SERVER_PAGE_SIZE,
+      );
+      const response = await listD({
+        config,
+        filter,
+        query: flags.query,
+        limit: pageLimit,
+        offset: pageOffset,
+        orderBy: flags.sort,
+      });
+      if (pageIndex === 0) totalCount = response.meta.totalCount;
+      datasets.push(...response.datasets);
+
+      nextPageOffset = offsetAfterPage({
+        meta: response.meta,
+        pageOffset,
+        pageLimit,
+        rowsReturned: response.datasets.length,
+      });
+      if (nextPageOffset === undefined || response.datasets.length === 0) break;
+      if (flags.query != null && nextPageOffset > MAX_SEMANTIC_OFFSET) {
+        // No --offset hint: semantic search returns 400 past this offset.
+        nextPageOffset = undefined;
+        break;
+      }
+      pageOffset = nextPageOffset;
+    }
 
     const fieldNames = flags.fields ?? DEFAULT_FIELDS;
 
@@ -168,10 +242,9 @@ export async function list(
 
     writer.write(formatTable(datasets, columns));
 
-    if (datasets.length === flags.limit) {
-      const nextOffset = (flags.offset ?? 0) + flags.limit;
+    if (nextPageOffset !== undefined) {
       writer.info(
-        `\nMore results may be available. Use --offset ${nextOffset} to see the next page.`,
+        `\nMore results may be available. Use --offset ${nextPageOffset} to see the next page.`,
       );
     }
   } catch (error) {
@@ -261,7 +334,7 @@ export const listCommand = defineCommand({
       limit: {
         kind: "parsed",
         parse: parseLimit,
-        brief: `Maximum number of datasets to return (${MIN_LIMIT}-${MAX_LIMIT})`,
+        brief: `Maximum number of datasets to return (${MIN_LIMIT}-${MAX_LIMIT}, fetched ${SERVER_PAGE_SIZE} per request)`,
         default: String(DEFAULT_LIMIT),
       },
       offset: {

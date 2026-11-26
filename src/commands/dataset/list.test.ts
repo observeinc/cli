@@ -9,7 +9,11 @@ import {
 } from "bun:test";
 import { createMockContext, suppressAnsiColor } from "../../test-helpers";
 import type { Config } from "../../lib/config";
-import { DatasetDatasetKind, type DatasetResource } from "../../rest/generated";
+import {
+  DatasetDatasetKind,
+  type DatasetListResponse,
+  type DatasetResource,
+} from "../../rest/generated";
 
 const loadConfigFn = mock(() => ({
   customerId: "test-customer",
@@ -30,7 +34,48 @@ function datasetStub(id: string, label: string): DatasetResource {
 }
 
 function envelope(rows: DatasetResource[], totalCount = -1) {
-  return { datasets: rows, meta: { totalCount } };
+  return {
+    datasets: rows,
+    meta: { totalCount, limit: 100, hasMore: false, nextOffset: null },
+  };
+}
+
+function datasetStubs(count: number, firstId = 0) {
+  return Array.from({ length: count }, (_, i) =>
+    datasetStub(String(firstId + i), `dataset-${firstId + i}`),
+  );
+}
+
+interface ListDatasetsArgs {
+  limit?: number;
+  offset?: number;
+  query?: string;
+}
+
+/**
+ * Deps whose listDatasets returns `pages` in order and records each request.
+ * A page's `meta` is passed through as is, so a page can omit `hasMore` and
+ * `nextOffset` to stand in for a server that predates them.
+ */
+function pagedDeps(pages: { datasets: DatasetResource[]; meta: object }[]) {
+  const requests: ListDatasetsArgs[] = [];
+  const listDatasetsFromPages = mock((args: ListDatasetsArgs) => {
+    requests.push({
+      limit: args.limit,
+      offset: args.offset,
+      query: args.query,
+    });
+    const page = pages[requests.length - 1];
+    if (!page) throw new Error(`unexpected request #${requests.length}`);
+    return Promise.resolve(page as unknown as DatasetListResponse);
+  });
+  return {
+    requests,
+    deps: {
+      loadConfig: loadConfigFn,
+      listDatasets: listDatasetsFromPages,
+    } as unknown as Parameters<(typeof import("./list"))["list"]>[1],
+  };
 }
 
 let lastListDatasetsArgs:
@@ -249,5 +294,116 @@ describe("dataset list routing", () => {
         foreignKeys: [],
       },
     ]);
+  });
+});
+
+describe("dataset list paging", () => {
+  test("fetches a --limit above the server's page size 100 at a time", async () => {
+    const { context, stdout } = createMockContext();
+    const { deps: pageDeps, requests } = pagedDeps([
+      {
+        datasets: datasetStubs(100, 0),
+        meta: { totalCount: 900, limit: 100, hasMore: true, nextOffset: 100 },
+      },
+      {
+        datasets: datasetStubs(100, 100),
+        meta: { totalCount: 900, limit: 100, hasMore: true, nextOffset: 200 },
+      },
+      {
+        datasets: datasetStubs(50, 200),
+        meta: { totalCount: 900, limit: 50, hasMore: true, nextOffset: 250 },
+      },
+    ]);
+
+    await list.call(context, { limit: 250, json: true }, pageDeps);
+
+    expect(requests).toEqual([
+      { limit: 100, offset: 0, query: undefined },
+      { limit: 100, offset: 100, query: undefined },
+      { limit: 50, offset: 200, query: undefined },
+    ]);
+    const payload = JSON.parse(stdout.join("")) as { id: string }[];
+    expect(payload).toHaveLength(250);
+    expect(payload[249]?.id).toBe("249");
+  });
+
+  test("stops when the server reports no more datasets", async () => {
+    const { context, stdout, stderr } = createMockContext();
+    const { deps: pageDeps, requests } = pagedDeps([
+      {
+        datasets: datasetStubs(30),
+        meta: { totalCount: 30, limit: 100, hasMore: false, nextOffset: null },
+      },
+    ]);
+
+    await list.call(context, { limit: 500 }, pageDeps);
+
+    expect(requests).toHaveLength(1);
+    const output = stdout.join("") + stderr.join("");
+    expect(output).toContain("Found 30 dataset(s) (30 total)");
+    expect(output).not.toContain("More results may be available");
+  });
+
+  test("follows the server's nextOffset rather than offset + limit", async () => {
+    const { context, stdout, stderr } = createMockContext();
+    const { deps: pageDeps, requests } = pagedDeps([
+      {
+        datasets: datasetStubs(7, 0),
+        meta: { totalCount: 40, limit: 10, hasMore: true, nextOffset: 10 },
+      },
+      {
+        datasets: datasetStubs(3, 10),
+        meta: { totalCount: 40, limit: 3, hasMore: true, nextOffset: 13 },
+      },
+    ]);
+
+    await list.call(context, { limit: 10 }, pageDeps);
+
+    expect(requests).toEqual([
+      { limit: 10, offset: 0, query: undefined },
+      { limit: 3, offset: 10, query: undefined },
+    ]);
+    expect(stdout.join("") + stderr.join("")).toContain("Use --offset 13");
+  });
+
+  test("pages by page fullness on a server without hasMore and nextOffset", async () => {
+    const { context, stdout, stderr } = createMockContext();
+    const { deps: pageDeps, requests } = pagedDeps([
+      { datasets: datasetStubs(100, 0), meta: { totalCount: 400 } },
+      { datasets: datasetStubs(50, 100), meta: { totalCount: 400 } },
+    ]);
+
+    await list.call(context, { limit: 150 }, pageDeps);
+
+    expect(requests).toEqual([
+      { limit: 100, offset: 0, query: undefined },
+      { limit: 50, offset: 100, query: undefined },
+    ]);
+    const output = stdout.join("") + stderr.join("");
+    expect(output).toContain("Found 150 dataset(s) (400 total)");
+    expect(output).toContain("Use --offset 150");
+  });
+
+  test("does not page --query past the semantic search offset limit", async () => {
+    const { context, stdout, stderr } = createMockContext();
+    const { deps: pageDeps, requests } = pagedDeps([
+      {
+        datasets: datasetStubs(100, 950),
+        meta: { totalCount: -1, limit: 100, hasMore: true, nextOffset: 1050 },
+      },
+    ]);
+
+    await list.call(
+      context,
+      { limit: 200, offset: 950, query: "checkout latency" },
+      pageDeps,
+    );
+
+    expect(requests).toEqual([
+      { limit: 100, offset: 950, query: "checkout latency" },
+    ]);
+    expect(stdout.join("") + stderr.join("")).not.toContain(
+      "More results may be available",
+    );
   });
 });
