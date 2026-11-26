@@ -206,6 +206,7 @@ export async function list(
       });
       if (nextPageOffset === undefined || response.datasets.length === 0) break;
       if (flags.query != null && nextPageOffset > MAX_SEMANTIC_OFFSET) {
+        // No --offset hint: semantic search returns 400 past this offset.
         nextPageOffset = undefined;
         break;
       }
