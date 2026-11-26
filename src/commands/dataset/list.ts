@@ -13,7 +13,7 @@ import {
 } from "../../lib/cel";
 import { loadConfig } from "../../lib/config";
 import { formatApiError } from "../../lib/format-error";
-import { muteStatusWriter } from "../../lib/writer";
+import { muteStatusWriter, type Writer } from "../../lib/writer";
 import { parseNonNegativeInt } from "../../lib/parsers";
 import {
   formatTable,
@@ -129,6 +129,55 @@ function offsetAfterPage({
   return hasMore && nextOffset != null ? nextOffset : undefined;
 }
 
+function writeDatasets({
+  writer,
+  format,
+  datasets,
+  totalCount,
+  fieldNames,
+  nextPageOffset,
+}: {
+  writer: Writer;
+  format: OutputFormat | undefined;
+  datasets: DatasetResource[];
+  totalCount: number;
+  fieldNames: FieldName[];
+  nextPageOffset: number | undefined;
+}) {
+  if (format === "json") {
+    writer.write(JSON.stringify(datasets, null, 2));
+    return;
+  }
+
+  if (format === "csv") {
+    writer.write(renderAsCSV(datasets));
+    return;
+  }
+
+  if (datasets.length === 0) {
+    writer.warn("No datasets found.");
+    return;
+  }
+
+  // `meta.totalCount = -1` signals "unknown" (set when `--query` is used);
+  // only surface a true population total when the API reports one.
+  const summary =
+    totalCount >= 0
+      ? `Found ${datasets.length} dataset(s) (${totalCount} total):\n`
+      : `Found ${datasets.length} dataset(s):\n`;
+  writer.write(chalk.green(summary));
+
+  const columns = fieldNames.map((field) => FIELD_COLUMNS[field]);
+
+  writer.write(formatTable(datasets, columns));
+
+  if (nextPageOffset !== undefined) {
+    writer.info(
+      `\nMore results may be available. Use --offset ${nextPageOffset} to see the next page.`,
+    );
+  }
+}
+
 // Backends are injected via the optional `deps` parameter so tests can swap
 // in stubs without using `mock.module`, which is process-global in bun and
 // leaks across test files.
@@ -182,19 +231,28 @@ export async function list(
     let totalCount = -1;
     let pageOffset = flags.offset ?? 0;
     let nextPageOffset: number | undefined;
+    let failedPage: { offset: number; error: unknown } | undefined;
     for (let pageIndex = 0; datasets.length < flags.limit; pageIndex++) {
       const pageLimit = Math.min(
         flags.limit - datasets.length,
         SERVER_PAGE_SIZE,
       );
-      const response = await listD({
-        config,
-        filter,
-        query: flags.query,
-        limit: pageLimit,
-        offset: pageOffset,
-        orderBy: flags.sort,
-      });
+      let response: DatasetListResponse;
+      try {
+        response = await listD({
+          config,
+          filter,
+          query: flags.query,
+          limit: pageLimit,
+          offset: pageOffset,
+          orderBy: flags.sort,
+        });
+      } catch (error) {
+        if (pageIndex === 0) throw error;
+        failedPage = { offset: pageOffset, error };
+        nextPageOffset = undefined;
+        break;
+      }
       if (pageIndex === 0) totalCount = response.meta.totalCount;
       datasets.push(...response.datasets);
 
@@ -213,39 +271,22 @@ export async function list(
       pageOffset = nextPageOffset;
     }
 
-    const fieldNames = flags.fields ?? DEFAULT_FIELDS;
+    writeDatasets({
+      writer,
+      format,
+      datasets,
+      totalCount,
+      fieldNames: flags.fields ?? DEFAULT_FIELDS,
+      nextPageOffset,
+    });
 
-    if (format === "json") {
-      writer.write(JSON.stringify(datasets, null, 2));
-      return;
-    }
-
-    if (format === "csv") {
-      writer.write(renderAsCSV(datasets));
-      return;
-    }
-
-    if (datasets.length === 0) {
-      writer.warn("No datasets found.");
-      return;
-    }
-
-    // `meta.totalCount = -1` signals "unknown" (set when `--query` is used);
-    // only surface a true population total when the API reports one.
-    const summary =
-      totalCount >= 0
-        ? `Found ${datasets.length} dataset(s) (${totalCount} total):\n`
-        : `Found ${datasets.length} dataset(s):\n`;
-    writer.write(chalk.green(summary));
-
-    const columns = fieldNames.map((field) => FIELD_COLUMNS[field]);
-
-    writer.write(formatTable(datasets, columns));
-
-    if (nextPageOffset !== undefined) {
-      writer.info(
-        `\nMore results may be available. Use --offset ${nextPageOffset} to see the next page.`,
+    if (failedPage) {
+      const remaining = flags.limit - datasets.length;
+      writer.error(
+        `Stopped after ${datasets.length} dataset(s): the request at --offset ${failedPage.offset} failed: ${await formatApiError(failedPage.error)}\n` +
+          `Re-run with --offset ${failedPage.offset} --limit ${remaining} to fetch the rest.`,
       );
+      process.exitCode = 1;
     }
   } catch (error) {
     writer.error(`Error: ${await formatApiError(error)}`);

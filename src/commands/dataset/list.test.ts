@@ -57,7 +57,9 @@ interface ListDatasetsArgs {
  * A page's `meta` is passed through as is, so a page can omit `hasMore` and
  * `nextOffset` to stand in for a server that predates them.
  */
-function pagedDeps(pages: { datasets: DatasetResource[]; meta: object }[]) {
+function pagedDeps(
+  pages: ({ datasets: DatasetResource[]; meta: object } | Error)[],
+) {
   const requests: ListDatasetsArgs[] = [];
   const listDatasetsFromPages = mock((args: ListDatasetsArgs) => {
     requests.push({
@@ -67,6 +69,7 @@ function pagedDeps(pages: { datasets: DatasetResource[]; meta: object }[]) {
     });
     const page = pages[requests.length - 1];
     if (!page) throw new Error(`unexpected request #${requests.length}`);
+    if (page instanceof Error) return Promise.reject(page);
     return Promise.resolve(page as unknown as DatasetListResponse);
   });
   return {
@@ -405,5 +408,68 @@ describe("dataset list paging", () => {
     expect(stdout.join("") + stderr.join("")).not.toContain(
       "More results may be available",
     );
+  });
+
+  test("prints the pages fetched before a later page fails, with a resume offset", async () => {
+    const { context, stdout, stderr, getExitCode } = createMockContext();
+    const { deps: pageDeps, requests } = pagedDeps([
+      {
+        datasets: datasetStubs(100, 0),
+        meta: { totalCount: 900, limit: 100, hasMore: true, nextOffset: 100 },
+      },
+      new Error("socket hang up"),
+    ]);
+
+    await list.call(context, { limit: 250 }, pageDeps);
+
+    expect(requests).toHaveLength(2);
+    expect(stdout.join("")).toContain("Found 100 dataset(s) (900 total)");
+    const errors = stderr.join("");
+    expect(errors).toContain(
+      "Stopped after 100 dataset(s): the request at --offset 100 failed: socket hang up",
+    );
+    expect(errors).toContain(
+      "Re-run with --offset 100 --limit 150 to fetch the rest.",
+    );
+    expect(stdout.join("") + errors).not.toContain(
+      "More results may be available",
+    );
+    expect(getExitCode()).toBe(1);
+  });
+
+  test("keeps --json output valid when a later page fails", async () => {
+    const { context, stdout, stderr, getExitCode } = createMockContext();
+    const { deps: pageDeps } = pagedDeps([
+      {
+        datasets: datasetStubs(100, 0),
+        meta: { totalCount: 900, limit: 100, hasMore: true, nextOffset: 100 },
+      },
+      {
+        datasets: datasetStubs(100, 100),
+        meta: { totalCount: 900, limit: 100, hasMore: true, nextOffset: 200 },
+      },
+      new Error("HTTP 503"),
+    ]);
+
+    await list.call(context, { limit: 300, json: true }, pageDeps);
+
+    const payload = JSON.parse(stdout.join("")) as { id: string }[];
+    expect(payload).toHaveLength(200);
+    expect(stderr.join("")).toContain(
+      "Re-run with --offset 200 --limit 100 to fetch the rest.",
+    );
+    expect(getExitCode()).toBe(1);
+  });
+
+  test("prints nothing but the error when the first page fails", async () => {
+    const { context, stdout, stderr, getExitCode } = createMockContext();
+    const { deps: pageDeps } = pagedDeps([new Error("HTTP 503")]);
+
+    await list.call(context, { limit: 250, json: true }, pageDeps);
+
+    expect(stdout.join("")).toBe("");
+    expect(stderr.join("")).toContain("Error: HTTP 503");
+    expect(stderr.join("")).not.toContain("Stopped after");
+    expect(getExitCode()).toBe(1);
   });
 });
